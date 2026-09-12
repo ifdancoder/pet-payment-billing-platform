@@ -17,7 +17,7 @@ final class CreateCustomerHandler
         private readonly INotificationPort $notifier,
     ) {}
 
-    public function handle(CreateCustomerCommand $command): CustomerId
+    public function handle(CreateCustomerCommand $command): Customer
     {
         $customer = Customer::create(
             CustomerId::generate(),
@@ -28,7 +28,7 @@ final class CreateCustomerHandler
         $this->repository->save($customer);
         $this->dispatch($customer);
 
-        return $customer->id();
+        return $customer;
     }
 
     private function dispatch(Customer $customer): void
