@@ -1,0 +1,40 @@
+# grafana/grafana chart values, pinned to the version in
+# kustomization.yaml. Check that version's default values.yaml before
+# bumping it.
+
+persistence:
+  enabled: true
+  size: 2Gi
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-server.pet-payment-billing-platform.svc.cluster.local
+        isDefault: true
+      - name: Tempo
+        type: tempo
+        access: proxy
+        url: http://tempo.pet-payment-billing-platform.svc.cluster.local:3200
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki.pet-payment-billing-platform.svc.cluster.local:3100
+
+# No admin credentials set here. The chart generates a random password
+# and drops it in a Secret (check the post-install NOTES.txt). Switch to
+# admin.existingSecret once external-secrets/ is wired up.
+
+ingress:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi

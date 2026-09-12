@@ -1,0 +1,29 @@
+# Placeholder for the RabbitMQ cluster in Kubernetes.
+#
+# Not applied yet, on purpose (kept out of kustomization.yaml) until:
+#   1. the RabbitMQ Cluster Operator is installed, see
+#      https://www.rabbitmq.com/kubernetes/operator/install-operator
+#   2. this platform layer actually gets deployed somewhere. Local dev
+#      still uses the RabbitMQ container from the root docker-compose.yaml.
+#
+# Kept here as a reference for what the RabbitmqCluster resource will
+# look like:
+#
+# apiVersion: rabbitmq.com/v1beta1
+# kind: RabbitmqCluster
+# metadata:
+#   name: pet-payment-billing-platform
+#   namespace: pet-payment-billing-platform
+# spec:
+#   replicas: 1
+#   image: rabbitmq:4-management
+#   resources:
+#     requests:
+#       cpu: 250m
+#       memory: 512Mi
+#     limits:
+#       cpu: 500m
+#       memory: 1Gi
+#   persistence:
+#     storageClassName: standard
+#     storage: 5Gi

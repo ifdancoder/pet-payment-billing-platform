@@ -1,0 +1,12 @@
+# Normalize line endings for everyone, regardless of local git config.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+
+# Never diff/merge as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary

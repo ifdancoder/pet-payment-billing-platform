@@ -1,0 +1,33 @@
+# Ingress for the API gateway.
+#
+# Assumes ingress-nginx is already installed in the cluster (not managed
+# by this repo):
+#   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+#   helm install ingress-nginx ingress-nginx/ingress-nginx \
+#     --namespace ingress-nginx --create-namespace
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pet-payment-billing-platform-gateway
+  namespace: pet-payment-billing-platform
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.pet-payment-billing-platform.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80
+  # No TLS yet. Once there's a real certificate (e.g. via cert-manager),
+  # uncomment this and point it at a real secret:
+  # tls:
+  #   - hosts:
+  #       - api.pet-payment-billing-platform.local
+  #     secretName: pet-payment-billing-platform-gateway-tls

@@ -1,0 +1,34 @@
+# grafana/tempo (single-binary) chart values, pinned to the version in
+# kustomization.yaml. Check that version's default values.yaml before
+# bumping it.
+#
+# Filesystem storage works fine for a single-node/pet-project setup, but
+# it's not durable or HA. Switch to an object storage backend before this
+# needs to survive more than a pod restart.
+
+tempo:
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+persistence:
+  enabled: true
+  size: 5Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 250m
+    memory: 512Mi
