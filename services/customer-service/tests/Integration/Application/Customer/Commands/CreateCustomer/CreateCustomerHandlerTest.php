@@ -11,12 +11,11 @@ test('handle persists a new customer with the given email and name', function ()
     Mail::fake();
     $handler = new CreateCustomerHandler(app(ICustomerRepositoryPort::class), app(INotificationPort::class));
 
-    $id = $handler->handle(new CreateCustomerCommand('jane@example.com', 'Jane Doe'));
+    $customer = $handler->handle(new CreateCustomerCommand('jane@example.com', 'Jane Doe'));
 
-    $customer = app(ICustomerRepositoryPort::class)->findById($id);
-    expect($customer)->not->toBeNull()
-        ->and($customer->email()->toString())->toBe('jane@example.com')
-        ->and($customer->name()->toString())->toBe('Jane Doe');
+    $persisted = app(ICustomerRepositoryPort::class)->get($customer->id());
+    expect($persisted->email()->toString())->toBe('jane@example.com')
+        ->and($persisted->name()->toString())->toBe('Jane Doe');
 });
 
 test('handle sends a welcome notification to the new customer', function () {
