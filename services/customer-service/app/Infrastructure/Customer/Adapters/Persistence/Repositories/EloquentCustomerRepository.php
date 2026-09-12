@@ -4,6 +4,7 @@ namespace App\Infrastructure\Customer\Adapters\Persistence\Repositories;
 
 use App\Application\Customer\Ports\Outbound\ICustomerRepositoryPort;
 use App\Domain\Customer\Customer;
+use App\Domain\Customer\Exceptions\CustomerNotFound;
 use App\Domain\Customer\ValueObjects\CustomerId;
 use App\Infrastructure\Customer\Adapters\Persistence\Mappers\CustomerMapper;
 use App\Infrastructure\Customer\Adapters\Persistence\Models\CustomerModel;
@@ -19,10 +20,14 @@ final class EloquentCustomerRepository implements ICustomerRepositoryPort
         $this->mapper->toModel($customer, $model)->save();
     }
 
-    public function findById(CustomerId $id): ?Customer
+    public function get(CustomerId $id): Customer
     {
         $model = CustomerModel::query()->find($id->toString());
 
-        return $model ? $this->mapper->toDomain($model) : null;
+        if ($model === null) {
+            throw CustomerNotFound::withId($id);
+        }
+
+        return $this->mapper->toDomain($model);
     }
 }
