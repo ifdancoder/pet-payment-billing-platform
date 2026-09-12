@@ -26,6 +26,15 @@ final class Customer
         return $customer;
     }
 
+    /**
+     * Rebuilds a Customer from already-persisted data. Unlike create(), this
+     * does not record a CustomerCreated event.
+     */
+    public static function reconstitute(CustomerId $id, Email $email, CustomerName $name): self
+    {
+        return new self($id, $email, $name);
+    }
+
     public function id(): CustomerId
     {
         return $this->id;
