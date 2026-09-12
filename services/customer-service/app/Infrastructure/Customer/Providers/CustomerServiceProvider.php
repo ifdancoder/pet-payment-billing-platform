@@ -2,6 +2,8 @@
 
 namespace App\Infrastructure\Customer\Providers;
 
+use App\Application\Customer\Ports\Outbound\ICustomerRepositoryPort;
+use App\Infrastructure\Customer\Adapters\Persistence\Repositories\EloquentCustomerRepository;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -12,8 +14,7 @@ class CustomerServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Bind Customer ports to their adapters here once they exist, e.g.:
-        // $this->app->bind(CustomerRepositoryPort::class, EloquentCustomerRepository::class);
+        $this->app->bind(ICustomerRepositoryPort::class, EloquentCustomerRepository::class);
     }
 
     /**

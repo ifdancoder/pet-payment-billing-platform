@@ -40,3 +40,16 @@ test('pullRecordedEvents empties the recorded events', function () {
 
     expect($customer->pullRecordedEvents())->toBe([]);
 });
+
+test('reconstitute exposes the given id, email and name without recording an event', function () {
+    $id = CustomerId::generate();
+    $email = Email::fromString('jane@example.com');
+    $name = CustomerName::fromString('Jane Doe');
+
+    $customer = Customer::reconstitute($id, $email, $name);
+
+    expect($customer->id()->equals($id))->toBeTrue()
+        ->and($customer->email()->equals($email))->toBeTrue()
+        ->and($customer->name()->equals($name))->toBeTrue()
+        ->and($customer->pullRecordedEvents())->toBe([]);
+});
