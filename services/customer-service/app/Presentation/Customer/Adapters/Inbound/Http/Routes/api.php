@@ -1,4 +1,6 @@
 <?php
 
-// Customer module routes, served under /api (see CustomerServiceProvider).
-// Empty until the first endpoint (CreateCustomer, GetCustomer, ...) exists.
+use App\Presentation\Customer\Adapters\Inbound\Http\Controllers\CustomerController;
+use Illuminate\Support\Facades\Route;
+
+Route::post('/customers', [CustomerController::class, 'store']);

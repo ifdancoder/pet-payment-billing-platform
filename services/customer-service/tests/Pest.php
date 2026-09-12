@@ -15,7 +15,7 @@ use Tests\TestCase;
 */
 
 pest()->extend(TestCase::class)
- // ->use(RefreshDatabase::class)
+    ->use(LazilyRefreshDatabase::class)
     ->in('Feature');
 
 pest()->extend(TestCase::class)
