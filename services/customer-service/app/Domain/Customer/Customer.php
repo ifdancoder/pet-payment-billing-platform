@@ -14,8 +14,8 @@ final class Customer
 
     private function __construct(
         private readonly CustomerId $id,
-        private readonly Email $email,
-        private readonly CustomerName $name,
+        private Email $email,
+        private CustomerName $name,
     ) {}
 
     public static function create(CustomerId $id, Email $email, CustomerName $name): self
@@ -48,6 +48,16 @@ final class Customer
     public function name(): CustomerName
     {
         return $this->name;
+    }
+
+    public function changeEmail(Email $email): void
+    {
+        $this->email = $email;
+    }
+
+    public function rename(CustomerName $name): void
+    {
+        $this->name = $name;
     }
 
     /**
