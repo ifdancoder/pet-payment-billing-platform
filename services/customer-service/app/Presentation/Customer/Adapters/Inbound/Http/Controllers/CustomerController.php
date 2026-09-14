@@ -7,6 +7,7 @@ use App\Application\Customer\Commands\DeleteCustomer\DeleteCustomerCommand;
 use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerCommand;
 use App\Application\Customer\Ports\Inbound\ICustomerServicePort;
 use App\Application\Customer\Queries\GetCustomer\GetCustomerQuery;
+use App\Application\Customer\Queries\ListCustomers\ListCustomersQuery;
 use App\Presentation\Customer\Adapters\Inbound\Http\Requests\CreateCustomerRequest;
 use App\Presentation\Customer\Adapters\Inbound\Http\Requests\UpdateCustomerRequest;
 use App\Presentation\Customer\Adapters\Inbound\Http\Resources\CustomerResource;
@@ -17,6 +18,13 @@ use Illuminate\Http\Response;
 final class CustomerController extends Controller
 {
     public function __construct(private readonly ICustomerServicePort $customerService) {}
+
+    public function index(): JsonResponse
+    {
+        $customers = $this->customerService->listCustomers(new ListCustomersQuery);
+
+        return CustomerResource::collection($customers)->response();
+    }
 
     public function store(CreateCustomerRequest $request): JsonResponse
     {

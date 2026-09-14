@@ -39,4 +39,11 @@ final class EloquentCustomerRepository implements ICustomerRepositoryPort
             throw CustomerNotFound::withId($id);
         }
     }
+
+    public function all(): array
+    {
+        return CustomerModel::query()->get()
+            ->map(fn (CustomerModel $model) => $this->mapper->toDomain($model))
+            ->all();
+    }
 }

@@ -62,3 +62,21 @@ test('delete throws CustomerNotFound when no customer matches', function () {
 
     $repository->delete(CustomerId::generate());
 })->throws(CustomerNotFound::class);
+
+test('all returns every persisted customer', function () {
+    $repository = new EloquentCustomerRepository(new CustomerMapper);
+    $repository->save(Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
+    $repository->save(Customer::create(CustomerId::generate(), Email::fromString('john@example.com'), CustomerName::fromString('John Doe')));
+
+    $customers = $repository->all();
+
+    expect($customers)->toHaveCount(2)
+        ->and(array_map(fn (Customer $c) => $c->email()->toString(), $customers))
+        ->toEqualCanonicalizing(['jane@example.com', 'john@example.com']);
+});
+
+test('all returns an empty array when there are no customers', function () {
+    $repository = new EloquentCustomerRepository(new CustomerMapper);
+
+    expect($repository->all())->toBe([]);
+});
