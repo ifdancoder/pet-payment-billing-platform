@@ -3,6 +3,7 @@
 namespace App\Presentation\Customer\Adapters\Inbound\Http\Controllers;
 
 use App\Application\Customer\Commands\CreateCustomer\CreateCustomerCommand;
+use App\Application\Customer\Commands\DeleteCustomer\DeleteCustomerCommand;
 use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerCommand;
 use App\Application\Customer\Ports\Inbound\ICustomerServicePort;
 use App\Application\Customer\Queries\GetCustomer\GetCustomerQuery;
@@ -11,6 +12,7 @@ use App\Presentation\Customer\Adapters\Inbound\Http\Requests\UpdateCustomerReque
 use App\Presentation\Customer\Adapters\Inbound\Http\Resources\CustomerResource;
 use App\Shared\Presentation\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response;
 
 final class CustomerController extends Controller
 {
@@ -42,5 +44,12 @@ final class CustomerController extends Controller
         ));
 
         return CustomerResource::make($customer)->response();
+    }
+
+    public function destroy(string $id): Response
+    {
+        $this->customerService->deleteCustomer(new DeleteCustomerCommand($id));
+
+        return response()->noContent();
     }
 }

@@ -14,4 +14,9 @@ interface ICustomerRepositoryPort
      * @throws CustomerNotFound
      */
     public function get(CustomerId $id): Customer;
+
+    /**
+     * @throws CustomerNotFound
+     */
+    public function delete(CustomerId $id): void;
 }

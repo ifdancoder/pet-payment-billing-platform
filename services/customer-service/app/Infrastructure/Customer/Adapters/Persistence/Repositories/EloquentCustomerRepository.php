@@ -30,4 +30,13 @@ final class EloquentCustomerRepository implements ICustomerRepositoryPort
 
         return $this->mapper->toDomain($model);
     }
+
+    public function delete(CustomerId $id): void
+    {
+        $deleted = CustomerModel::query()->whereKey($id->toString())->delete();
+
+        if ($deleted === 0) {
+            throw CustomerNotFound::withId($id);
+        }
+    }
 }

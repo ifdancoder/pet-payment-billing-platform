@@ -3,6 +3,7 @@
 namespace App\Application\Customer\Ports\Inbound;
 
 use App\Application\Customer\Commands\CreateCustomer\CreateCustomerCommand;
+use App\Application\Customer\Commands\DeleteCustomer\DeleteCustomerCommand;
 use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerCommand;
 use App\Application\Customer\Queries\GetCustomer\GetCustomerQuery;
 use App\Domain\Customer\Customer;
@@ -21,4 +22,9 @@ interface ICustomerServicePort
      * @throws CustomerNotFound
      */
     public function updateCustomer(UpdateCustomerCommand $command): Customer;
+
+    /**
+     * @throws CustomerNotFound
+     */
+    public function deleteCustomer(DeleteCustomerCommand $command): void;
 }
