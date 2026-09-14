@@ -6,6 +6,7 @@ use App\Application\Customer\Commands\CreateCustomer\CreateCustomerCommand;
 use App\Application\Customer\Commands\DeleteCustomer\DeleteCustomerCommand;
 use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerCommand;
 use App\Application\Customer\Queries\GetCustomer\GetCustomerQuery;
+use App\Application\Customer\Queries\ListCustomers\ListCustomersQuery;
 use App\Domain\Customer\Customer;
 use App\Domain\Customer\Exceptions\CustomerNotFound;
 
@@ -27,4 +28,9 @@ interface ICustomerServicePort
      * @throws CustomerNotFound
      */
     public function deleteCustomer(DeleteCustomerCommand $command): void;
+
+    /**
+     * @return array<int, Customer>
+     */
+    public function listCustomers(ListCustomersQuery $query): array;
 }

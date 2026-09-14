@@ -6,6 +6,7 @@ use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerCommand;
 use App\Application\Customer\CustomerService;
 use App\Application\Customer\Ports\Outbound\ICustomerRepositoryPort;
 use App\Application\Customer\Queries\GetCustomer\GetCustomerQuery;
+use App\Application\Customer\Queries\ListCustomers\ListCustomersQuery;
 use App\Domain\Customer\Exceptions\CustomerNotFound;
 use Illuminate\Support\Facades\Mail;
 
@@ -47,4 +48,15 @@ test('deleteCustomer delegates to DeleteCustomerHandler and removes the customer
     $service->deleteCustomer(new DeleteCustomerCommand($created->id()->toString()));
 
     expect(fn () => app(ICustomerRepositoryPort::class)->get($created->id()))->toThrow(CustomerNotFound::class);
+});
+
+test('listCustomers delegates to ListCustomersHandler and returns every customer', function () {
+    Mail::fake();
+    $service = app(CustomerService::class);
+    $service->createCustomer(new CreateCustomerCommand('jane@example.com', 'Jane Doe'));
+    $service->createCustomer(new CreateCustomerCommand('john@example.com', 'John Doe'));
+
+    $customers = $service->listCustomers(new ListCustomersQuery);
+
+    expect($customers)->toHaveCount(2);
 });

@@ -11,6 +11,8 @@ use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerHandler;
 use App\Application\Customer\Ports\Inbound\ICustomerServicePort;
 use App\Application\Customer\Queries\GetCustomer\GetCustomerHandler;
 use App\Application\Customer\Queries\GetCustomer\GetCustomerQuery;
+use App\Application\Customer\Queries\ListCustomers\ListCustomersHandler;
+use App\Application\Customer\Queries\ListCustomers\ListCustomersQuery;
 use App\Domain\Customer\Customer;
 
 final class CustomerService implements ICustomerServicePort
@@ -20,6 +22,7 @@ final class CustomerService implements ICustomerServicePort
         private readonly GetCustomerHandler $getCustomerHandler,
         private readonly UpdateCustomerHandler $updateCustomerHandler,
         private readonly DeleteCustomerHandler $deleteCustomerHandler,
+        private readonly ListCustomersHandler $listCustomersHandler,
     ) {}
 
     public function createCustomer(CreateCustomerCommand $command): Customer
@@ -40,5 +43,10 @@ final class CustomerService implements ICustomerServicePort
     public function deleteCustomer(DeleteCustomerCommand $command): void
     {
         $this->deleteCustomerHandler->handle($command);
+    }
+
+    public function listCustomers(ListCustomersQuery $query): array
+    {
+        return $this->listCustomersHandler->handle($query);
     }
 }
