@@ -53,3 +53,21 @@ test('reconstitute exposes the given id, email and name without recording an eve
         ->and($customer->name()->equals($name))->toBeTrue()
         ->and($customer->pullRecordedEvents())->toBe([]);
 });
+
+test('changeEmail replaces the email', function () {
+    $customer = Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $newEmail = Email::fromString('jane.doe@example.com');
+
+    $customer->changeEmail($newEmail);
+
+    expect($customer->email()->equals($newEmail))->toBeTrue();
+});
+
+test('rename replaces the name', function () {
+    $customer = Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $newName = CustomerName::fromString('Jane Smith');
+
+    $customer->rename($newName);
+
+    expect($customer->name()->equals($newName))->toBeTrue();
+});

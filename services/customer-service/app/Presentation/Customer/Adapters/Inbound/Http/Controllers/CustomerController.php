@@ -3,9 +3,11 @@
 namespace App\Presentation\Customer\Adapters\Inbound\Http\Controllers;
 
 use App\Application\Customer\Commands\CreateCustomer\CreateCustomerCommand;
+use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerCommand;
 use App\Application\Customer\Ports\Inbound\ICustomerServicePort;
 use App\Application\Customer\Queries\GetCustomer\GetCustomerQuery;
 use App\Presentation\Customer\Adapters\Inbound\Http\Requests\CreateCustomerRequest;
+use App\Presentation\Customer\Adapters\Inbound\Http\Requests\UpdateCustomerRequest;
 use App\Presentation\Customer\Adapters\Inbound\Http\Resources\CustomerResource;
 use App\Shared\Presentation\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +29,17 @@ final class CustomerController extends Controller
     public function show(string $id): JsonResponse
     {
         $customer = $this->customerService->getCustomer(new GetCustomerQuery($id));
+
+        return CustomerResource::make($customer)->response();
+    }
+
+    public function update(string $id, UpdateCustomerRequest $request): JsonResponse
+    {
+        $customer = $this->customerService->updateCustomer(new UpdateCustomerCommand(
+            $id,
+            $request->validated('email'),
+            $request->validated('name'),
+        ));
 
         return CustomerResource::make($customer)->response();
     }
