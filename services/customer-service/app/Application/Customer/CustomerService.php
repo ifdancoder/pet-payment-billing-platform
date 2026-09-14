@@ -4,6 +4,8 @@ namespace App\Application\Customer;
 
 use App\Application\Customer\Commands\CreateCustomer\CreateCustomerCommand;
 use App\Application\Customer\Commands\CreateCustomer\CreateCustomerHandler;
+use App\Application\Customer\Commands\DeleteCustomer\DeleteCustomerCommand;
+use App\Application\Customer\Commands\DeleteCustomer\DeleteCustomerHandler;
 use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerCommand;
 use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerHandler;
 use App\Application\Customer\Ports\Inbound\ICustomerServicePort;
@@ -17,6 +19,7 @@ final class CustomerService implements ICustomerServicePort
         private readonly CreateCustomerHandler $createCustomerHandler,
         private readonly GetCustomerHandler $getCustomerHandler,
         private readonly UpdateCustomerHandler $updateCustomerHandler,
+        private readonly DeleteCustomerHandler $deleteCustomerHandler,
     ) {}
 
     public function createCustomer(CreateCustomerCommand $command): Customer
@@ -32,5 +35,10 @@ final class CustomerService implements ICustomerServicePort
     public function updateCustomer(UpdateCustomerCommand $command): Customer
     {
         return $this->updateCustomerHandler->handle($command);
+    }
+
+    public function deleteCustomer(DeleteCustomerCommand $command): void
+    {
+        $this->deleteCustomerHandler->handle($command);
     }
 }

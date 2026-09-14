@@ -46,3 +46,19 @@ test('get throws CustomerNotFound when no customer matches', function () {
 
     $repository->get(CustomerId::generate());
 })->throws(CustomerNotFound::class);
+
+test('delete removes a persisted customer', function () {
+    $repository = new EloquentCustomerRepository(new CustomerMapper);
+    $id = CustomerId::generate();
+    $repository->save(Customer::create($id, Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
+
+    $repository->delete($id);
+
+    expect(CustomerModel::query()->where('id', $id->toString())->exists())->toBeFalse();
+});
+
+test('delete throws CustomerNotFound when no customer matches', function () {
+    $repository = new EloquentCustomerRepository(new CustomerMapper);
+
+    $repository->delete(CustomerId::generate());
+})->throws(CustomerNotFound::class);
