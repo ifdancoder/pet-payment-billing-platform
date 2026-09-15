@@ -11,6 +11,7 @@ use App\Application\Customer\Queries\ListCustomers\ListCustomersQuery;
 use App\Presentation\Customer\Adapters\Inbound\Http\Requests\CreateCustomerRequest;
 use App\Presentation\Customer\Adapters\Inbound\Http\Requests\UpdateCustomerRequest;
 use App\Presentation\Customer\Adapters\Inbound\Http\Resources\CustomerResource;
+use App\Presentation\Customer\Adapters\Inbound\Http\Resources\CustomerResourceCollection;
 use App\Shared\Presentation\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -23,7 +24,7 @@ final class CustomerController extends Controller
     {
         $customers = $this->customerService->listCustomers(new ListCustomersQuery);
 
-        return CustomerResource::collection($customers)->response();
+        return (new CustomerResourceCollection($customers))->response();
     }
 
     public function store(CreateCustomerRequest $request): JsonResponse
