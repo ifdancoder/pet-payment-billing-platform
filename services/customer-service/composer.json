@@ -8,6 +8,12 @@
         "framework"
     ],
     "license": "MIT",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../packages/testing-conventions"
+        }
+    ],
     "require": {
         "php": "^8.3",
         "laravel/framework": "^13.17",
@@ -23,7 +29,8 @@
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
         "pestphp/pest": "^5.2",
-        "pestphp/pest-plugin-laravel": "^5.0"
+        "pestphp/pest-plugin-laravel": "^5.0",
+        "platform/testing-conventions": "@dev"
     },
     "autoload": {
         "psr-4": {
