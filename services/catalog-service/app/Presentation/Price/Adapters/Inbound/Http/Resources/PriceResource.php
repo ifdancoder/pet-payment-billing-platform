@@ -1,0 +1,29 @@
+<?php
+
+namespace App\Presentation\Price\Adapters\Inbound\Http\Resources;
+
+use App\Domain\Price\Price;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+final class PriceResource extends JsonResource
+{
+    public function __construct(private readonly Price $price)
+    {
+        parent::__construct($price);
+    }
+
+    /**
+     * @return array<string, string|int>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->price->id()->toString(),
+            'product_id' => $this->price->productId()->toString(),
+            'amount_minor_units' => $this->price->money()->amountMinorUnits(),
+            'currency' => $this->price->money()->currency()->value,
+            'billing_interval' => $this->price->billingInterval()->value,
+        ];
+    }
+}

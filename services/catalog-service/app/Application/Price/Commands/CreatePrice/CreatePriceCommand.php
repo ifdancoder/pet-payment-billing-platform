@@ -1,0 +1,13 @@
+<?php
+
+namespace App\Application\Price\Commands\CreatePrice;
+
+final class CreatePriceCommand
+{
+    public function __construct(
+        public readonly string $productId,
+        public readonly int $amountMinorUnits,
+        public readonly string $currency,
+        public readonly string $billingInterval,
+    ) {}
+}

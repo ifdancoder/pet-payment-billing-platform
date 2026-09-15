@@ -1,5 +1,7 @@
 <?php
 
+use App\Domain\Price\Exceptions\PriceNotFound;
+use App\Domain\Product\Exceptions\ProductNotFound;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,4 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        $exceptions->render(fn (ProductNotFound $e) => response()->json(['message' => $e->getMessage()], 404));
+        $exceptions->render(fn (PriceNotFound $e) => response()->json(['message' => $e->getMessage()], 404));
     })->create();
