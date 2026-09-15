@@ -3,6 +3,7 @@
 namespace App\Application\Customer\Commands\CreateCustomer;
 
 use App\Application\Customer\Ports\Outbound\ICustomerRepositoryPort;
+use App\Application\Customer\Ports\Outbound\IEventPublisherPort;
 use App\Application\Customer\Ports\Outbound\INotificationPort;
 use App\Domain\Customer\Customer;
 use App\Domain\Customer\Events\CustomerCreated;
@@ -15,6 +16,7 @@ final class CreateCustomerHandler
     public function __construct(
         private readonly ICustomerRepositoryPort $repository,
         private readonly INotificationPort $notifier,
+        private readonly IEventPublisherPort $eventPublisher,
     ) {}
 
     public function handle(CreateCustomerCommand $command): Customer
@@ -34,6 +36,8 @@ final class CreateCustomerHandler
     private function dispatch(Customer $customer): void
     {
         foreach ($customer->pullRecordedEvents() as $event) {
+            $this->eventPublisher->publish($event);
+
             if ($event instanceof CustomerCreated) {
                 $this->notifier->send(
                     $event->email,
