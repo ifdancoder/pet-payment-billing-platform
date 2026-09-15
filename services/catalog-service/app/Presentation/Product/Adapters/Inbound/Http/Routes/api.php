@@ -1,4 +1,6 @@
 <?php
 
-// Product module routes, served under /api (see ProductServiceProvider).
-// Empty until the first endpoint (CreateProduct, ListProducts, ...) exists.
+use App\Presentation\Product\Adapters\Inbound\Http\Controllers\ProductController;
+use Illuminate\Support\Facades\Route;
+
+Route::post('/products', [ProductController::class, 'store']);
