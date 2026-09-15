@@ -6,6 +6,9 @@ arch('persistence mappers implement toDomain and toModel', function (): void {
     ArchRules::expectMappersToImplementToDomainAndToModel(
         'App\Infrastructure\Product\Adapters\Persistence\Mappers',
     );
+    ArchRules::expectMappersToImplementToDomainAndToModel(
+        'App\Infrastructure\Price\Adapters\Persistence\Mappers',
+    );
 });
 
 arch('domain has no framework dependency')
