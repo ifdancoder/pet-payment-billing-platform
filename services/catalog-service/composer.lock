@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3275bcbba8f84afc696dc46725e25792",
+    "content-hash": "e64525c64d82dae0bdc564d31d4e4e73",
     "packages": [
         {
             "name": "brick/math",
@@ -8739,6 +8739,31 @@
             "time": "2026-09-15T07:37:05+00:00"
         },
         {
+            "name": "platform/testing-conventions",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../../packages/testing-conventions",
+                "reference": "4f66e41e81e2456419cb008d33d8fff5db87f9e8"
+            },
+            "require": {
+                "php": "^8.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Platform\\TestingConventions\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Shared Pest architecture rules for services in this monorepo.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
             "name": "sebastian/cli-parser",
             "version": "5.0.1",
             "source": {
@@ -10150,7 +10175,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "platform/testing-conventions": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
