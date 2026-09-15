@@ -1,19 +1,24 @@
 <?php
 
-use App\Domain\Customer\Events\CustomerCreated;
-use App\Domain\Customer\ValueObjects\CustomerId;
-use App\Domain\Customer\ValueObjects\CustomerName;
-use App\Domain\Customer\ValueObjects\Email;
-use App\Infrastructure\Customer\Adapters\Messaging\LogEventPublisher;
+use App\Shared\Application\ReadModels\OutboxMessage;
+use App\Shared\Infrastructure\Messaging\LogEventPublisher;
 use Illuminate\Support\Facades\Log;
 
-test('publish logs the event class name', function () {
+test('publish logs the event type and id', function () {
     Log::spy();
-    $event = new CustomerCreated(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $message = new OutboxMessage(
+        '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'customer.created.v1',
+        'customer',
+        '1a2b3c4d-5e6f-4321-8765-0123456789ab',
+        ['email' => 'jane@example.com'],
+        new DateTimeImmutable,
+    );
 
-    (new LogEventPublisher)->publish($event);
+    (new LogEventPublisher)->publish($message);
 
     Log::shouldHaveReceived('info')
         ->once()
-        ->withArgs(fn (string $message) => str_contains($message, CustomerCreated::class));
+        ->withArgs(fn (string $text) => str_contains($text, 'customer.created.v1')
+            && str_contains($text, '9f8e7d6c-5b4a-4321-9876-abcdef012345'));
 });
