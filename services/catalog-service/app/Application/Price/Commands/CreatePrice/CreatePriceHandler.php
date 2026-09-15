@@ -2,6 +2,7 @@
 
 namespace App\Application\Price\Commands\CreatePrice;
 
+use App\Application\Price\Ports\Outbound\IEventPublisherPort;
 use App\Application\Price\Ports\Outbound\IPriceRepositoryPort;
 use App\Application\Product\Ports\Outbound\IProductRepositoryPort;
 use App\Domain\Price\Price;
@@ -18,6 +19,7 @@ final class CreatePriceHandler
     public function __construct(
         private readonly IProductRepositoryPort $products,
         private readonly IPriceRepositoryPort $prices,
+        private readonly IEventPublisherPort $eventPublisher,
     ) {}
 
     public function handle(CreatePriceCommand $command): Price
@@ -38,7 +40,15 @@ final class CreatePriceHandler
         );
 
         $this->prices->save($price);
+        $this->dispatch($price);
 
         return $price;
+    }
+
+    private function dispatch(Price $price): void
+    {
+        foreach ($price->pullRecordedEvents() as $event) {
+            $this->eventPublisher->publish($event);
+        }
     }
 }
