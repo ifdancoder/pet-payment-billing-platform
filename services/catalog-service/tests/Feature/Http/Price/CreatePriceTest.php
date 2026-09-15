@@ -16,7 +16,7 @@ test('a valid request creates a recurring price for the product and returns it',
 
     $response->assertCreated()
         ->assertJsonStructure(['data' => [
-            'id', 'product_id', 'amount_minor_units', 'currency', 'type', 'billing_interval', 'billing_interval_count',
+            'id', 'product_id', 'amount_minor_units', 'currency', 'type', 'billing_interval', 'billing_interval_count', 'status',
         ]])
         ->assertJsonPath('data.product_id', $product['id'])
         ->assertJsonPath('data.amount_minor_units', 1999)

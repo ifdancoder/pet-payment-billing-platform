@@ -1,11 +1,14 @@
 <?php
 
+use App\Application\Price\Commands\ActivatePrice\ActivatePriceCommand;
 use App\Application\Price\Commands\CreatePrice\CreatePriceCommand;
+use App\Application\Price\Commands\DeactivatePrice\DeactivatePriceCommand;
 use App\Application\Price\PriceService;
 use App\Application\Price\Queries\GetPrice\GetPriceQuery;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\ProductService;
 use App\Domain\Price\ValueObjects\BillingInterval;
+use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 
 test('createPrice delegates to CreatePriceHandler and returns the created price', function () {
@@ -39,4 +42,25 @@ test('getPrice delegates to GetPriceHandler and returns the matching price', fun
     $found = $service->getPrice(new GetPriceQuery($created->id()->toString()));
 
     expect($found->id()->equals($created->id()))->toBeTrue();
+});
+
+test('deactivatePrice delegates to DeactivatePriceHandler and returns the deactivated price', function () {
+    $product = app(ProductService::class)->createProduct(new CreateProductCommand('Pro Plan'));
+    $service = app(PriceService::class);
+    $price = $service->createPrice(new CreatePriceCommand($product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
+
+    $deactivated = $service->deactivatePrice(new DeactivatePriceCommand($price->id()->toString()));
+
+    expect($deactivated->status())->toBe(PriceStatus::Inactive);
+});
+
+test('activatePrice delegates to ActivatePriceHandler and returns the activated price', function () {
+    $product = app(ProductService::class)->createProduct(new CreateProductCommand('Pro Plan'));
+    $service = app(PriceService::class);
+    $price = $service->createPrice(new CreatePriceCommand($product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
+    $service->deactivatePrice(new DeactivatePriceCommand($price->id()->toString()));
+
+    $activated = $service->activatePrice(new ActivatePriceCommand($price->id()->toString()));
+
+    expect($activated->status())->toBe(PriceStatus::Active);
 });

@@ -2,7 +2,9 @@
 
 namespace App\Presentation\Price\Adapters\Inbound\Http\Controllers;
 
+use App\Application\Price\Commands\ActivatePrice\ActivatePriceCommand;
 use App\Application\Price\Commands\CreatePrice\CreatePriceCommand;
+use App\Application\Price\Commands\DeactivatePrice\DeactivatePriceCommand;
 use App\Application\Price\Ports\Inbound\IPriceServicePort;
 use App\Application\Price\Queries\GetPrice\GetPriceQuery;
 use App\Presentation\Price\Adapters\Inbound\Http\Requests\CreatePriceRequest;
@@ -33,5 +35,19 @@ final class PriceController extends Controller
         $found = $this->priceService->getPrice(new GetPriceQuery($price));
 
         return PriceResource::make($found)->response();
+    }
+
+    public function activate(string $price): JsonResponse
+    {
+        $activated = $this->priceService->activatePrice(new ActivatePriceCommand($price));
+
+        return PriceResource::make($activated)->response();
+    }
+
+    public function deactivate(string $price): JsonResponse
+    {
+        $deactivated = $this->priceService->deactivatePrice(new DeactivatePriceCommand($price));
+
+        return PriceResource::make($deactivated)->response();
     }
 }
