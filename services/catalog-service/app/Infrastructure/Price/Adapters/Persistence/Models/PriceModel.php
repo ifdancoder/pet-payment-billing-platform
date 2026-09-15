@@ -17,6 +17,8 @@ class PriceModel extends Model
         'product_id',
         'amount_minor_units',
         'currency',
+        'type',
         'billing_interval',
+        'billing_interval_count',
     ];
 }

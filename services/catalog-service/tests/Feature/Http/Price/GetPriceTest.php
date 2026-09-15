@@ -1,11 +1,16 @@
 <?php
 
+use App\Domain\Price\ValueObjects\BillingInterval;
+use App\Domain\Price\ValueObjects\PriceType;
+
 test('a request returns the matching price', function () {
     $product = $this->postJson('/api/products', ['name' => 'Pro Plan'])->json('data');
     $price = $this->postJson("/api/products/{$product['id']}/prices", [
         'amount_minor_units' => 1999,
         'currency' => 'USD',
-        'billing_interval' => 'monthly',
+        'type' => PriceType::Recurring->value,
+        'billing_interval' => BillingInterval::Month->value,
+        'billing_interval_count' => 1,
     ])->json('data');
 
     $response = $this->getJson("/api/prices/{$price['id']}");

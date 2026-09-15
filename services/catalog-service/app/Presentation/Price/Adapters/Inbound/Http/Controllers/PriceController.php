@@ -20,7 +20,9 @@ final class PriceController extends Controller
             $product,
             $request->validated('amount_minor_units'),
             $request->validated('currency'),
+            $request->validated('type'),
             $request->validated('billing_interval'),
+            $request->validated('billing_interval_count'),
         ));
 
         return PriceResource::make($price)->response()->setStatusCode(201);
