@@ -5,13 +5,12 @@ use App\Application\Price\Commands\CreatePrice\CreatePriceHandler;
 use App\Application\Price\Ports\Outbound\IPriceRepositoryPort;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\Commands\CreateProduct\CreateProductHandler;
-use App\Domain\Price\Events\PriceCreated;
 use App\Domain\Price\Exceptions\InvalidPrice;
 use App\Domain\Price\ValueObjects\BillingInterval;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\Exceptions\ProductNotFound;
 use App\Domain\Product\ValueObjects\ProductId;
-use Illuminate\Support\Facades\Log;
+use App\Shared\Application\Ports\Outbound\IOutboxPort;
 
 test('handle persists a new recurring price for an existing product', function () {
     $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
@@ -73,14 +72,15 @@ test('handle throws InvalidPrice when a recurring price is requested without a b
     ));
 })->throws(InvalidPrice::class);
 
-test('handle publishes a PriceCreated event', function () {
+test('handle records a PriceCreated integration event in the outbox', function () {
     $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
-    Log::spy();
     $handler = app(CreatePriceHandler::class);
 
-    $handler->handle(new CreatePriceCommand($product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
+    $price = $handler->handle(new CreatePriceCommand($product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
 
-    Log::shouldHaveReceived('info')
-        ->once()
-        ->withArgs(fn (string $message) => str_contains($message, PriceCreated::class));
+    $unpublished = app(IOutboxPort::class)->unpublished();
+    $created = collect($unpublished)->firstWhere('eventType', 'price.created.v1');
+    expect($created)->not->toBeNull()
+        ->and($created->aggregateId)->toBe($price->id()->toString())
+        ->and($created->payload['amount_minor_units'])->toBe(1999);
 });

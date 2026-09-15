@@ -7,13 +7,12 @@ use App\Application\Price\Commands\DeactivatePrice\DeactivatePriceHandler;
 use App\Application\Price\Ports\Outbound\IPriceRepositoryPort;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\Commands\CreateProduct\CreateProductHandler;
-use App\Domain\Price\Events\PriceDeactivated;
 use App\Domain\Price\Exceptions\PriceAlreadyInactive;
 use App\Domain\Price\Exceptions\PriceNotFound;
 use App\Domain\Price\ValueObjects\PriceId;
 use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
-use Illuminate\Support\Facades\Log;
+use App\Shared\Application\Ports\Outbound\IOutboxPort;
 
 test('handle deactivates an existing active price', function () {
     $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
@@ -52,7 +51,7 @@ test('handle throws PriceAlreadyInactive when the price is already inactive', fu
     $handler->handle(new DeactivatePriceCommand($price->id()->toString()));
 })->throws(PriceAlreadyInactive::class);
 
-test('handle publishes a PriceDeactivated event', function () {
+test('handle records a PriceDeactivated integration event in the outbox', function () {
     $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
     $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
         $product->id()->toString(),
@@ -60,12 +59,12 @@ test('handle publishes a PriceDeactivated event', function () {
         'USD',
         PriceType::OneTime->value,
     ));
-    Log::spy();
     $handler = app(DeactivatePriceHandler::class);
 
     $handler->handle(new DeactivatePriceCommand($price->id()->toString()));
 
-    Log::shouldHaveReceived('info')
-        ->once()
-        ->withArgs(fn (string $message) => str_contains($message, PriceDeactivated::class));
+    $unpublished = app(IOutboxPort::class)->unpublished();
+    $deactivated = collect($unpublished)->firstWhere('eventType', 'price.deactivated.v1');
+    expect($deactivated)->not->toBeNull()
+        ->and($deactivated->aggregateId)->toBe($price->id()->toString());
 });

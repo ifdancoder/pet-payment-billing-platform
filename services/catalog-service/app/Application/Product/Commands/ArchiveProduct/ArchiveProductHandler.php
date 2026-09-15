@@ -2,16 +2,20 @@
 
 namespace App\Application\Product\Commands\ArchiveProduct;
 
-use App\Application\Product\Ports\Outbound\IEventPublisherPort;
+use App\Application\Product\IntegrationEvents\ProductArchivedIntegrationEvent;
 use App\Application\Product\Ports\Outbound\IProductRepositoryPort;
+use App\Domain\Product\Events\ProductArchived;
 use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
+use App\Shared\Application\Ports\Outbound\IOutboxPort;
+use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
 
 final class ArchiveProductHandler
 {
     public function __construct(
         private readonly IProductRepositoryPort $repository,
-        private readonly IEventPublisherPort $eventPublisher,
+        private readonly IOutboxPort $outbox,
+        private readonly ITransactionManagerPort $transaction,
     ) {}
 
     public function handle(ArchiveProductCommand $command): Product
@@ -20,16 +24,20 @@ final class ArchiveProductHandler
 
         $product->archive();
 
-        $this->repository->save($product);
-        $this->dispatch($product);
+        $this->transaction->run(function () use ($product): void {
+            $this->repository->save($product);
+            $this->recordIntegrationEvents($product);
+        });
 
         return $product;
     }
 
-    private function dispatch(Product $product): void
+    private function recordIntegrationEvents(Product $product): void
     {
         foreach ($product->pullRecordedEvents() as $event) {
-            $this->eventPublisher->publish($event);
+            if ($event instanceof ProductArchived) {
+                $this->outbox->add(ProductArchivedIntegrationEvent::fromDomainEvent($event));
+            }
         }
     }
 }
