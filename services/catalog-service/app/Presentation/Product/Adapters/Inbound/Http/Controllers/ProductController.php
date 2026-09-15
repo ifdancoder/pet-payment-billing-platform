@@ -4,9 +4,11 @@ namespace App\Presentation\Product\Adapters\Inbound\Http\Controllers;
 
 use App\Application\Product\Commands\ArchiveProduct\ArchiveProductCommand;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
+use App\Application\Product\Commands\UpdateProduct\UpdateProductCommand;
 use App\Application\Product\Ports\Inbound\IProductServicePort;
 use App\Application\Product\Queries\ListProducts\ListProductsQuery;
 use App\Presentation\Product\Adapters\Inbound\Http\Requests\CreateProductRequest;
+use App\Presentation\Product\Adapters\Inbound\Http\Requests\UpdateProductRequest;
 use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductResource;
 use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductResourceCollection;
 use App\Shared\Presentation\Http\Controllers\Controller;
@@ -30,6 +32,16 @@ final class ProductController extends Controller
         ));
 
         return ProductResource::make($product)->response()->setStatusCode(201);
+    }
+
+    public function update(UpdateProductRequest $request, string $product): JsonResponse
+    {
+        $updated = $this->productService->updateProduct(new UpdateProductCommand(
+            $product,
+            $request->validated('name'),
+        ));
+
+        return ProductResource::make($updated)->response();
     }
 
     public function archive(string $product): JsonResponse
