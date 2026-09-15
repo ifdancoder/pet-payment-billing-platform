@@ -1,13 +1,18 @@
 <?php
 
+use App\Domain\Price\Events\PriceActivated;
 use App\Domain\Price\Events\PriceCreated;
+use App\Domain\Price\Events\PriceDeactivated;
 use App\Domain\Price\Exceptions\InvalidPrice;
+use App\Domain\Price\Exceptions\PriceAlreadyActive;
+use App\Domain\Price\Exceptions\PriceAlreadyInactive;
 use App\Domain\Price\Price;
 use App\Domain\Price\ValueObjects\BillingInterval;
 use App\Domain\Price\ValueObjects\BillingPeriod;
 use App\Domain\Price\ValueObjects\Currency;
 use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 
@@ -23,7 +28,8 @@ test('create records a PriceCreated event and exposes the given data for a recur
         ->and($price->productId()->equals($productId))->toBeTrue()
         ->and($price->money()->equals($money))->toBeTrue()
         ->and($price->type())->toBe(PriceType::Recurring)
-        ->and($price->billingPeriod()->equals($period))->toBeTrue();
+        ->and($price->billingPeriod()->equals($period))->toBeTrue()
+        ->and($price->status())->toBe(PriceStatus::Active);
 
     $events = $price->pullRecordedEvents();
 
@@ -87,7 +93,70 @@ test('reconstitute does not record any event', function () {
         Money::of(999, Currency::USD),
         PriceType::Recurring,
         BillingPeriod::of(BillingInterval::Week, 2),
+        PriceStatus::Inactive,
     );
 
-    expect($price->pullRecordedEvents())->toBe([]);
+    expect($price->status())->toBe(PriceStatus::Inactive)
+        ->and($price->pullRecordedEvents())->toBe([]);
 });
+
+test('deactivate sets the status to Inactive and records a PriceDeactivated event', function () {
+    $price = Price::create(
+        PriceId::generate(),
+        ProductId::generate(),
+        Money::of(999, Currency::USD),
+        PriceType::OneTime,
+    );
+    $price->pullRecordedEvents();
+
+    $price->deactivate();
+
+    expect($price->status())->toBe(PriceStatus::Inactive);
+    $events = $price->pullRecordedEvents();
+    expect($events)->toHaveCount(1)
+        ->and($events[0])->toBeInstanceOf(PriceDeactivated::class)
+        ->and($events[0]->priceId->equals($price->id()))->toBeTrue();
+});
+
+test('deactivate throws when the price is already inactive', function () {
+    $price = Price::reconstitute(
+        PriceId::generate(),
+        ProductId::generate(),
+        Money::of(999, Currency::USD),
+        PriceType::OneTime,
+        null,
+        PriceStatus::Inactive,
+    );
+
+    $price->deactivate();
+})->throws(PriceAlreadyInactive::class);
+
+test('activate sets the status to Active and records a PriceActivated event', function () {
+    $price = Price::reconstitute(
+        PriceId::generate(),
+        ProductId::generate(),
+        Money::of(999, Currency::USD),
+        PriceType::OneTime,
+        null,
+        PriceStatus::Inactive,
+    );
+
+    $price->activate();
+
+    expect($price->status())->toBe(PriceStatus::Active);
+    $events = $price->pullRecordedEvents();
+    expect($events)->toHaveCount(1)
+        ->and($events[0])->toBeInstanceOf(PriceActivated::class)
+        ->and($events[0]->priceId->equals($price->id()))->toBeTrue();
+});
+
+test('activate throws when the price is already active', function () {
+    $price = Price::create(
+        PriceId::generate(),
+        ProductId::generate(),
+        Money::of(999, Currency::USD),
+        PriceType::OneTime,
+    );
+
+    $price->activate();
+})->throws(PriceAlreadyActive::class);

@@ -8,6 +8,7 @@ use App\Domain\Price\ValueObjects\BillingPeriod;
 use App\Domain\Price\ValueObjects\Currency;
 use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Infrastructure\Price\Adapters\Persistence\Models\PriceModel;
@@ -26,6 +27,7 @@ final class PriceMapper
             Money::of($model->amount_minor_units, Currency::from($model->currency)),
             PriceType::from($model->type),
             $billingPeriod,
+            PriceStatus::from($model->status),
         );
     }
 
@@ -40,6 +42,7 @@ final class PriceMapper
         $model->type = $price->type()->value;
         $model->billing_interval = $price->billingPeriod()?->interval()->value;
         $model->billing_interval_count = $price->billingPeriod()?->count();
+        $model->status = $price->status()->value;
 
         return $model;
     }

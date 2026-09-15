@@ -6,6 +6,7 @@ use App\Domain\Price\ValueObjects\BillingPeriod;
 use App\Domain\Price\ValueObjects\Currency;
 use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Infrastructure\Price\Adapters\Persistence\Mappers\PriceMapper;
@@ -20,6 +21,7 @@ test('toDomain builds a recurring Price matching the model attributes', function
         'type' => PriceType::Recurring->value,
         'billing_interval' => BillingInterval::Month->value,
         'billing_interval_count' => 1,
+        'status' => PriceStatus::Inactive->value,
     ]);
 
     $price = (new PriceMapper)->toDomain($model);
@@ -30,7 +32,8 @@ test('toDomain builds a recurring Price matching the model attributes', function
         ->and($price->money()->currency())->toBe(Currency::USD)
         ->and($price->type())->toBe(PriceType::Recurring)
         ->and($price->billingPeriod()->interval())->toBe(BillingInterval::Month)
-        ->and($price->billingPeriod()->count())->toBe(1);
+        ->and($price->billingPeriod()->count())->toBe(1)
+        ->and($price->status())->toBe(PriceStatus::Inactive);
 });
 
 test('toDomain builds a one-time Price without a billing period', function () {
@@ -42,6 +45,7 @@ test('toDomain builds a one-time Price without a billing period', function () {
         'type' => PriceType::OneTime->value,
         'billing_interval' => null,
         'billing_interval_count' => null,
+        'status' => PriceStatus::Active->value,
     ]);
 
     $price = (new PriceMapper)->toDomain($model);
@@ -59,6 +63,7 @@ test('toDomain does not record a PriceCreated event', function () {
         'type' => PriceType::OneTime->value,
         'billing_interval' => null,
         'billing_interval_count' => null,
+        'status' => PriceStatus::Active->value,
     ]);
 
     $price = (new PriceMapper)->toDomain($model);
@@ -83,7 +88,8 @@ test('toModel fills a new model from a recurring Price', function () {
         ->and($model->currency)->toBe('USD')
         ->and($model->type)->toBe(PriceType::Recurring->value)
         ->and($model->billing_interval)->toBe(BillingInterval::Month->value)
-        ->and($model->billing_interval_count)->toBe(1);
+        ->and($model->billing_interval_count)->toBe(1)
+        ->and($model->status)->toBe(PriceStatus::Active->value);
 });
 
 test('toModel fills a new model from a one-time Price with null billing period columns', function () {
@@ -110,6 +116,7 @@ test('toModel fills an existing model instance in place instead of creating a ne
         'type' => PriceType::Recurring->value,
         'billing_interval' => BillingInterval::Year->value,
         'billing_interval_count' => 1,
+        'status' => PriceStatus::Active->value,
     ]);
     $price = Price::create(
         PriceId::fromString('9f8e7d6c-5b4a-4321-9876-abcdef012345'),
@@ -118,6 +125,7 @@ test('toModel fills an existing model instance in place instead of creating a ne
         PriceType::Recurring,
         BillingPeriod::of(BillingInterval::Month, 1),
     );
+    $price->deactivate();
 
     $model = (new PriceMapper)->toModel($price, $existing);
 
@@ -125,5 +133,6 @@ test('toModel fills an existing model instance in place instead of creating a ne
         ->and($model->amount_minor_units)->toBe(1999)
         ->and($model->currency)->toBe('EUR')
         ->and($model->billing_interval)->toBe(BillingInterval::Month->value)
-        ->and($model->billing_interval_count)->toBe(1);
+        ->and($model->billing_interval_count)->toBe(1)
+        ->and($model->status)->toBe(PriceStatus::Inactive->value);
 });

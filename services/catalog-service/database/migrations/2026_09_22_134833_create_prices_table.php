@@ -19,6 +19,7 @@ return new class extends Migration
             $table->unsignedTinyInteger('type');
             $table->unsignedTinyInteger('billing_interval')->nullable();
             $table->unsignedInteger('billing_interval_count')->nullable();
+            $table->unsignedTinyInteger('status');
             $table->timestamps();
         });
     }

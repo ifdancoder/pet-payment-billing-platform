@@ -26,6 +26,7 @@ final class PriceResource extends JsonResource
             'type' => $this->price->type()->label(),
             'billing_interval' => $this->price->billingPeriod()?->interval()->label(),
             'billing_interval_count' => $this->price->billingPeriod()?->count(),
+            'status' => $this->price->status()->label(),
         ];
     }
 }

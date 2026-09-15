@@ -2,11 +2,16 @@
 
 namespace App\Domain\Price;
 
+use App\Domain\Price\Events\PriceActivated;
 use App\Domain\Price\Events\PriceCreated;
+use App\Domain\Price\Events\PriceDeactivated;
 use App\Domain\Price\Exceptions\InvalidPrice;
+use App\Domain\Price\Exceptions\PriceAlreadyActive;
+use App\Domain\Price\Exceptions\PriceAlreadyInactive;
 use App\Domain\Price\ValueObjects\BillingPeriod;
 use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 
@@ -21,6 +26,7 @@ final class Price
         private readonly Money $money,
         private readonly PriceType $type,
         private readonly ?BillingPeriod $billingPeriod,
+        private PriceStatus $status,
     ) {}
 
     public static function create(
@@ -32,7 +38,7 @@ final class Price
     ): self {
         self::assertBillingPeriodMatchesType($type, $billingPeriod);
 
-        $price = new self($id, $productId, $money, $type, $billingPeriod);
+        $price = new self($id, $productId, $money, $type, $billingPeriod, PriceStatus::Active);
         $price->recordEvent(new PriceCreated($id, $productId, $money, $type, $billingPeriod));
 
         return $price;
@@ -48,8 +54,9 @@ final class Price
         Money $money,
         PriceType $type,
         ?BillingPeriod $billingPeriod,
+        PriceStatus $status,
     ): self {
-        return new self($id, $productId, $money, $type, $billingPeriod);
+        return new self($id, $productId, $money, $type, $billingPeriod, $status);
     }
 
     public function id(): PriceId
@@ -75,6 +82,31 @@ final class Price
     public function billingPeriod(): ?BillingPeriod
     {
         return $this->billingPeriod;
+    }
+
+    public function status(): PriceStatus
+    {
+        return $this->status;
+    }
+
+    public function activate(): void
+    {
+        if ($this->status === PriceStatus::Active) {
+            throw PriceAlreadyActive::withId($this->id);
+        }
+
+        $this->status = PriceStatus::Active;
+        $this->recordEvent(new PriceActivated($this->id));
+    }
+
+    public function deactivate(): void
+    {
+        if ($this->status === PriceStatus::Inactive) {
+            throw PriceAlreadyInactive::withId($this->id);
+        }
+
+        $this->status = PriceStatus::Inactive;
+        $this->recordEvent(new PriceDeactivated($this->id));
     }
 
     /**

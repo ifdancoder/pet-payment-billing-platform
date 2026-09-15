@@ -1,5 +1,7 @@
 <?php
 
+use App\Domain\Price\Exceptions\PriceAlreadyActive;
+use App\Domain\Price\Exceptions\PriceAlreadyInactive;
 use App\Domain\Price\Exceptions\PriceNotFound;
 use App\Domain\Product\Exceptions\ArchivedProductCannotBeModified;
 use App\Domain\Product\Exceptions\ProductAlreadyArchived;
@@ -25,4 +27,6 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(fn (PriceNotFound $e) => response()->json(['message' => $e->getMessage()], 404));
         $exceptions->render(fn (ProductAlreadyArchived $e) => response()->json(['message' => $e->getMessage()], 409));
         $exceptions->render(fn (ArchivedProductCannotBeModified $e) => response()->json(['message' => $e->getMessage()], 409));
+        $exceptions->render(fn (PriceAlreadyActive $e) => response()->json(['message' => $e->getMessage()], 409));
+        $exceptions->render(fn (PriceAlreadyInactive $e) => response()->json(['message' => $e->getMessage()], 409));
     })->create();

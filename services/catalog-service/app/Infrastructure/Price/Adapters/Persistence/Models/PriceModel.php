@@ -20,5 +20,6 @@ class PriceModel extends Model
         'type',
         'billing_interval',
         'billing_interval_count',
+        'status',
     ];
 }

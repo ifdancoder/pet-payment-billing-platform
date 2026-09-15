@@ -7,6 +7,7 @@ use App\Domain\Price\ValueObjects\BillingPeriod;
 use App\Domain\Price\ValueObjects\Currency;
 use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
@@ -72,6 +73,7 @@ test('save updates an already-persisted price instead of duplicating it', functi
         Money::of(1999, Currency::EUR),
         PriceType::Recurring,
         BillingPeriod::of(BillingInterval::Year, 1),
+        PriceStatus::Active,
     ));
 
     expect(PriceModel::query()->where('id', $id->toString())->count())->toBe(1)

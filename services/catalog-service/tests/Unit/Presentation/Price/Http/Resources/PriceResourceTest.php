@@ -32,6 +32,7 @@ test('toArray exposes the fields of a recurring price', function () {
         'type' => 'recurring',
         'billing_interval' => 'month',
         'billing_interval_count' => 1,
+        'status' => 'active',
     ]);
 });
 
@@ -50,6 +51,7 @@ test('toArray exposes null billing period fields for a one-time price', function
         'type' => 'one_time',
         'billing_interval' => null,
         'billing_interval_count' => null,
+        'status' => 'active',
     ]);
 });
 
