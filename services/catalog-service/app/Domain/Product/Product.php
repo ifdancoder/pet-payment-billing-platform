@@ -2,9 +2,12 @@
 
 namespace App\Domain\Product;
 
+use App\Domain\Product\Events\ProductArchived;
 use App\Domain\Product\Events\ProductCreated;
+use App\Domain\Product\Exceptions\ProductAlreadyArchived;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
+use App\Domain\Product\ValueObjects\ProductStatus;
 
 final class Product
 {
@@ -14,11 +17,12 @@ final class Product
     private function __construct(
         private readonly ProductId $id,
         private ProductName $name,
+        private ProductStatus $status,
     ) {}
 
     public static function create(ProductId $id, ProductName $name): self
     {
-        $product = new self($id, $name);
+        $product = new self($id, $name, ProductStatus::Active);
         $product->recordEvent(new ProductCreated($id, $name));
 
         return $product;
@@ -28,9 +32,9 @@ final class Product
      * Rebuilds a Product from already-persisted data. Unlike create(), this
      * does not record a ProductCreated event.
      */
-    public static function reconstitute(ProductId $id, ProductName $name): self
+    public static function reconstitute(ProductId $id, ProductName $name, ProductStatus $status): self
     {
-        return new self($id, $name);
+        return new self($id, $name, $status);
     }
 
     public function id(): ProductId
@@ -41,6 +45,21 @@ final class Product
     public function name(): ProductName
     {
         return $this->name;
+    }
+
+    public function status(): ProductStatus
+    {
+        return $this->status;
+    }
+
+    public function archive(): void
+    {
+        if ($this->status === ProductStatus::Archived) {
+            throw ProductAlreadyArchived::withId($this->id);
+        }
+
+        $this->status = ProductStatus::Archived;
+        $this->recordEvent(new ProductArchived($this->id));
     }
 
     /**

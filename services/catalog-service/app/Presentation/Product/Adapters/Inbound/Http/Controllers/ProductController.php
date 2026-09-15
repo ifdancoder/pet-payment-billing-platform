@@ -2,6 +2,7 @@
 
 namespace App\Presentation\Product\Adapters\Inbound\Http\Controllers;
 
+use App\Application\Product\Commands\ArchiveProduct\ArchiveProductCommand;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\Ports\Inbound\IProductServicePort;
 use App\Application\Product\Queries\ListProducts\ListProductsQuery;
@@ -29,5 +30,12 @@ final class ProductController extends Controller
         ));
 
         return ProductResource::make($product)->response()->setStatusCode(201);
+    }
+
+    public function archive(string $product): JsonResponse
+    {
+        $archived = $this->productService->archiveProduct(new ArchiveProductCommand($product));
+
+        return ProductResource::make($archived)->response();
     }
 }

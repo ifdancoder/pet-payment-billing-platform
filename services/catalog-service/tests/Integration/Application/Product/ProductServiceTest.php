@@ -1,8 +1,10 @@
 <?php
 
+use App\Application\Product\Commands\ArchiveProduct\ArchiveProductCommand;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\ProductService;
 use App\Application\Product\Queries\ListProducts\ListProductsQuery;
+use App\Domain\Product\ValueObjects\ProductStatus;
 
 test('createProduct delegates to CreateProductHandler and returns the created product', function () {
     $service = app(ProductService::class);
@@ -20,4 +22,13 @@ test('listProducts delegates to ListProductsHandler and returns every product', 
     $products = $service->listProducts(new ListProductsQuery);
 
     expect($products)->toHaveCount(2);
+});
+
+test('archiveProduct delegates to ArchiveProductHandler and returns the archived product', function () {
+    $service = app(ProductService::class);
+    $product = $service->createProduct(new CreateProductCommand('Pro Plan'));
+
+    $archived = $service->archiveProduct(new ArchiveProductCommand($product->id()->toString()));
+
+    expect($archived->status())->toBe(ProductStatus::Archived);
 });
