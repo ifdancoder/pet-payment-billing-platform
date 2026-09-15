@@ -3,13 +3,14 @@
 use App\Application\Customer\Commands\CreateCustomer\CreateCustomerCommand;
 use App\Application\Customer\Commands\CreateCustomer\CreateCustomerHandler;
 use App\Application\Customer\Ports\Outbound\ICustomerRepositoryPort;
-use App\Application\Customer\Ports\Outbound\INotificationPort;
+use App\Domain\Customer\Events\CustomerCreated;
 use App\Infrastructure\Customer\Adapters\Notification\GenericNotificationMail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 test('handle persists a new customer with the given email and name', function () {
     Mail::fake();
-    $handler = new CreateCustomerHandler(app(ICustomerRepositoryPort::class), app(INotificationPort::class));
+    $handler = app(CreateCustomerHandler::class);
 
     $customer = $handler->handle(new CreateCustomerCommand('jane@example.com', 'Jane Doe'));
 
@@ -20,7 +21,7 @@ test('handle persists a new customer with the given email and name', function ()
 
 test('handle sends a welcome notification to the new customer', function () {
     Mail::fake();
-    $handler = new CreateCustomerHandler(app(ICustomerRepositoryPort::class), app(INotificationPort::class));
+    $handler = app(CreateCustomerHandler::class);
 
     $handler->handle(new CreateCustomerCommand('jane@example.com', 'Jane Doe'));
 
@@ -28,4 +29,16 @@ test('handle sends a welcome notification to the new customer', function () {
         GenericNotificationMail::class,
         fn (GenericNotificationMail $mail) => $mail->hasTo('jane@example.com'),
     );
+});
+
+test('handle publishes a CustomerCreated event', function () {
+    Mail::fake();
+    Log::spy();
+    $handler = app(CreateCustomerHandler::class);
+
+    $handler->handle(new CreateCustomerCommand('jane@example.com', 'Jane Doe'));
+
+    Log::shouldHaveReceived('info')
+        ->once()
+        ->withArgs(fn (string $message) => str_contains($message, CustomerCreated::class));
 });
