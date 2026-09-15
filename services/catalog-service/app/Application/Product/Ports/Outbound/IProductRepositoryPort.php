@@ -14,4 +14,9 @@ interface IProductRepositoryPort
      * @throws ProductNotFound
      */
     public function get(ProductId $id): Product;
+
+    /**
+     * @return array<int, Product>
+     */
+    public function all(): array;
 }

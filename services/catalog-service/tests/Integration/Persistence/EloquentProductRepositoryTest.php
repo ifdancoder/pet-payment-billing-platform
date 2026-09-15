@@ -44,3 +44,21 @@ test('get throws ProductNotFound when no product matches', function () {
 
     $repository->get(ProductId::generate());
 })->throws(ProductNotFound::class);
+
+test('all returns every persisted product', function () {
+    $repository = new EloquentProductRepository(new ProductMapper);
+    $repository->save(Product::create(ProductId::generate(), ProductName::fromString('Pro Plan')));
+    $repository->save(Product::create(ProductId::generate(), ProductName::fromString('Team Plan')));
+
+    $products = $repository->all();
+
+    expect($products)->toHaveCount(2)
+        ->and(array_map(fn (Product $p) => $p->name()->toString(), $products))
+        ->toEqualCanonicalizing(['Pro Plan', 'Team Plan']);
+});
+
+test('all returns an empty array when there are no products', function () {
+    $repository = new EloquentProductRepository(new ProductMapper);
+
+    expect($repository->all())->toBe([]);
+});
