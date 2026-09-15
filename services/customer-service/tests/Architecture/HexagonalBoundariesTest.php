@@ -12,12 +12,13 @@ arch('infrastructure does not depend on presentation directly')
     ->expect(['App\Infrastructure', 'App\Shared\Infrastructure'])
     ->not->toUse(['App\Presentation', 'App\Shared\Presentation']);
 
-arch('presentation depends on application ports, commands and queries, not concrete application services')
+arch('presentation depends on application ports, commands, queries and domain entities, not concrete application services')
     ->expect('App\Presentation')
     ->toOnlyUse([
         'App\Application\Customer\Commands',
         'App\Application\Customer\Queries',
         'App\Application\Customer\Ports',
+        'App\Domain',
         'App\Presentation',
         'App\Shared\Presentation',
         'Illuminate',

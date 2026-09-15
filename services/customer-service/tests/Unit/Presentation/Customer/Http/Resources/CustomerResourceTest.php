@@ -19,3 +19,20 @@ test('toArray exposes the customer id, email and name', function () {
         'name' => 'Jane Doe',
     ]);
 });
+
+test('constructing with a non-Customer value fails with a TypeError', function () {
+    new CustomerResource('not-a-customer');
+})->throws(TypeError::class);
+
+test('toArray exposes a key for every Customer constructor parameter', function () {
+    $customer = Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+
+    $array = (new CustomerResource($customer))->toArray(new Request);
+
+    $constructorParams = array_map(
+        fn (ReflectionParameter $parameter) => $parameter->getName(),
+        (new ReflectionClass(Customer::class))->getConstructor()->getParameters(),
+    );
+
+    expect(array_keys($array))->toEqualCanonicalizing($constructorParams);
+});
