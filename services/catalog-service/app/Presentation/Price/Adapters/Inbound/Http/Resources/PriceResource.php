@@ -14,7 +14,7 @@ final class PriceResource extends JsonResource
     }
 
     /**
-     * @return array<string, string|int>
+     * @return array<string, string|int|null>
      */
     public function toArray(Request $request): array
     {
@@ -23,7 +23,9 @@ final class PriceResource extends JsonResource
             'product_id' => $this->price->productId()->toString(),
             'amount_minor_units' => $this->price->money()->amountMinorUnits(),
             'currency' => $this->price->money()->currency()->value,
-            'billing_interval' => $this->price->billingInterval()->value,
+            'type' => $this->price->type()->label(),
+            'billing_interval' => $this->price->billingPeriod()?->interval()->label(),
+            'billing_interval_count' => $this->price->billingPeriod()?->count(),
         ];
     }
 }

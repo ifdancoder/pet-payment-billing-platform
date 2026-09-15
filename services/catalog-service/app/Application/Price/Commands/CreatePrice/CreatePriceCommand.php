@@ -8,6 +8,8 @@ final class CreatePriceCommand
         public readonly string $productId,
         public readonly int $amountMinorUnits,
         public readonly string $currency,
-        public readonly string $billingInterval,
+        public readonly int $type,
+        public readonly ?int $billingInterval = null,
+        public readonly ?int $billingIntervalCount = null,
     ) {}
 }

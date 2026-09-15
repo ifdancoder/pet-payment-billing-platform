@@ -1,25 +1,29 @@
 <?php
 
 use App\Domain\Price\Events\PriceCreated;
+use App\Domain\Price\Exceptions\InvalidPrice;
 use App\Domain\Price\Price;
 use App\Domain\Price\ValueObjects\BillingInterval;
+use App\Domain\Price\ValueObjects\BillingPeriod;
 use App\Domain\Price\ValueObjects\Currency;
 use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 
-test('create records a PriceCreated event and exposes the given data', function () {
+test('create records a PriceCreated event and exposes the given data for a recurring price', function () {
     $id = PriceId::generate();
     $productId = ProductId::generate();
     $money = Money::of(1999, Currency::USD);
-    $interval = BillingInterval::Monthly;
+    $period = BillingPeriod::of(BillingInterval::Month, 1);
 
-    $price = Price::create($id, $productId, $money, $interval);
+    $price = Price::create($id, $productId, $money, PriceType::Recurring, $period);
 
     expect($price->id()->equals($id))->toBeTrue()
         ->and($price->productId()->equals($productId))->toBeTrue()
         ->and($price->money()->equals($money))->toBeTrue()
-        ->and($price->billingInterval())->toBe($interval);
+        ->and($price->type())->toBe(PriceType::Recurring)
+        ->and($price->billingPeriod()->equals($period))->toBeTrue();
 
     $events = $price->pullRecordedEvents();
 
@@ -28,15 +32,47 @@ test('create records a PriceCreated event and exposes the given data', function 
         ->and($events[0]->priceId->equals($id))->toBeTrue()
         ->and($events[0]->productId->equals($productId))->toBeTrue()
         ->and($events[0]->money->equals($money))->toBeTrue()
-        ->and($events[0]->billingInterval)->toBe($interval);
+        ->and($events[0]->type)->toBe(PriceType::Recurring)
+        ->and($events[0]->billingPeriod?->equals($period))->toBeTrue();
 });
+
+test('create builds a one-time price without a billing period', function () {
+    $price = Price::create(
+        PriceId::generate(),
+        ProductId::generate(),
+        Money::of(4999, Currency::USD),
+        PriceType::OneTime,
+    );
+
+    expect($price->type())->toBe(PriceType::OneTime)
+        ->and($price->billingPeriod())->toBeNull();
+});
+
+test('create throws when a recurring price has no billing period', function () {
+    Price::create(
+        PriceId::generate(),
+        ProductId::generate(),
+        Money::of(1999, Currency::USD),
+        PriceType::Recurring,
+    );
+})->throws(InvalidPrice::class, 'A recurring price requires a billing period.');
+
+test('create throws when a one-time price has a billing period', function () {
+    Price::create(
+        PriceId::generate(),
+        ProductId::generate(),
+        Money::of(1999, Currency::USD),
+        PriceType::OneTime,
+        BillingPeriod::of(BillingInterval::Month, 1),
+    );
+})->throws(InvalidPrice::class, 'A one-time price must not have a billing period.');
 
 test('pullRecordedEvents clears the recorded events', function () {
     $price = Price::create(
         PriceId::generate(),
         ProductId::generate(),
         Money::of(999, Currency::USD),
-        BillingInterval::Yearly,
+        PriceType::OneTime,
     );
 
     $price->pullRecordedEvents();
@@ -49,7 +85,8 @@ test('reconstitute does not record any event', function () {
         PriceId::generate(),
         ProductId::generate(),
         Money::of(999, Currency::USD),
-        BillingInterval::Weekly,
+        PriceType::Recurring,
+        BillingPeriod::of(BillingInterval::Week, 2),
     );
 
     expect($price->pullRecordedEvents())->toBe([]);

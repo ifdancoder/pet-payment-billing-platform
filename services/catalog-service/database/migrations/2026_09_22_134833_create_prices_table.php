@@ -16,7 +16,9 @@ return new class extends Migration
             $table->foreignUuid('product_id')->constrained('products')->cascadeOnDelete();
             $table->unsignedBigInteger('amount_minor_units');
             $table->string('currency', 3);
-            $table->string('billing_interval');
+            $table->unsignedTinyInteger('type');
+            $table->unsignedTinyInteger('billing_interval')->nullable();
+            $table->unsignedInteger('billing_interval_count')->nullable();
             $table->timestamps();
         });
     }

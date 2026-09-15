@@ -4,9 +4,11 @@ namespace App\Infrastructure\Price\Adapters\Persistence\Mappers;
 
 use App\Domain\Price\Price;
 use App\Domain\Price\ValueObjects\BillingInterval;
+use App\Domain\Price\ValueObjects\BillingPeriod;
 use App\Domain\Price\ValueObjects\Currency;
 use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Infrastructure\Price\Adapters\Persistence\Models\PriceModel;
 
@@ -14,11 +16,16 @@ final class PriceMapper
 {
     public function toDomain(PriceModel $model): Price
     {
+        $billingPeriod = $model->billing_interval === null
+            ? null
+            : BillingPeriod::of(BillingInterval::from($model->billing_interval), $model->billing_interval_count);
+
         return Price::reconstitute(
             PriceId::fromString($model->id),
             ProductId::fromString($model->product_id),
             Money::of($model->amount_minor_units, Currency::from($model->currency)),
-            BillingInterval::from($model->billing_interval),
+            PriceType::from($model->type),
+            $billingPeriod,
         );
     }
 
@@ -30,7 +37,9 @@ final class PriceMapper
         $model->product_id = $price->productId()->toString();
         $model->amount_minor_units = $price->money()->amountMinorUnits();
         $model->currency = $price->money()->currency()->value;
-        $model->billing_interval = $price->billingInterval()->value;
+        $model->type = $price->type()->value;
+        $model->billing_interval = $price->billingPeriod()?->interval()->value;
+        $model->billing_interval_count = $price->billingPeriod()?->count();
 
         return $model;
     }

@@ -6,9 +6,11 @@ use App\Application\Price\Ports\Outbound\IPriceRepositoryPort;
 use App\Application\Product\Ports\Outbound\IProductRepositoryPort;
 use App\Domain\Price\Price;
 use App\Domain\Price\ValueObjects\BillingInterval;
+use App\Domain\Price\ValueObjects\BillingPeriod;
 use App\Domain\Price\ValueObjects\Currency;
 use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 
 final class CreatePriceHandler
@@ -23,11 +25,16 @@ final class CreatePriceHandler
         $productId = ProductId::fromString($command->productId);
         $this->products->get($productId);
 
+        $billingPeriod = $command->billingInterval === null
+            ? null
+            : BillingPeriod::of(BillingInterval::from($command->billingInterval), $command->billingIntervalCount ?? 1);
+
         $price = Price::create(
             PriceId::generate(),
             $productId,
             Money::of($command->amountMinorUnits, Currency::from($command->currency)),
-            BillingInterval::from($command->billingInterval),
+            PriceType::from($command->type),
+            $billingPeriod,
         );
 
         $this->prices->save($price);

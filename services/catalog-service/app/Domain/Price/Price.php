@@ -3,9 +3,11 @@
 namespace App\Domain\Price;
 
 use App\Domain\Price\Events\PriceCreated;
-use App\Domain\Price\ValueObjects\BillingInterval;
+use App\Domain\Price\Exceptions\InvalidPrice;
+use App\Domain\Price\ValueObjects\BillingPeriod;
 use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 
 final class Price
@@ -17,17 +19,21 @@ final class Price
         private readonly PriceId $id,
         private readonly ProductId $productId,
         private readonly Money $money,
-        private readonly BillingInterval $billingInterval,
+        private readonly PriceType $type,
+        private readonly ?BillingPeriod $billingPeriod,
     ) {}
 
     public static function create(
         PriceId $id,
         ProductId $productId,
         Money $money,
-        BillingInterval $billingInterval,
+        PriceType $type,
+        ?BillingPeriod $billingPeriod = null,
     ): self {
-        $price = new self($id, $productId, $money, $billingInterval);
-        $price->recordEvent(new PriceCreated($id, $productId, $money, $billingInterval));
+        self::assertBillingPeriodMatchesType($type, $billingPeriod);
+
+        $price = new self($id, $productId, $money, $type, $billingPeriod);
+        $price->recordEvent(new PriceCreated($id, $productId, $money, $type, $billingPeriod));
 
         return $price;
     }
@@ -40,9 +46,10 @@ final class Price
         PriceId $id,
         ProductId $productId,
         Money $money,
-        BillingInterval $billingInterval,
+        PriceType $type,
+        ?BillingPeriod $billingPeriod,
     ): self {
-        return new self($id, $productId, $money, $billingInterval);
+        return new self($id, $productId, $money, $type, $billingPeriod);
     }
 
     public function id(): PriceId
@@ -60,9 +67,14 @@ final class Price
         return $this->money;
     }
 
-    public function billingInterval(): BillingInterval
+    public function type(): PriceType
     {
-        return $this->billingInterval;
+        return $this->type;
+    }
+
+    public function billingPeriod(): ?BillingPeriod
+    {
+        return $this->billingPeriod;
     }
 
     /**
@@ -74,6 +86,17 @@ final class Price
         $this->recordedEvents = [];
 
         return $events;
+    }
+
+    private static function assertBillingPeriodMatchesType(PriceType $type, ?BillingPeriod $billingPeriod): void
+    {
+        if ($type === PriceType::Recurring && $billingPeriod === null) {
+            throw InvalidPrice::billingPeriodRequiredForRecurring();
+        }
+
+        if ($type === PriceType::OneTime && $billingPeriod !== null) {
+            throw InvalidPrice::billingPeriodNotAllowedForOneTime();
+        }
     }
 
     private function recordEvent(object $event): void

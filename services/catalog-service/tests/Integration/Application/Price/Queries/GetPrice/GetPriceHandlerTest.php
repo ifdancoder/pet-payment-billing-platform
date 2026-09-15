@@ -7,7 +7,9 @@ use App\Application\Price\Queries\GetPrice\GetPriceQuery;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\Commands\CreateProduct\CreateProductHandler;
 use App\Domain\Price\Exceptions\PriceNotFound;
+use App\Domain\Price\ValueObjects\BillingInterval;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Domain\Price\ValueObjects\PriceType;
 
 test('handle returns the matching price', function () {
     $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
@@ -15,7 +17,9 @@ test('handle returns the matching price', function () {
         $product->id()->toString(),
         1999,
         'USD',
-        'monthly',
+        PriceType::Recurring->value,
+        BillingInterval::Month->value,
+        1,
     ));
 
     $found = app(GetPriceHandler::class)->handle(new GetPriceQuery($price->id()->toString()));
