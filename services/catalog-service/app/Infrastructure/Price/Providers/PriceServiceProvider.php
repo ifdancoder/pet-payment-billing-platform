@@ -3,8 +3,10 @@
 namespace App\Infrastructure\Price\Providers;
 
 use App\Application\Price\Ports\Inbound\IPriceServicePort;
+use App\Application\Price\Ports\Outbound\IEventPublisherPort;
 use App\Application\Price\Ports\Outbound\IPriceRepositoryPort;
 use App\Application\Price\PriceService;
+use App\Infrastructure\Price\Adapters\Messaging\LogEventPublisher;
 use App\Infrastructure\Price\Adapters\Persistence\Repositories\EloquentPriceRepository;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -17,6 +19,7 @@ class PriceServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(IPriceRepositoryPort::class, EloquentPriceRepository::class);
+        $this->app->bind(IEventPublisherPort::class, LogEventPublisher::class);
         $this->app->bind(IPriceServicePort::class, PriceService::class);
     }
 
