@@ -2,6 +2,7 @@
 
 use App\Domain\Product\Events\ProductArchived;
 use App\Domain\Product\Events\ProductCreated;
+use App\Domain\Product\Exceptions\ArchivedProductCannotBeModified;
 use App\Domain\Product\Exceptions\ProductAlreadyArchived;
 use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
@@ -74,3 +75,21 @@ test('archive throws when the product is already archived', function () {
 
     $product->archive();
 })->throws(ProductAlreadyArchived::class);
+
+test('rename changes the name', function () {
+    $product = Product::create(ProductId::generate(), ProductName::fromString('Pro Plan'));
+
+    $product->rename(ProductName::fromString('Pro Plan v2'));
+
+    expect($product->name()->toString())->toBe('Pro Plan v2');
+});
+
+test('rename throws when the product is archived', function () {
+    $product = Product::reconstitute(
+        ProductId::generate(),
+        ProductName::fromString('Pro Plan'),
+        ProductStatus::Archived,
+    );
+
+    $product->rename(ProductName::fromString('Pro Plan v2'));
+})->throws(ArchivedProductCannotBeModified::class);

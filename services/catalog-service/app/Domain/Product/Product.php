@@ -4,6 +4,7 @@ namespace App\Domain\Product;
 
 use App\Domain\Product\Events\ProductArchived;
 use App\Domain\Product\Events\ProductCreated;
+use App\Domain\Product\Exceptions\ArchivedProductCannotBeModified;
 use App\Domain\Product\Exceptions\ProductAlreadyArchived;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
@@ -50,6 +51,15 @@ final class Product
     public function status(): ProductStatus
     {
         return $this->status;
+    }
+
+    public function rename(ProductName $name): void
+    {
+        if ($this->status === ProductStatus::Archived) {
+            throw ArchivedProductCannotBeModified::withId($this->id);
+        }
+
+        $this->name = $name;
     }
 
     public function archive(): void
