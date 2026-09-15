@@ -2,6 +2,8 @@
 
 namespace App\Application\Product;
 
+use App\Application\Product\Commands\ArchiveProduct\ArchiveProductCommand;
+use App\Application\Product\Commands\ArchiveProduct\ArchiveProductHandler;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\Commands\CreateProduct\CreateProductHandler;
 use App\Application\Product\Ports\Inbound\IProductServicePort;
@@ -14,6 +16,7 @@ final class ProductService implements IProductServicePort
     public function __construct(
         private readonly CreateProductHandler $createProductHandler,
         private readonly ListProductsHandler $listProductsHandler,
+        private readonly ArchiveProductHandler $archiveProductHandler,
     ) {}
 
     public function createProduct(CreateProductCommand $command): Product
@@ -24,5 +27,10 @@ final class ProductService implements IProductServicePort
     public function listProducts(ListProductsQuery $query): array
     {
         return $this->listProductsHandler->handle($query);
+    }
+
+    public function archiveProduct(ArchiveProductCommand $command): Product
+    {
+        return $this->archiveProductHandler->handle($command);
     }
 }

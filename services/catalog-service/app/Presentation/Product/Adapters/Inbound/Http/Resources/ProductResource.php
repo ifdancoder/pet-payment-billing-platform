@@ -21,6 +21,7 @@ final class ProductResource extends JsonResource
         return [
             'id' => $this->product->id()->toString(),
             'name' => $this->product->name()->toString(),
+            'status' => $this->product->status()->label(),
         ];
     }
 }

@@ -15,6 +15,7 @@ test('toArray exposes the product id and name', function () {
     expect($array)->toBe([
         'id' => $id->toString(),
         'name' => 'Pro Plan',
+        'status' => 'active',
     ]);
 });
 

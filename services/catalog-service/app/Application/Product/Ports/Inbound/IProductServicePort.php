@@ -2,6 +2,7 @@
 
 namespace App\Application\Product\Ports\Inbound;
 
+use App\Application\Product\Commands\ArchiveProduct\ArchiveProductCommand;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\Queries\ListProducts\ListProductsQuery;
 use App\Domain\Product\Product;
@@ -14,4 +15,6 @@ interface IProductServicePort
      * @return array<int, Product>
      */
     public function listProducts(ListProductsQuery $query): array;
+
+    public function archiveProduct(ArchiveProductCommand $command): Product;
 }

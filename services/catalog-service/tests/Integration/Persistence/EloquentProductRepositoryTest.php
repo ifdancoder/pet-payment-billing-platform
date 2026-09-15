@@ -4,6 +4,7 @@ use App\Domain\Product\Exceptions\ProductNotFound;
 use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
+use App\Domain\Product\ValueObjects\ProductStatus;
 use App\Infrastructure\Product\Adapters\Persistence\Mappers\ProductMapper;
 use App\Infrastructure\Product\Adapters\Persistence\Models\ProductModel;
 use App\Infrastructure\Product\Adapters\Persistence\Repositories\EloquentProductRepository;
@@ -22,7 +23,7 @@ test('save updates an already-persisted product instead of duplicating it', func
     $id = ProductId::generate();
     $repository->save(Product::create($id, ProductName::fromString('Old Name')));
 
-    $repository->save(Product::reconstitute($id, ProductName::fromString('New Name')));
+    $repository->save(Product::reconstitute($id, ProductName::fromString('New Name'), ProductStatus::Active));
 
     expect(ProductModel::query()->where('id', $id->toString())->count())->toBe(1)
         ->and(ProductModel::query()->find($id->toString())->name)->toBe('New Name');

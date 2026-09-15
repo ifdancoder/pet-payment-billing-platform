@@ -13,8 +13,8 @@ test('toArray wraps every product through ProductResource', function () {
     $array = (new ProductResourceCollection([$pro, $team]))->toArray(new Request);
 
     expect($array)->toHaveCount(2)
-        ->and($array[0])->toBe(['id' => $pro->id()->toString(), 'name' => 'Pro Plan'])
-        ->and($array[1])->toBe(['id' => $team->id()->toString(), 'name' => 'Team Plan']);
+        ->and($array[0])->toBe(['id' => $pro->id()->toString(), 'name' => 'Pro Plan', 'status' => 'active'])
+        ->and($array[1])->toBe(['id' => $team->id()->toString(), 'name' => 'Team Plan', 'status' => 'active']);
 });
 
 test('constructing with a non-array value fails with a TypeError', function () {
