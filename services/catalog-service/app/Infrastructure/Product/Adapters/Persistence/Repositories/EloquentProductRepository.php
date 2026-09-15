@@ -30,4 +30,11 @@ final class EloquentProductRepository implements IProductRepositoryPort
 
         return $this->mapper->toDomain($model);
     }
+
+    public function all(): array
+    {
+        return ProductModel::query()->get()
+            ->map(fn (ProductModel $model) => $this->mapper->toDomain($model))
+            ->all();
+    }
 }
