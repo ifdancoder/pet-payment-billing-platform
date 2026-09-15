@@ -8,6 +8,7 @@ use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
 use App\Shared\Infrastructure\Messaging\LogEventPublisher;
 use App\Shared\Infrastructure\Persistence\Eloquent\Outbox\EloquentOutbox;
 use App\Shared\Infrastructure\Transaction\LaravelTransactionManager;
+use App\Shared\Presentation\Console\PublishOutboxMessagesCommand;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -27,6 +28,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                PublishOutboxMessagesCommand::class,
+            ]);
+        }
     }
 }
