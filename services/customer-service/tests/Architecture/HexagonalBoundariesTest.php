@@ -1,5 +1,13 @@
 <?php
 
+use Platform\TestingConventions\ArchRules;
+
+arch('persistence mappers implement toDomain and toModel', function (): void {
+    ArchRules::expectMappersToImplementToDomainAndToModel(
+        'App\Infrastructure\Customer\Adapters\Persistence\Mappers',
+    );
+});
+
 arch('domain has no framework dependency')
     ->expect(['App\Domain', 'App\Shared\Domain'])
     ->not->toUse(['Illuminate', 'Laravel']);
