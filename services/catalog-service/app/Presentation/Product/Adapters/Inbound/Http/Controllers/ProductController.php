@@ -2,6 +2,8 @@
 
 namespace App\Presentation\Product\Adapters\Inbound\Http\Controllers;
 
+use App\Application\Catalog\Ports\Inbound\ICatalogServicePort;
+use App\Application\Catalog\Queries\GetProductCatalog\GetProductCatalogQuery;
 use App\Application\Product\Commands\ArchiveProduct\ArchiveProductCommand;
 use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\Commands\UpdateProduct\UpdateProductCommand;
@@ -9,6 +11,7 @@ use App\Application\Product\Ports\Inbound\IProductServicePort;
 use App\Application\Product\Queries\ListProducts\ListProductsQuery;
 use App\Presentation\Product\Adapters\Inbound\Http\Requests\CreateProductRequest;
 use App\Presentation\Product\Adapters\Inbound\Http\Requests\UpdateProductRequest;
+use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductCatalogResource;
 use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductResource;
 use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductResourceCollection;
 use App\Shared\Presentation\Http\Controllers\Controller;
@@ -16,7 +19,10 @@ use Illuminate\Http\JsonResponse;
 
 final class ProductController extends Controller
 {
-    public function __construct(private readonly IProductServicePort $productService) {}
+    public function __construct(
+        private readonly IProductServicePort $productService,
+        private readonly ICatalogServicePort $catalogService,
+    ) {}
 
     public function index(): JsonResponse
     {
@@ -32,6 +38,13 @@ final class ProductController extends Controller
         ));
 
         return ProductResource::make($product)->response()->setStatusCode(201);
+    }
+
+    public function show(string $product): JsonResponse
+    {
+        $catalog = $this->catalogService->getProductCatalog(new GetProductCatalogQuery($product));
+
+        return (new ProductCatalogResource($catalog))->response();
     }
 
     public function update(UpdateProductRequest $request, string $product): JsonResponse
