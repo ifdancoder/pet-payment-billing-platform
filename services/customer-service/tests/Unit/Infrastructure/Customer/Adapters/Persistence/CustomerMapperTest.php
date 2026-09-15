@@ -65,3 +65,39 @@ test('toModel fills an existing model instance in place instead of creating a ne
         ->and($model->email)->toBe('new@example.com')
         ->and($model->name)->toBe('New Name');
 });
+
+test('toModel sets a model attribute for every Customer constructor parameter', function () {
+    $customer = Customer::create(
+        CustomerId::fromString('9f8e7d6c-5b4a-4321-9876-abcdef012345'),
+        Email::fromString('jane@example.com'),
+        CustomerName::fromString('Jane Doe'),
+    );
+
+    $model = (new CustomerMapper)->toModel($customer);
+
+    $constructorParams = array_map(
+        fn (ReflectionParameter $parameter) => $parameter->getName(),
+        (new ReflectionClass(Customer::class))->getConstructor()->getParameters(),
+    );
+    foreach ($constructorParams as $param) {
+        expect((string) $model->{$param})->toBe($customer->{$param}()->toString());
+    }
+});
+
+test('toDomain builds a Customer using every constructor parameter from the model', function () {
+    $model = new CustomerModel([
+        'id' => '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'email' => 'jane@example.com',
+        'name' => 'Jane Doe',
+    ]);
+
+    $customer = (new CustomerMapper)->toDomain($model);
+
+    $constructorParams = array_map(
+        fn (ReflectionParameter $parameter) => $parameter->getName(),
+        (new ReflectionClass(Customer::class))->getConstructor()->getParameters(),
+    );
+    foreach ($constructorParams as $param) {
+        expect($customer->{$param}()->toString())->toBe((string) $model->{$param});
+    }
+});
