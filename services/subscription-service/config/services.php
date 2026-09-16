@@ -42,4 +42,12 @@ return [
         'password' => env('RABBITMQ_DEFAULT_PASS', 'billing'),
     ],
 
+    'customer_service' => [
+        'base_url' => env('CUSTOMER_SERVICE_URL', 'http://localhost:8001'),
+    ],
+
+    'catalog_service' => [
+        'base_url' => env('CATALOG_SERVICE_URL', 'http://localhost:8002'),
+    ],
+
 ];
