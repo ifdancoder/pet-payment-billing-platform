@@ -28,7 +28,7 @@ test('handle persists a new recurring price for an existing product', function (
         1,
     ));
 
-    $persisted = app(IPriceRepositoryPort::class)->get($price->id());
+    $persisted = app(IPriceRepositoryPort::class)->get($price->id(), $merchantId);
     expect($persisted->productId()->equals($product->id()))->toBeTrue()
         ->and($persisted->money()->amountMinorUnits())->toBe(1999)
         ->and($persisted->billingPeriod()->interval())->toBe(BillingInterval::Month);
@@ -47,7 +47,7 @@ test('handle persists a new one-time price for an existing product', function ()
         PriceType::OneTime->value,
     ));
 
-    $persisted = app(IPriceRepositoryPort::class)->get($price->id());
+    $persisted = app(IPriceRepositoryPort::class)->get($price->id(), $merchantId);
     expect($persisted->type())->toBe(PriceType::OneTime)
         ->and($persisted->billingPeriod())->toBeNull();
 });

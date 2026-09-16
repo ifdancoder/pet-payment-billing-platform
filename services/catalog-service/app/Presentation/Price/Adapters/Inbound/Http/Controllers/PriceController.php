@@ -31,23 +31,23 @@ final class PriceController extends Controller
         return PriceResource::make($price)->response()->setStatusCode(201);
     }
 
-    public function show(string $price): JsonResponse
+    public function show(string $merchant, string $price): JsonResponse
     {
-        $found = $this->priceService->getPrice(new GetPriceQuery($price));
+        $found = $this->priceService->getPrice(new GetPriceQuery($merchant, $price));
 
         return PriceResource::make($found)->response();
     }
 
-    public function activate(string $price): JsonResponse
+    public function activate(string $merchant, string $price): JsonResponse
     {
-        $activated = $this->priceService->activatePrice(new ActivatePriceCommand($price));
+        $activated = $this->priceService->activatePrice(new ActivatePriceCommand($merchant, $price));
 
         return PriceResource::make($activated)->response();
     }
 
-    public function deactivate(string $price): JsonResponse
+    public function deactivate(string $merchant, string $price): JsonResponse
     {
-        $deactivated = $this->priceService->deactivatePrice(new DeactivatePriceCommand($price));
+        $deactivated = $this->priceService->deactivatePrice(new DeactivatePriceCommand($merchant, $price));
 
         return PriceResource::make($deactivated)->response();
     }

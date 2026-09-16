@@ -25,7 +25,7 @@ test('handle returns the matching price', function () {
         1,
     ));
 
-    $found = app(GetPriceHandler::class)->handle(new GetPriceQuery($price->id()->toString()));
+    $found = app(GetPriceHandler::class)->handle(new GetPriceQuery($merchantId, $price->id()->toString()));
 
     expect($found->id()->equals($price->id()))->toBeTrue();
 });
@@ -33,5 +33,20 @@ test('handle returns the matching price', function () {
 test('handle throws PriceNotFound when no price matches', function () {
     $handler = app(GetPriceHandler::class);
 
-    $handler->handle(new GetPriceQuery(PriceId::generate()->toString()));
+    $handler->handle(new GetPriceQuery(MerchantId::generate()->toString(), PriceId::generate()->toString()));
+})->throws(PriceNotFound::class);
+
+test('handle throws PriceNotFound when the price belongs to a different merchant', function () {
+    $merchantId = MerchantId::generate()->toString();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId, 'Pro Plan'));
+    $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
+        $merchantId,
+        $product->id()->toString(),
+        1999,
+        'USD',
+        PriceType::OneTime->value,
+    ));
+    $handler = app(GetPriceHandler::class);
+
+    $handler->handle(new GetPriceQuery(MerchantId::generate()->toString(), $price->id()->toString()));
 })->throws(PriceNotFound::class);

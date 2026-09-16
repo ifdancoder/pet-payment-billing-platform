@@ -9,6 +9,7 @@ use App\Domain\Price\Price;
 use App\Domain\Price\ValueObjects\PriceId;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class DeactivatePriceHandler
 {
@@ -20,7 +21,10 @@ final class DeactivatePriceHandler
 
     public function handle(DeactivatePriceCommand $command): Price
     {
-        $price = $this->repository->get(PriceId::fromString($command->priceId));
+        $price = $this->repository->get(
+            PriceId::fromString($command->priceId),
+            MerchantId::fromString($command->merchantId),
+        );
 
         $price->deactivate();
 

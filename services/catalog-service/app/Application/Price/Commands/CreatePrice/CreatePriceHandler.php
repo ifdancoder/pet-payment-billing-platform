@@ -29,8 +29,9 @@ final class CreatePriceHandler
 
     public function handle(CreatePriceCommand $command): Price
     {
+        $merchantId = MerchantId::fromString($command->merchantId);
         $productId = ProductId::fromString($command->productId);
-        $this->products->get($productId, MerchantId::fromString($command->merchantId));
+        $this->products->get($productId, $merchantId);
 
         $billingPeriod = $command->billingInterval === null
             ? null
@@ -38,6 +39,7 @@ final class CreatePriceHandler
 
         $price = Price::create(
             PriceId::generate(),
+            $merchantId,
             $productId,
             Money::of($command->amountMinorUnits, Currency::from($command->currency)),
             PriceType::from($command->type),

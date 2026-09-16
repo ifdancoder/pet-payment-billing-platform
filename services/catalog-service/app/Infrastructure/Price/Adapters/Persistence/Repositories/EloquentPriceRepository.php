@@ -8,6 +8,7 @@ use App\Domain\Price\Price;
 use App\Domain\Price\ValueObjects\PriceId;
 use App\Infrastructure\Price\Adapters\Persistence\Mappers\PriceMapper;
 use App\Infrastructure\Price\Adapters\Persistence\Models\PriceModel;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class EloquentPriceRepository implements IPriceRepositoryPort
 {
@@ -20,9 +21,12 @@ final class EloquentPriceRepository implements IPriceRepositoryPort
         $this->mapper->toModel($price, $model)->save();
     }
 
-    public function get(PriceId $id): Price
+    public function get(PriceId $id, MerchantId $merchantId): Price
     {
-        $model = PriceModel::query()->find($id->toString());
+        $model = PriceModel::query()
+            ->where('id', $id->toString())
+            ->where('merchant_id', $merchantId->toString())
+            ->first();
 
         if ($model === null) {
             throw PriceNotFound::withId($id);

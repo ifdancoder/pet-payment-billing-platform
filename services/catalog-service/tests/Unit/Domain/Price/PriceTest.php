@@ -15,16 +15,19 @@ use App\Domain\Price\ValueObjects\PriceId;
 use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('create records a PriceCreated event and exposes the given data for a recurring price', function () {
     $id = PriceId::generate();
+    $merchantId = MerchantId::generate();
     $productId = ProductId::generate();
     $money = Money::of(1999, Currency::USD);
     $period = BillingPeriod::of(BillingInterval::Month, 1);
 
-    $price = Price::create($id, $productId, $money, PriceType::Recurring, $period);
+    $price = Price::create($id, $merchantId, $productId, $money, PriceType::Recurring, $period);
 
     expect($price->id()->equals($id))->toBeTrue()
+        ->and($price->merchantId()->equals($merchantId))->toBeTrue()
         ->and($price->productId()->equals($productId))->toBeTrue()
         ->and($price->money()->equals($money))->toBeTrue()
         ->and($price->type())->toBe(PriceType::Recurring)
@@ -45,6 +48,7 @@ test('create records a PriceCreated event and exposes the given data for a recur
 test('create builds a one-time price without a billing period', function () {
     $price = Price::create(
         PriceId::generate(),
+        MerchantId::generate(),
         ProductId::generate(),
         Money::of(4999, Currency::USD),
         PriceType::OneTime,
@@ -57,6 +61,7 @@ test('create builds a one-time price without a billing period', function () {
 test('create throws when a recurring price has no billing period', function () {
     Price::create(
         PriceId::generate(),
+        MerchantId::generate(),
         ProductId::generate(),
         Money::of(1999, Currency::USD),
         PriceType::Recurring,
@@ -66,6 +71,7 @@ test('create throws when a recurring price has no billing period', function () {
 test('create throws when a one-time price has a billing period', function () {
     Price::create(
         PriceId::generate(),
+        MerchantId::generate(),
         ProductId::generate(),
         Money::of(1999, Currency::USD),
         PriceType::OneTime,
@@ -76,6 +82,7 @@ test('create throws when a one-time price has a billing period', function () {
 test('pullRecordedEvents clears the recorded events', function () {
     $price = Price::create(
         PriceId::generate(),
+        MerchantId::generate(),
         ProductId::generate(),
         Money::of(999, Currency::USD),
         PriceType::OneTime,
@@ -86,9 +93,12 @@ test('pullRecordedEvents clears the recorded events', function () {
     expect($price->pullRecordedEvents())->toBe([]);
 });
 
-test('reconstitute does not record any event', function () {
+test('reconstitute exposes the given merchant without recording an event', function () {
+    $merchantId = MerchantId::generate();
+
     $price = Price::reconstitute(
         PriceId::generate(),
+        $merchantId,
         ProductId::generate(),
         Money::of(999, Currency::USD),
         PriceType::Recurring,
@@ -96,13 +106,15 @@ test('reconstitute does not record any event', function () {
         PriceStatus::Inactive,
     );
 
-    expect($price->status())->toBe(PriceStatus::Inactive)
+    expect($price->merchantId()->equals($merchantId))->toBeTrue()
+        ->and($price->status())->toBe(PriceStatus::Inactive)
         ->and($price->pullRecordedEvents())->toBe([]);
 });
 
 test('deactivate sets the status to Inactive and records a PriceDeactivated event', function () {
     $price = Price::create(
         PriceId::generate(),
+        MerchantId::generate(),
         ProductId::generate(),
         Money::of(999, Currency::USD),
         PriceType::OneTime,
@@ -121,6 +133,7 @@ test('deactivate sets the status to Inactive and records a PriceDeactivated even
 test('deactivate throws when the price is already inactive', function () {
     $price = Price::reconstitute(
         PriceId::generate(),
+        MerchantId::generate(),
         ProductId::generate(),
         Money::of(999, Currency::USD),
         PriceType::OneTime,
@@ -134,6 +147,7 @@ test('deactivate throws when the price is already inactive', function () {
 test('activate sets the status to Active and records a PriceActivated event', function () {
     $price = Price::reconstitute(
         PriceId::generate(),
+        MerchantId::generate(),
         ProductId::generate(),
         Money::of(999, Currency::USD),
         PriceType::OneTime,
@@ -153,6 +167,7 @@ test('activate sets the status to Active and records a PriceActivated event', fu
 test('activate throws when the price is already active', function () {
     $price = Price::create(
         PriceId::generate(),
+        MerchantId::generate(),
         ProductId::generate(),
         Money::of(999, Currency::USD),
         PriceType::OneTime,

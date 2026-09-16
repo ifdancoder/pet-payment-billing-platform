@@ -14,6 +14,7 @@ class PriceModel extends Model
 
     protected $fillable = [
         'id',
+        'merchant_id',
         'product_id',
         'amount_minor_units',
         'currency',

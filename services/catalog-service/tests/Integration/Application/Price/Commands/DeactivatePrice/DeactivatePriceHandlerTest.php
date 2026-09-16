@@ -16,10 +16,10 @@ use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('handle deactivates an existing active price', function () {
-    $merchantId = MerchantId::generate()->toString();
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId, 'Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
     $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
-        $merchantId,
+        $merchantId->toString(),
         $product->id()->toString(),
         1999,
         'USD',
@@ -27,40 +27,55 @@ test('handle deactivates an existing active price', function () {
     ));
     $handler = app(DeactivatePriceHandler::class);
 
-    $deactivated = $handler->handle(new DeactivatePriceCommand($price->id()->toString()));
+    $deactivated = $handler->handle(new DeactivatePriceCommand($merchantId->toString(), $price->id()->toString()));
 
     expect($deactivated->status())->toBe(PriceStatus::Inactive);
-    $persisted = app(IPriceRepositoryPort::class)->get($price->id());
+    $persisted = app(IPriceRepositoryPort::class)->get($price->id(), $merchantId);
     expect($persisted->status())->toBe(PriceStatus::Inactive);
 });
 
 test('handle throws PriceNotFound when the price does not exist', function () {
     $handler = app(DeactivatePriceHandler::class);
 
-    $handler->handle(new DeactivatePriceCommand(PriceId::generate()->toString()));
+    $handler->handle(new DeactivatePriceCommand(MerchantId::generate()->toString(), PriceId::generate()->toString()));
+})->throws(PriceNotFound::class);
+
+test('handle throws PriceNotFound when the price belongs to a different merchant', function () {
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
+    $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
+        $merchantId->toString(),
+        $product->id()->toString(),
+        1999,
+        'USD',
+        PriceType::OneTime->value,
+    ));
+    $handler = app(DeactivatePriceHandler::class);
+
+    $handler->handle(new DeactivatePriceCommand(MerchantId::generate()->toString(), $price->id()->toString()));
 })->throws(PriceNotFound::class);
 
 test('handle throws PriceAlreadyInactive when the price is already inactive', function () {
-    $merchantId = MerchantId::generate()->toString();
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId, 'Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
     $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
-        $merchantId,
+        $merchantId->toString(),
         $product->id()->toString(),
         1999,
         'USD',
         PriceType::OneTime->value,
     ));
     $handler = app(DeactivatePriceHandler::class);
-    $handler->handle(new DeactivatePriceCommand($price->id()->toString()));
+    $handler->handle(new DeactivatePriceCommand($merchantId->toString(), $price->id()->toString()));
 
-    $handler->handle(new DeactivatePriceCommand($price->id()->toString()));
+    $handler->handle(new DeactivatePriceCommand($merchantId->toString(), $price->id()->toString()));
 })->throws(PriceAlreadyInactive::class);
 
 test('handle records a PriceDeactivated integration event in the outbox', function () {
-    $merchantId = MerchantId::generate()->toString();
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId, 'Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
     $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
-        $merchantId,
+        $merchantId->toString(),
         $product->id()->toString(),
         1999,
         'USD',
@@ -68,7 +83,7 @@ test('handle records a PriceDeactivated integration event in the outbox', functi
     ));
     $handler = app(DeactivatePriceHandler::class);
 
-    $handler->handle(new DeactivatePriceCommand($price->id()->toString()));
+    $handler->handle(new DeactivatePriceCommand($merchantId->toString(), $price->id()->toString()));
 
     $unpublished = app(IOutboxPort::class)->unpublished();
     $deactivated = collect($unpublished)->firstWhere('eventType', 'price.deactivated.v1');

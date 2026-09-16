@@ -19,18 +19,20 @@ use App\Infrastructure\Product\Adapters\Persistence\Mappers\ProductMapper;
 use App\Infrastructure\Product\Adapters\Persistence\Repositories\EloquentProductRepository;
 use App\Shared\Domain\ValueObjects\MerchantId;
 
-function persistProduct(ProductId $productId): void
+function persistProduct(ProductId $productId, MerchantId $merchantId): void
 {
     (new EloquentProductRepository(new ProductMapper))
-        ->save(Product::create($productId, MerchantId::generate(), ProductName::fromString('Pro Plan')));
+        ->save(Product::create($productId, $merchantId, ProductName::fromString('Pro Plan')));
 }
 
 test('save persists a new recurring price', function () {
     $repository = new EloquentPriceRepository(new PriceMapper);
     $productId = ProductId::generate();
-    persistProduct($productId);
+    $merchantId = MerchantId::generate();
+    persistProduct($productId, $merchantId);
     $price = Price::create(
         PriceId::generate(),
+        $merchantId,
         $productId,
         Money::of(1999, Currency::USD),
         PriceType::Recurring,
@@ -45,8 +47,9 @@ test('save persists a new recurring price', function () {
 test('save persists a new one-time price', function () {
     $repository = new EloquentPriceRepository(new PriceMapper);
     $productId = ProductId::generate();
-    persistProduct($productId);
-    $price = Price::create(PriceId::generate(), $productId, Money::of(4999, Currency::USD), PriceType::OneTime);
+    $merchantId = MerchantId::generate();
+    persistProduct($productId, $merchantId);
+    $price = Price::create(PriceId::generate(), $merchantId, $productId, Money::of(4999, Currency::USD), PriceType::OneTime);
 
     $repository->save($price);
 
@@ -58,10 +61,12 @@ test('save persists a new one-time price', function () {
 test('save updates an already-persisted price instead of duplicating it', function () {
     $repository = new EloquentPriceRepository(new PriceMapper);
     $productId = ProductId::generate();
-    persistProduct($productId);
+    $merchantId = MerchantId::generate();
+    persistProduct($productId, $merchantId);
     $id = PriceId::generate();
     $repository->save(Price::create(
         $id,
+        $merchantId,
         $productId,
         Money::of(999, Currency::USD),
         PriceType::Recurring,
@@ -70,6 +75,7 @@ test('save updates an already-persisted price instead of duplicating it', functi
 
     $repository->save(Price::reconstitute(
         $id,
+        $merchantId,
         $productId,
         Money::of(1999, Currency::EUR),
         PriceType::Recurring,
@@ -81,20 +87,22 @@ test('save updates an already-persisted price instead of duplicating it', functi
         ->and(PriceModel::query()->find($id->toString())->amount_minor_units)->toBe(1999);
 });
 
-test('get returns the matching price', function () {
+test('get returns the matching price for the owning merchant', function () {
     $repository = new EloquentPriceRepository(new PriceMapper);
     $productId = ProductId::generate();
-    persistProduct($productId);
+    $merchantId = MerchantId::generate();
+    persistProduct($productId, $merchantId);
     $id = PriceId::generate();
     $repository->save(Price::create(
         $id,
+        $merchantId,
         $productId,
         Money::of(1999, Currency::USD),
         PriceType::Recurring,
         BillingPeriod::of(BillingInterval::Month, 1),
     ));
 
-    $found = $repository->get($id);
+    $found = $repository->get($id, $merchantId);
 
     expect($found->id()->equals($id))->toBeTrue()
         ->and($found->productId()->equals($productId))->toBeTrue()
@@ -105,5 +113,16 @@ test('get returns the matching price', function () {
 test('get throws PriceNotFound when no price matches', function () {
     $repository = new EloquentPriceRepository(new PriceMapper);
 
-    $repository->get(PriceId::generate());
+    $repository->get(PriceId::generate(), MerchantId::generate());
+})->throws(PriceNotFound::class);
+
+test('get throws PriceNotFound when the price belongs to a different merchant', function () {
+    $repository = new EloquentPriceRepository(new PriceMapper);
+    $productId = ProductId::generate();
+    $merchantId = MerchantId::generate();
+    persistProduct($productId, $merchantId);
+    $id = PriceId::generate();
+    $repository->save(Price::create($id, $merchantId, $productId, Money::of(1999, Currency::USD), PriceType::OneTime));
+
+    $repository->get($id, MerchantId::generate());
 })->throws(PriceNotFound::class);

@@ -9,13 +9,16 @@ use App\Domain\Price\ValueObjects\PriceId;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Presentation\Price\Adapters\Inbound\Http\Resources\PriceResource;
+use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Http\Request;
 
 test('toArray exposes the fields of a recurring price', function () {
     $id = PriceId::generate();
+    $merchantId = MerchantId::generate();
     $productId = ProductId::generate();
     $price = Price::create(
         $id,
+        $merchantId,
         $productId,
         Money::of(1999, Currency::USD),
         PriceType::Recurring,
@@ -26,6 +29,7 @@ test('toArray exposes the fields of a recurring price', function () {
 
     expect($array)->toBe([
         'id' => $id->toString(),
+        'merchant_id' => $merchantId->toString(),
         'product_id' => $productId->toString(),
         'amount_minor_units' => 1999,
         'currency' => 'USD',
@@ -38,13 +42,15 @@ test('toArray exposes the fields of a recurring price', function () {
 
 test('toArray exposes null billing period fields for a one-time price', function () {
     $id = PriceId::generate();
+    $merchantId = MerchantId::generate();
     $productId = ProductId::generate();
-    $price = Price::create($id, $productId, Money::of(4999, Currency::USD), PriceType::OneTime);
+    $price = Price::create($id, $merchantId, $productId, Money::of(4999, Currency::USD), PriceType::OneTime);
 
     $array = (new PriceResource($price))->toArray(new Request);
 
     expect($array)->toBe([
         'id' => $id->toString(),
+        'merchant_id' => $merchantId->toString(),
         'product_id' => $productId->toString(),
         'amount_minor_units' => 4999,
         'currency' => 'USD',

@@ -11,10 +11,13 @@ use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Infrastructure\Price\Adapters\Persistence\Mappers\PriceMapper;
 use App\Infrastructure\Price\Adapters\Persistence\Models\PriceModel;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('toDomain builds a recurring Price matching the model attributes', function () {
+    $merchantId = MerchantId::generate();
     $model = new PriceModel([
         'id' => '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'merchant_id' => $merchantId->toString(),
         'product_id' => '1a2b3c4d-5e6f-4321-8765-0123456789ab',
         'amount_minor_units' => 1999,
         'currency' => 'USD',
@@ -27,6 +30,7 @@ test('toDomain builds a recurring Price matching the model attributes', function
     $price = (new PriceMapper)->toDomain($model);
 
     expect($price->id()->toString())->toBe('9f8e7d6c-5b4a-4321-9876-abcdef012345')
+        ->and($price->merchantId()->equals($merchantId))->toBeTrue()
         ->and($price->productId()->toString())->toBe('1a2b3c4d-5e6f-4321-8765-0123456789ab')
         ->and($price->money()->amountMinorUnits())->toBe(1999)
         ->and($price->money()->currency())->toBe(Currency::USD)
@@ -39,6 +43,7 @@ test('toDomain builds a recurring Price matching the model attributes', function
 test('toDomain builds a one-time Price without a billing period', function () {
     $model = new PriceModel([
         'id' => '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'merchant_id' => MerchantId::generate()->toString(),
         'product_id' => '1a2b3c4d-5e6f-4321-8765-0123456789ab',
         'amount_minor_units' => 4999,
         'currency' => 'USD',
@@ -57,6 +62,7 @@ test('toDomain builds a one-time Price without a billing period', function () {
 test('toDomain does not record a PriceCreated event', function () {
     $model = new PriceModel([
         'id' => '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'merchant_id' => MerchantId::generate()->toString(),
         'product_id' => '1a2b3c4d-5e6f-4321-8765-0123456789ab',
         'amount_minor_units' => 1999,
         'currency' => 'USD',
@@ -72,8 +78,10 @@ test('toDomain does not record a PriceCreated event', function () {
 });
 
 test('toModel fills a new model from a recurring Price', function () {
+    $merchantId = MerchantId::generate();
     $price = Price::create(
         PriceId::fromString('9f8e7d6c-5b4a-4321-9876-abcdef012345'),
+        $merchantId,
         ProductId::fromString('1a2b3c4d-5e6f-4321-8765-0123456789ab'),
         Money::of(1999, Currency::USD),
         PriceType::Recurring,
@@ -83,6 +91,7 @@ test('toModel fills a new model from a recurring Price', function () {
     $model = (new PriceMapper)->toModel($price);
 
     expect($model->id)->toBe('9f8e7d6c-5b4a-4321-9876-abcdef012345')
+        ->and($model->merchant_id)->toBe($merchantId->toString())
         ->and($model->product_id)->toBe('1a2b3c4d-5e6f-4321-8765-0123456789ab')
         ->and($model->amount_minor_units)->toBe(1999)
         ->and($model->currency)->toBe('USD')
@@ -95,6 +104,7 @@ test('toModel fills a new model from a recurring Price', function () {
 test('toModel fills a new model from a one-time Price with null billing period columns', function () {
     $price = Price::create(
         PriceId::fromString('9f8e7d6c-5b4a-4321-9876-abcdef012345'),
+        MerchantId::generate(),
         ProductId::fromString('1a2b3c4d-5e6f-4321-8765-0123456789ab'),
         Money::of(4999, Currency::USD),
         PriceType::OneTime,
@@ -110,6 +120,7 @@ test('toModel fills a new model from a one-time Price with null billing period c
 test('toModel fills an existing model instance in place instead of creating a new one', function () {
     $existing = new PriceModel([
         'id' => '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'merchant_id' => MerchantId::generate()->toString(),
         'product_id' => '1a2b3c4d-5e6f-4321-8765-0123456789ab',
         'amount_minor_units' => 999,
         'currency' => 'USD',
@@ -120,6 +131,7 @@ test('toModel fills an existing model instance in place instead of creating a ne
     ]);
     $price = Price::create(
         PriceId::fromString('9f8e7d6c-5b4a-4321-9876-abcdef012345'),
+        MerchantId::generate(),
         ProductId::fromString('1a2b3c4d-5e6f-4321-8765-0123456789ab'),
         Money::of(1999, Currency::EUR),
         PriceType::Recurring,

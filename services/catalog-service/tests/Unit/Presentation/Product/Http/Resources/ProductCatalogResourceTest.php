@@ -22,6 +22,7 @@ test('toArray exposes the product fields together with its prices', function () 
     $priceId = PriceId::generate();
     $price = Price::create(
         $priceId,
+        $merchantId,
         $productId,
         Money::of(1999, Currency::USD),
         PriceType::Recurring,
@@ -40,6 +41,7 @@ test('toArray exposes the product fields together with its prices', function () 
         'prices' => [
             [
                 'id' => $priceId->toString(),
+                'merchant_id' => $merchantId->toString(),
                 'product_id' => $productId->toString(),
                 'amount_minor_units' => 1999,
                 'currency' => 'USD',
