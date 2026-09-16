@@ -20,3 +20,16 @@ test('every case has a readable label', function (BillingInterval $interval, str
     [BillingInterval::Month, 'month'],
     [BillingInterval::Year, 'year'],
 ]);
+
+test('it can be created from a known label', function (string $label, BillingInterval $interval) {
+    expect(BillingInterval::fromLabel($label))->toBe($interval);
+})->with([
+    ['day', BillingInterval::Day],
+    ['week', BillingInterval::Week],
+    ['month', BillingInterval::Month],
+    ['year', BillingInterval::Year],
+]);
+
+test('it throws when the label is unknown', function () {
+    BillingInterval::fromLabel('fortnight');
+})->throws(ValueError::class, '"fortnight" is not a valid billing interval label.');
