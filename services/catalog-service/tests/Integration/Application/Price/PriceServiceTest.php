@@ -44,7 +44,7 @@ test('getPrice delegates to GetPriceHandler and returns the matching price', fun
         1,
     ));
 
-    $found = $service->getPrice(new GetPriceQuery($created->id()->toString()));
+    $found = $service->getPrice(new GetPriceQuery($merchantId, $created->id()->toString()));
 
     expect($found->id()->equals($created->id()))->toBeTrue();
 });
@@ -55,7 +55,7 @@ test('deactivatePrice delegates to DeactivatePriceHandler and returns the deacti
     $service = app(PriceService::class);
     $price = $service->createPrice(new CreatePriceCommand($merchantId, $product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
 
-    $deactivated = $service->deactivatePrice(new DeactivatePriceCommand($price->id()->toString()));
+    $deactivated = $service->deactivatePrice(new DeactivatePriceCommand($merchantId, $price->id()->toString()));
 
     expect($deactivated->status())->toBe(PriceStatus::Inactive);
 });
@@ -65,9 +65,9 @@ test('activatePrice delegates to ActivatePriceHandler and returns the activated 
     $product = app(ProductService::class)->createProduct(new CreateProductCommand($merchantId, 'Pro Plan'));
     $service = app(PriceService::class);
     $price = $service->createPrice(new CreatePriceCommand($merchantId, $product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
-    $service->deactivatePrice(new DeactivatePriceCommand($price->id()->toString()));
+    $service->deactivatePrice(new DeactivatePriceCommand($merchantId, $price->id()->toString()));
 
-    $activated = $service->activatePrice(new ActivatePriceCommand($price->id()->toString()));
+    $activated = $service->activatePrice(new ActivatePriceCommand($merchantId, $price->id()->toString()));
 
     expect($activated->status())->toBe(PriceStatus::Active);
 });

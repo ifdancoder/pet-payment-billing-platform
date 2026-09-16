@@ -5,6 +5,7 @@ namespace App\Application\Price\Queries\GetPrice;
 use App\Application\Price\Ports\Outbound\IPriceRepositoryPort;
 use App\Domain\Price\Price;
 use App\Domain\Price\ValueObjects\PriceId;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class GetPriceHandler
 {
@@ -12,6 +13,9 @@ final class GetPriceHandler
 
     public function handle(GetPriceQuery $query): Price
     {
-        return $this->repository->get(PriceId::fromString($query->id));
+        return $this->repository->get(
+            PriceId::fromString($query->id),
+            MerchantId::fromString($query->merchantId),
+        );
     }
 }

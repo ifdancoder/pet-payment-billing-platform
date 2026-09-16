@@ -20,6 +20,7 @@ final class PriceResource extends JsonResource
     {
         return [
             'id' => $this->price->id()->toString(),
+            'merchant_id' => $this->price->merchantId()->toString(),
             'product_id' => $this->price->productId()->toString(),
             'amount_minor_units' => $this->price->money()->amountMinorUnits(),
             'currency' => $this->price->money()->currency()->value,

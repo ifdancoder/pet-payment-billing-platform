@@ -12,6 +12,7 @@ use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Infrastructure\Price\Adapters\Persistence\Models\PriceModel;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class PriceMapper
 {
@@ -23,6 +24,7 @@ final class PriceMapper
 
         return Price::reconstitute(
             PriceId::fromString($model->id),
+            MerchantId::fromString($model->merchant_id),
             ProductId::fromString($model->product_id),
             Money::of($model->amount_minor_units, Currency::from($model->currency)),
             PriceType::from($model->type),
@@ -36,6 +38,7 @@ final class PriceMapper
         $model ??= new PriceModel;
 
         $model->id = $price->id()->toString();
+        $model->merchant_id = $price->merchantId()->toString();
         $model->product_id = $price->productId()->toString();
         $model->amount_minor_units = $price->money()->amountMinorUnits();
         $model->currency = $price->money()->currency()->value;

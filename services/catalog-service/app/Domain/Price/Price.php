@@ -14,6 +14,7 @@ use App\Domain\Price\ValueObjects\PriceId;
 use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class Price
 {
@@ -22,6 +23,7 @@ final class Price
 
     private function __construct(
         private readonly PriceId $id,
+        private readonly MerchantId $merchantId,
         private readonly ProductId $productId,
         private readonly Money $money,
         private readonly PriceType $type,
@@ -31,6 +33,7 @@ final class Price
 
     public static function create(
         PriceId $id,
+        MerchantId $merchantId,
         ProductId $productId,
         Money $money,
         PriceType $type,
@@ -38,7 +41,7 @@ final class Price
     ): self {
         self::assertBillingPeriodMatchesType($type, $billingPeriod);
 
-        $price = new self($id, $productId, $money, $type, $billingPeriod, PriceStatus::Active);
+        $price = new self($id, $merchantId, $productId, $money, $type, $billingPeriod, PriceStatus::Active);
         $price->recordEvent(new PriceCreated($id, $productId, $money, $type, $billingPeriod));
 
         return $price;
@@ -50,18 +53,24 @@ final class Price
      */
     public static function reconstitute(
         PriceId $id,
+        MerchantId $merchantId,
         ProductId $productId,
         Money $money,
         PriceType $type,
         ?BillingPeriod $billingPeriod,
         PriceStatus $status,
     ): self {
-        return new self($id, $productId, $money, $type, $billingPeriod, $status);
+        return new self($id, $merchantId, $productId, $money, $type, $billingPeriod, $status);
     }
 
     public function id(): PriceId
     {
         return $this->id;
+    }
+
+    public function merchantId(): MerchantId
+    {
+        return $this->merchantId;
     }
 
     public function productId(): ProductId

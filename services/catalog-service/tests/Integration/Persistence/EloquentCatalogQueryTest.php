@@ -26,6 +26,7 @@ test('getProductCatalog returns the product with every one of its prices', funct
     $priceRepository = new EloquentPriceRepository(new PriceMapper);
     $priceRepository->save(Price::create(
         PriceId::generate(),
+        $merchantId,
         $productId,
         Money::of(1999, Currency::USD),
         PriceType::Recurring,
@@ -33,6 +34,7 @@ test('getProductCatalog returns the product with every one of its prices', funct
     ));
     $priceRepository->save(Price::create(
         PriceId::generate(),
+        $merchantId,
         $productId,
         Money::of(19990, Currency::USD),
         PriceType::Recurring,

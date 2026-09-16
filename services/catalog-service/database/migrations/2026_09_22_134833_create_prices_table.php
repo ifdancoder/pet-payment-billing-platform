@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::create('prices', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->uuid('merchant_id');
             $table->foreignUuid('product_id')->constrained('products')->cascadeOnDelete();
             $table->unsignedBigInteger('amount_minor_units');
             $table->string('currency', 3);
@@ -21,6 +22,8 @@ return new class extends Migration
             $table->unsignedInteger('billing_interval_count')->nullable();
             $table->unsignedTinyInteger('status');
             $table->timestamps();
+
+            $table->index(['merchant_id', 'status']);
         });
     }
 
