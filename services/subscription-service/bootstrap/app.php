@@ -4,6 +4,7 @@ use App\Application\Subscription\Exceptions\CustomerNotFound;
 use App\Application\Subscription\Exceptions\PriceIsNotActive;
 use App\Application\Subscription\Exceptions\PriceIsNotRecurring;
 use App\Application\Subscription\Exceptions\PriceNotFound;
+use App\Domain\Subscription\Exceptions\InvalidSubscriptionTransition;
 use App\Domain\Subscription\Exceptions\SubscriptionNotFound;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -27,4 +28,5 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(fn (PriceNotFound $e) => response()->json(['message' => $e->getMessage()], 404));
         $exceptions->render(fn (PriceIsNotRecurring $e) => response()->json(['message' => $e->getMessage()], 409));
         $exceptions->render(fn (PriceIsNotActive $e) => response()->json(['message' => $e->getMessage()], 409));
+        $exceptions->render(fn (InvalidSubscriptionTransition $e) => response()->json(['message' => $e->getMessage()], 409));
     })->create();
