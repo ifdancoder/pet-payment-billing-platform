@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Mail;
 test('a valid request creates a customer and returns it', function () {
     Mail::fake();
 
-    $response = $this->postJson('/api/customers', [
+    $response = $this->postJson('/api/v1/customers', [
         'email' => 'jane@example.com',
         'name' => 'Jane Doe',
     ]);
@@ -23,13 +23,13 @@ test('a valid request creates a customer and returns it', function () {
 });
 
 test('a request missing required fields is rejected', function () {
-    $response = $this->postJson('/api/customers', []);
+    $response = $this->postJson('/api/v1/customers', []);
 
     $response->assertUnprocessable()->assertJsonValidationErrors(['email', 'name']);
 });
 
 test('a request with an invalid email is rejected', function () {
-    $response = $this->postJson('/api/customers', [
+    $response = $this->postJson('/api/v1/customers', [
         'email' => 'not-an-email',
         'name' => 'Jane Doe',
     ]);
