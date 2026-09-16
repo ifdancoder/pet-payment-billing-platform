@@ -5,7 +5,7 @@ use App\Shared\Domain\ValueObjects\MerchantId;
 test('a valid request creates a product and returns it', function () {
     $merchantId = MerchantId::generate()->toString();
 
-    $response = $this->postJson("/api/merchants/{$merchantId}/products", [
+    $response = $this->postJson("/api/v1/merchants/{$merchantId}/products", [
         'name' => 'Pro Plan',
         'description' => 'Pro tier subscription',
     ]);
@@ -20,7 +20,7 @@ test('a valid request creates a product and returns it', function () {
 test('a valid request without a description creates a product with a null description', function () {
     $merchantId = MerchantId::generate()->toString();
 
-    $response = $this->postJson("/api/merchants/{$merchantId}/products", [
+    $response = $this->postJson("/api/v1/merchants/{$merchantId}/products", [
         'name' => 'Pro Plan',
     ]);
 
@@ -28,7 +28,7 @@ test('a valid request without a description creates a product with a null descri
 });
 
 test('a request missing required fields is rejected', function () {
-    $response = $this->postJson('/api/merchants/'.MerchantId::generate()->toString().'/products', []);
+    $response = $this->postJson('/api/v1/merchants/'.MerchantId::generate()->toString().'/products', []);
 
     $response->assertUnprocessable()->assertJsonValidationErrors(['name']);
 });

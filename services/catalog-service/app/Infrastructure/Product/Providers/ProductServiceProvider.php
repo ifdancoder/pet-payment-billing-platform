@@ -26,7 +26,7 @@ class ProductServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Route::middleware('api')
-            ->prefix('api')
+            ->prefix('api/v1')
             ->group(function (): void {
                 $this->loadRoutesFrom(__DIR__.'/../../../Presentation/Product/Adapters/Inbound/Http/Routes/api.php');
             });

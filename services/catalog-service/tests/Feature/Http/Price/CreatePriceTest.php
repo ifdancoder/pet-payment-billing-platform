@@ -6,9 +6,9 @@ use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('a valid request creates a recurring price for the product and returns it', function () {
     $merchantId = MerchantId::generate()->toString();
-    $product = $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
+    $product = $this->postJson("/api/v1/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
 
-    $response = $this->postJson("/api/merchants/{$merchantId}/products/{$product['id']}/prices", [
+    $response = $this->postJson("/api/v1/merchants/{$merchantId}/products/{$product['id']}/prices", [
         'amount_minor_units' => 1999,
         'currency' => 'USD',
         'type' => PriceType::Recurring->value,
@@ -30,9 +30,9 @@ test('a valid request creates a recurring price for the product and returns it',
 
 test('a valid request creates a one-time price for the product and returns it', function () {
     $merchantId = MerchantId::generate()->toString();
-    $product = $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
+    $product = $this->postJson("/api/v1/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
 
-    $response = $this->postJson("/api/merchants/{$merchantId}/products/{$product['id']}/prices", [
+    $response = $this->postJson("/api/v1/merchants/{$merchantId}/products/{$product['id']}/prices", [
         'amount_minor_units' => 4999,
         'currency' => 'USD',
         'type' => PriceType::OneTime->value,
@@ -46,9 +46,9 @@ test('a valid request creates a one-time price for the product and returns it', 
 
 test('a request missing required fields is rejected', function () {
     $merchantId = MerchantId::generate()->toString();
-    $product = $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
+    $product = $this->postJson("/api/v1/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
 
-    $response = $this->postJson("/api/merchants/{$merchantId}/products/{$product['id']}/prices", []);
+    $response = $this->postJson("/api/v1/merchants/{$merchantId}/products/{$product['id']}/prices", []);
 
     $response->assertUnprocessable()
         ->assertJsonValidationErrors(['amount_minor_units', 'currency', 'type']);
@@ -56,9 +56,9 @@ test('a request missing required fields is rejected', function () {
 
 test('a recurring price request without a billing interval is rejected', function () {
     $merchantId = MerchantId::generate()->toString();
-    $product = $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
+    $product = $this->postJson("/api/v1/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
 
-    $response = $this->postJson("/api/merchants/{$merchantId}/products/{$product['id']}/prices", [
+    $response = $this->postJson("/api/v1/merchants/{$merchantId}/products/{$product['id']}/prices", [
         'amount_minor_units' => 1999,
         'currency' => 'USD',
         'type' => PriceType::Recurring->value,
@@ -70,9 +70,9 @@ test('a recurring price request without a billing interval is rejected', functio
 
 test('a one-time price request with a billing interval is rejected', function () {
     $merchantId = MerchantId::generate()->toString();
-    $product = $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
+    $product = $this->postJson("/api/v1/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
 
-    $response = $this->postJson("/api/merchants/{$merchantId}/products/{$product['id']}/prices", [
+    $response = $this->postJson("/api/v1/merchants/{$merchantId}/products/{$product['id']}/prices", [
         'amount_minor_units' => 4999,
         'currency' => 'USD',
         'type' => PriceType::OneTime->value,
@@ -85,7 +85,7 @@ test('a one-time price request with a billing interval is rejected', function ()
 });
 
 test('a request for a non-existent product returns not found', function () {
-    $response = $this->postJson('/api/merchants/'.MerchantId::generate()->toString().'/products/9e3b1f2a-1c2d-4e3f-8a9b-0123456789ab/prices', [
+    $response = $this->postJson('/api/v1/merchants/'.MerchantId::generate()->toString().'/products/9e3b1f2a-1c2d-4e3f-8a9b-0123456789ab/prices', [
         'amount_minor_units' => 1999,
         'currency' => 'USD',
         'type' => PriceType::Recurring->value,
@@ -98,9 +98,9 @@ test('a request for a non-existent product returns not found', function () {
 
 test('a request for a product belonging to a different merchant returns not found', function () {
     $merchantId = MerchantId::generate()->toString();
-    $product = $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
+    $product = $this->postJson("/api/v1/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
 
-    $response = $this->postJson('/api/merchants/'.MerchantId::generate()->toString()."/products/{$product['id']}/prices", [
+    $response = $this->postJson('/api/v1/merchants/'.MerchantId::generate()->toString()."/products/{$product['id']}/prices", [
         'amount_minor_units' => 1999,
         'currency' => 'USD',
         'type' => PriceType::OneTime->value,
