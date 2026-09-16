@@ -18,4 +18,15 @@ enum BillingInterval: int
             self::Year => 'year',
         };
     }
+
+    public static function fromLabel(string $label): self
+    {
+        return match ($label) {
+            'day' => self::Day,
+            'week' => self::Week,
+            'month' => self::Month,
+            'year' => self::Year,
+            default => throw new \ValueError("\"{$label}\" is not a valid billing interval label."),
+        };
+    }
 }
