@@ -2,7 +2,10 @@
 
 namespace App\Presentation\Subscription\Adapters\Inbound\Http\Controllers;
 
+use App\Application\Subscription\Commands\ActivateSubscription\ActivateSubscriptionCommand;
+use App\Application\Subscription\Commands\CancelSubscription\CancelSubscriptionCommand;
 use App\Application\Subscription\Commands\CreateSubscription\CreateSubscriptionCommand;
+use App\Application\Subscription\Commands\MarkSubscriptionPastDue\MarkSubscriptionPastDueCommand;
 use App\Application\Subscription\Ports\Inbound\ISubscriptionServicePort;
 use App\Application\Subscription\Queries\GetSubscription\GetSubscriptionQuery;
 use App\Application\Subscription\Queries\ListSubscriptions\ListSubscriptionsQuery;
@@ -39,5 +42,26 @@ final class SubscriptionController extends Controller
         $found = $this->subscriptionService->getSubscription(new GetSubscriptionQuery($merchant, $subscription));
 
         return SubscriptionResource::make($found)->response();
+    }
+
+    public function activate(string $merchant, string $subscription): JsonResponse
+    {
+        $activated = $this->subscriptionService->activateSubscription(new ActivateSubscriptionCommand($merchant, $subscription));
+
+        return SubscriptionResource::make($activated)->response();
+    }
+
+    public function markPastDue(string $merchant, string $subscription): JsonResponse
+    {
+        $marked = $this->subscriptionService->markSubscriptionPastDue(new MarkSubscriptionPastDueCommand($merchant, $subscription));
+
+        return SubscriptionResource::make($marked)->response();
+    }
+
+    public function cancel(string $merchant, string $subscription): JsonResponse
+    {
+        $canceled = $this->subscriptionService->cancelSubscription(new CancelSubscriptionCommand($merchant, $subscription));
+
+        return SubscriptionResource::make($canceled)->response();
     }
 }
