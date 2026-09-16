@@ -1,10 +1,12 @@
 <?php
 
 use App\Domain\Price\ValueObjects\PriceType;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('a request deactivates an existing active price', function () {
-    $product = $this->postJson('/api/products', ['name' => 'Pro Plan'])->json('data');
-    $price = $this->postJson("/api/products/{$product['id']}/prices", [
+    $merchantId = MerchantId::generate()->toString();
+    $product = $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
+    $price = $this->postJson("/api/merchants/{$merchantId}/products/{$product['id']}/prices", [
         'amount_minor_units' => 1999,
         'currency' => 'USD',
         'type' => PriceType::OneTime->value,
@@ -22,8 +24,9 @@ test('a request for a non-existent price returns not found', function () {
 });
 
 test('a request to deactivate an already-inactive price returns a conflict', function () {
-    $product = $this->postJson('/api/products', ['name' => 'Pro Plan'])->json('data');
-    $price = $this->postJson("/api/products/{$product['id']}/prices", [
+    $merchantId = MerchantId::generate()->toString();
+    $product = $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
+    $price = $this->postJson("/api/merchants/{$merchantId}/products/{$product['id']}/prices", [
         'amount_minor_units' => 1999,
         'currency' => 'USD',
         'type' => PriceType::OneTime->value,

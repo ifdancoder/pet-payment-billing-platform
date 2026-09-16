@@ -1,16 +1,20 @@
 <?php
 
-test('a request returns every existing product', function () {
-    $this->postJson('/api/products', ['name' => 'Pro Plan']);
-    $this->postJson('/api/products', ['name' => 'Team Plan']);
+use App\Shared\Domain\ValueObjects\MerchantId;
 
-    $response = $this->getJson('/api/products');
+test('a request returns every existing product for the given merchant', function () {
+    $merchantId = MerchantId::generate()->toString();
+    $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan']);
+    $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Team Plan']);
+    $this->postJson('/api/merchants/'.MerchantId::generate()->toString().'/products', ['name' => 'Other Merchant Plan']);
+
+    $response = $this->getJson("/api/merchants/{$merchantId}/products");
 
     $response->assertOk()->assertJsonCount(2, 'data');
 });
 
-test('a request returns an empty list when there are no products', function () {
-    $response = $this->getJson('/api/products');
+test('a request returns an empty list when there are no products for the given merchant', function () {
+    $response = $this->getJson('/api/merchants/'.MerchantId::generate()->toString().'/products');
 
     $response->assertOk()->assertJsonCount(0, 'data');
 });

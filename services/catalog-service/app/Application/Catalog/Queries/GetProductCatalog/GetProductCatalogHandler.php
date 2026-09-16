@@ -5,6 +5,7 @@ namespace App\Application\Catalog\Queries\GetProductCatalog;
 use App\Application\Catalog\Ports\Outbound\ICatalogQueryPort;
 use App\Application\Catalog\ReadModels\ProductCatalog;
 use App\Domain\Product\ValueObjects\ProductId;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class GetProductCatalogHandler
 {
@@ -12,6 +13,9 @@ final class GetProductCatalogHandler
 
     public function handle(GetProductCatalogQuery $query): ProductCatalog
     {
-        return $this->catalogQuery->getProductCatalog(ProductId::fromString($query->productId));
+        return $this->catalogQuery->getProductCatalog(
+            ProductId::fromString($query->productId),
+            MerchantId::fromString($query->merchantId),
+        );
     }
 }

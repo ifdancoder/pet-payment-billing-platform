@@ -22,7 +22,9 @@ final class ProductCatalogResource extends JsonResource
     {
         return [
             'id' => $this->catalog->product->id()->toString(),
+            'merchant_id' => $this->catalog->product->merchantId()->toString(),
             'name' => $this->catalog->product->name()->toString(),
+            'description' => $this->catalog->product->description(),
             'status' => $this->catalog->product->status()->label(),
             'prices' => array_map(
                 fn (Price $price) => (new PriceResource($price))->toArray($request),

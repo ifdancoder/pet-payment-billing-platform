@@ -2,10 +2,12 @@
 
 use App\Domain\Price\ValueObjects\BillingInterval;
 use App\Domain\Price\ValueObjects\PriceType;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('a request returns the matching price', function () {
-    $product = $this->postJson('/api/products', ['name' => 'Pro Plan'])->json('data');
-    $price = $this->postJson("/api/products/{$product['id']}/prices", [
+    $merchantId = MerchantId::generate()->toString();
+    $product = $this->postJson("/api/merchants/{$merchantId}/products", ['name' => 'Pro Plan'])->json('data');
+    $price = $this->postJson("/api/merchants/{$merchantId}/products/{$product['id']}/prices", [
         'amount_minor_units' => 1999,
         'currency' => 'USD',
         'type' => PriceType::Recurring->value,

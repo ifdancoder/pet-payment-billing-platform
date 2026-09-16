@@ -16,11 +16,13 @@ use App\Infrastructure\Price\Adapters\Persistence\Mappers\PriceMapper;
 use App\Infrastructure\Price\Adapters\Persistence\Repositories\EloquentPriceRepository;
 use App\Infrastructure\Product\Adapters\Persistence\Mappers\ProductMapper;
 use App\Infrastructure\Product\Adapters\Persistence\Repositories\EloquentProductRepository;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('getProductCatalog returns the product with every one of its prices', function () {
     $productId = ProductId::generate();
+    $merchantId = MerchantId::generate();
     (new EloquentProductRepository(new ProductMapper))
-        ->save(Product::create($productId, ProductName::fromString('Pro Plan')));
+        ->save(Product::create($productId, $merchantId, ProductName::fromString('Pro Plan')));
     $priceRepository = new EloquentPriceRepository(new PriceMapper);
     $priceRepository->save(Price::create(
         PriceId::generate(),
@@ -37,7 +39,7 @@ test('getProductCatalog returns the product with every one of its prices', funct
         BillingPeriod::of(BillingInterval::Year, 1),
     ));
 
-    $catalog = (new EloquentCatalogQuery(new ProductMapper, new PriceMapper))->getProductCatalog($productId);
+    $catalog = (new EloquentCatalogQuery(new ProductMapper, new PriceMapper))->getProductCatalog($productId, $merchantId);
 
     expect($catalog->product->id()->equals($productId))->toBeTrue()
         ->and($catalog->prices)->toHaveCount(2)
@@ -47,14 +49,23 @@ test('getProductCatalog returns the product with every one of its prices', funct
 
 test('getProductCatalog returns an empty prices array when the product has none', function () {
     $productId = ProductId::generate();
+    $merchantId = MerchantId::generate();
     (new EloquentProductRepository(new ProductMapper))
-        ->save(Product::create($productId, ProductName::fromString('Pro Plan')));
+        ->save(Product::create($productId, $merchantId, ProductName::fromString('Pro Plan')));
 
-    $catalog = (new EloquentCatalogQuery(new ProductMapper, new PriceMapper))->getProductCatalog($productId);
+    $catalog = (new EloquentCatalogQuery(new ProductMapper, new PriceMapper))->getProductCatalog($productId, $merchantId);
 
     expect($catalog->prices)->toBe([]);
 });
 
 test('getProductCatalog throws ProductNotFound when the product does not exist', function () {
-    (new EloquentCatalogQuery(new ProductMapper, new PriceMapper))->getProductCatalog(ProductId::generate());
+    (new EloquentCatalogQuery(new ProductMapper, new PriceMapper))->getProductCatalog(ProductId::generate(), MerchantId::generate());
+})->throws(ProductNotFound::class);
+
+test('getProductCatalog throws ProductNotFound when the product belongs to a different merchant', function () {
+    $productId = ProductId::generate();
+    (new EloquentProductRepository(new ProductMapper))
+        ->save(Product::create($productId, MerchantId::generate(), ProductName::fromString('Pro Plan')));
+
+    (new EloquentCatalogQuery(new ProductMapper, new PriceMapper))->getProductCatalog($productId, MerchantId::generate());
 })->throws(ProductNotFound::class);

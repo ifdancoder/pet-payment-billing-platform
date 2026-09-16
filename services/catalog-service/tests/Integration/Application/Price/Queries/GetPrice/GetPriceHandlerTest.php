@@ -10,10 +10,13 @@ use App\Domain\Price\Exceptions\PriceNotFound;
 use App\Domain\Price\ValueObjects\BillingInterval;
 use App\Domain\Price\ValueObjects\PriceId;
 use App\Domain\Price\ValueObjects\PriceType;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('handle returns the matching price', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate()->toString();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId, 'Pro Plan'));
     $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
+        $merchantId,
         $product->id()->toString(),
         1999,
         'USD',

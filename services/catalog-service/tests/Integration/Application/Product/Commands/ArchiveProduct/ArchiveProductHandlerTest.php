@@ -10,37 +10,48 @@ use App\Domain\Product\Exceptions\ProductNotFound;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductStatus;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('handle archives an existing product', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
     $handler = app(ArchiveProductHandler::class);
 
-    $archived = $handler->handle(new ArchiveProductCommand($product->id()->toString()));
+    $archived = $handler->handle(new ArchiveProductCommand($merchantId->toString(), $product->id()->toString()));
 
     expect($archived->status())->toBe(ProductStatus::Archived);
-    $persisted = app(IProductRepositoryPort::class)->get($product->id());
+    $persisted = app(IProductRepositoryPort::class)->get($product->id(), $merchantId);
     expect($persisted->status())->toBe(ProductStatus::Archived);
 });
 
 test('handle throws ProductNotFound when the product does not exist', function () {
     $handler = app(ArchiveProductHandler::class);
 
-    $handler->handle(new ArchiveProductCommand(ProductId::generate()->toString()));
+    $handler->handle(new ArchiveProductCommand(MerchantId::generate()->toString(), ProductId::generate()->toString()));
+})->throws(ProductNotFound::class);
+
+test('handle throws ProductNotFound when the product belongs to a different merchant', function () {
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand(MerchantId::generate()->toString(), 'Pro Plan'));
+    $handler = app(ArchiveProductHandler::class);
+
+    $handler->handle(new ArchiveProductCommand(MerchantId::generate()->toString(), $product->id()->toString()));
 })->throws(ProductNotFound::class);
 
 test('handle throws ProductAlreadyArchived when the product is already archived', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
     $handler = app(ArchiveProductHandler::class);
-    $handler->handle(new ArchiveProductCommand($product->id()->toString()));
+    $handler->handle(new ArchiveProductCommand($merchantId->toString(), $product->id()->toString()));
 
-    $handler->handle(new ArchiveProductCommand($product->id()->toString()));
+    $handler->handle(new ArchiveProductCommand($merchantId->toString(), $product->id()->toString()));
 })->throws(ProductAlreadyArchived::class);
 
 test('handle records a ProductArchived integration event in the outbox', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
     $handler = app(ArchiveProductHandler::class);
 
-    $handler->handle(new ArchiveProductCommand($product->id()->toString()));
+    $handler->handle(new ArchiveProductCommand($merchantId->toString(), $product->id()->toString()));
 
     $unpublished = app(IOutboxPort::class)->unpublished();
     $archived = collect($unpublished)->firstWhere('eventType', 'product.archived.v1');

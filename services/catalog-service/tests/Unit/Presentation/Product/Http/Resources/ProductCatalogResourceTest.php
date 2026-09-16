@@ -12,11 +12,13 @@ use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
 use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductCatalogResource;
+use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Http\Request;
 
 test('toArray exposes the product fields together with its prices', function () {
     $productId = ProductId::generate();
-    $product = Product::create($productId, ProductName::fromString('Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = Product::create($productId, $merchantId, ProductName::fromString('Pro Plan'), 'Pro tier subscription');
     $priceId = PriceId::generate();
     $price = Price::create(
         $priceId,
@@ -31,7 +33,9 @@ test('toArray exposes the product fields together with its prices', function () 
 
     expect($array)->toBe([
         'id' => $productId->toString(),
+        'merchant_id' => $merchantId->toString(),
         'name' => 'Pro Plan',
+        'description' => 'Pro tier subscription',
         'status' => 'active',
         'prices' => [
             [
@@ -49,7 +53,7 @@ test('toArray exposes the product fields together with its prices', function () 
 });
 
 test('toArray exposes an empty prices array when the product has none', function () {
-    $product = Product::create(ProductId::generate(), ProductName::fromString('Pro Plan'));
+    $product = Product::create(ProductId::generate(), MerchantId::generate(), ProductName::fromString('Pro Plan'));
     $catalog = new ProductCatalog($product, []);
 
     $array = (new ProductCatalogResource($catalog))->toArray(new Request);

@@ -10,12 +10,15 @@ use App\Application\Product\ProductService;
 use App\Domain\Price\ValueObjects\BillingInterval;
 use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('createPrice delegates to CreatePriceHandler and returns the created price', function () {
-    $product = app(ProductService::class)->createProduct(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate()->toString();
+    $product = app(ProductService::class)->createProduct(new CreateProductCommand($merchantId, 'Pro Plan'));
     $service = app(PriceService::class);
 
     $price = $service->createPrice(new CreatePriceCommand(
+        $merchantId,
         $product->id()->toString(),
         1999,
         'USD',
@@ -28,9 +31,11 @@ test('createPrice delegates to CreatePriceHandler and returns the created price'
 });
 
 test('getPrice delegates to GetPriceHandler and returns the matching price', function () {
-    $product = app(ProductService::class)->createProduct(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate()->toString();
+    $product = app(ProductService::class)->createProduct(new CreateProductCommand($merchantId, 'Pro Plan'));
     $service = app(PriceService::class);
     $created = $service->createPrice(new CreatePriceCommand(
+        $merchantId,
         $product->id()->toString(),
         1999,
         'USD',
@@ -45,9 +50,10 @@ test('getPrice delegates to GetPriceHandler and returns the matching price', fun
 });
 
 test('deactivatePrice delegates to DeactivatePriceHandler and returns the deactivated price', function () {
-    $product = app(ProductService::class)->createProduct(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate()->toString();
+    $product = app(ProductService::class)->createProduct(new CreateProductCommand($merchantId, 'Pro Plan'));
     $service = app(PriceService::class);
-    $price = $service->createPrice(new CreatePriceCommand($product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
+    $price = $service->createPrice(new CreatePriceCommand($merchantId, $product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
 
     $deactivated = $service->deactivatePrice(new DeactivatePriceCommand($price->id()->toString()));
 
@@ -55,9 +61,10 @@ test('deactivatePrice delegates to DeactivatePriceHandler and returns the deacti
 });
 
 test('activatePrice delegates to ActivatePriceHandler and returns the activated price', function () {
-    $product = app(ProductService::class)->createProduct(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate()->toString();
+    $product = app(ProductService::class)->createProduct(new CreateProductCommand($merchantId, 'Pro Plan'));
     $service = app(PriceService::class);
-    $price = $service->createPrice(new CreatePriceCommand($product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
+    $price = $service->createPrice(new CreatePriceCommand($merchantId, $product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
     $service->deactivatePrice(new DeactivatePriceCommand($price->id()->toString()));
 
     $activated = $service->activatePrice(new ActivatePriceCommand($price->id()->toString()));

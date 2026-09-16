@@ -14,13 +14,15 @@ final class ProductResource extends JsonResource
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, string|null>
      */
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->product->id()->toString(),
+            'merchant_id' => $this->product->merchantId()->toString(),
             'name' => $this->product->name()->toString(),
+            'description' => $this->product->description(),
             'status' => $this->product->status()->label(),
         ];
     }

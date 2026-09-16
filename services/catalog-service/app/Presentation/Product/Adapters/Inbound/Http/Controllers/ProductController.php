@@ -24,32 +24,35 @@ final class ProductController extends Controller
         private readonly ICatalogServicePort $catalogService,
     ) {}
 
-    public function index(): JsonResponse
+    public function index(string $merchant): JsonResponse
     {
-        $products = $this->productService->listProducts(new ListProductsQuery);
+        $products = $this->productService->listProducts(new ListProductsQuery($merchant));
 
         return (new ProductResourceCollection($products))->response();
     }
 
-    public function store(CreateProductRequest $request): JsonResponse
+    public function store(CreateProductRequest $request, string $merchant): JsonResponse
     {
         $product = $this->productService->createProduct(new CreateProductCommand(
+            $merchant,
             $request->validated('name'),
+            $request->validated('description'),
         ));
 
         return ProductResource::make($product)->response()->setStatusCode(201);
     }
 
-    public function show(string $product): JsonResponse
+    public function show(string $merchant, string $product): JsonResponse
     {
-        $catalog = $this->catalogService->getProductCatalog(new GetProductCatalogQuery($product));
+        $catalog = $this->catalogService->getProductCatalog(new GetProductCatalogQuery($merchant, $product));
 
         return (new ProductCatalogResource($catalog))->response();
     }
 
-    public function update(UpdateProductRequest $request, string $product): JsonResponse
+    public function update(UpdateProductRequest $request, string $merchant, string $product): JsonResponse
     {
         $updated = $this->productService->updateProduct(new UpdateProductCommand(
+            $merchant,
             $product,
             $request->validated('name'),
         ));
@@ -57,9 +60,9 @@ final class ProductController extends Controller
         return ProductResource::make($updated)->response();
     }
 
-    public function archive(string $product): JsonResponse
+    public function archive(string $merchant, string $product): JsonResponse
     {
-        $archived = $this->productService->archiveProduct(new ArchiveProductCommand($product));
+        $archived = $this->productService->archiveProduct(new ArchiveProductCommand($merchant, $product));
 
         return ProductResource::make($archived)->response();
     }

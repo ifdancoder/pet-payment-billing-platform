@@ -10,6 +10,7 @@ use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class CreateProductHandler
 {
@@ -23,7 +24,9 @@ final class CreateProductHandler
     {
         $product = Product::create(
             ProductId::generate(),
+            MerchantId::fromString($command->merchantId),
             ProductName::fromString($command->name),
+            $command->description,
         );
 
         $this->transaction->run(function () use ($product): void {

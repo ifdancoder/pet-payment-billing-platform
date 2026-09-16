@@ -13,10 +13,13 @@ use App\Domain\Price\ValueObjects\PriceId;
 use App\Domain\Price\ValueObjects\PriceStatus;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('handle deactivates an existing active price', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate()->toString();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId, 'Pro Plan'));
     $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
+        $merchantId,
         $product->id()->toString(),
         1999,
         'USD',
@@ -38,8 +41,10 @@ test('handle throws PriceNotFound when the price does not exist', function () {
 })->throws(PriceNotFound::class);
 
 test('handle throws PriceAlreadyInactive when the price is already inactive', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate()->toString();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId, 'Pro Plan'));
     $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
+        $merchantId,
         $product->id()->toString(),
         1999,
         'USD',
@@ -52,8 +57,10 @@ test('handle throws PriceAlreadyInactive when the price is already inactive', fu
 })->throws(PriceAlreadyInactive::class);
 
 test('handle records a PriceDeactivated integration event in the outbox', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate()->toString();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId, 'Pro Plan'));
     $price = app(CreatePriceHandler::class)->handle(new CreatePriceCommand(
+        $merchantId,
         $product->id()->toString(),
         1999,
         'USD',

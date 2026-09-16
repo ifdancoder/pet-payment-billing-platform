@@ -16,6 +16,7 @@ use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class CreatePriceHandler
 {
@@ -29,7 +30,7 @@ final class CreatePriceHandler
     public function handle(CreatePriceCommand $command): Price
     {
         $productId = ProductId::fromString($command->productId);
-        $this->products->get($productId);
+        $this->products->get($productId, MerchantId::fromString($command->merchantId));
 
         $billingPeriod = $command->billingInterval === null
             ? null

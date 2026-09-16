@@ -4,17 +4,21 @@ use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
 use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductResource;
+use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Http\Request;
 
-test('toArray exposes the product id and name', function () {
+test('toArray exposes the product id, merchant, name, description and status', function () {
     $id = ProductId::generate();
-    $product = Product::create($id, ProductName::fromString('Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = Product::create($id, $merchantId, ProductName::fromString('Pro Plan'), 'Pro tier subscription');
 
     $array = (new ProductResource($product))->toArray(new Request);
 
     expect($array)->toBe([
         'id' => $id->toString(),
+        'merchant_id' => $merchantId->toString(),
         'name' => 'Pro Plan',
+        'description' => 'Pro tier subscription',
         'status' => 'active',
     ]);
 });

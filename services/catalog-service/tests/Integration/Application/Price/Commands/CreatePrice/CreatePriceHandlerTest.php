@@ -11,12 +11,15 @@ use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\Exceptions\ProductNotFound;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 test('handle persists a new recurring price for an existing product', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
     $handler = app(CreatePriceHandler::class);
 
     $price = $handler->handle(new CreatePriceCommand(
+        $merchantId->toString(),
         $product->id()->toString(),
         1999,
         'USD',
@@ -32,10 +35,12 @@ test('handle persists a new recurring price for an existing product', function (
 });
 
 test('handle persists a new one-time price for an existing product', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
     $handler = app(CreatePriceHandler::class);
 
     $price = $handler->handle(new CreatePriceCommand(
+        $merchantId->toString(),
         $product->id()->toString(),
         4999,
         'USD',
@@ -51,6 +56,7 @@ test('handle throws ProductNotFound when the product does not exist', function (
     $handler = app(CreatePriceHandler::class);
 
     $handler->handle(new CreatePriceCommand(
+        MerchantId::generate()->toString(),
         ProductId::generate()->toString(),
         1999,
         'USD',
@@ -60,11 +66,26 @@ test('handle throws ProductNotFound when the product does not exist', function (
     ));
 })->throws(ProductNotFound::class);
 
-test('handle throws InvalidPrice when a recurring price is requested without a billing period', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+test('handle throws ProductNotFound when the product belongs to a different merchant', function () {
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand(MerchantId::generate()->toString(), 'Pro Plan'));
     $handler = app(CreatePriceHandler::class);
 
     $handler->handle(new CreatePriceCommand(
+        MerchantId::generate()->toString(),
+        $product->id()->toString(),
+        1999,
+        'USD',
+        PriceType::OneTime->value,
+    ));
+})->throws(ProductNotFound::class);
+
+test('handle throws InvalidPrice when a recurring price is requested without a billing period', function () {
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
+    $handler = app(CreatePriceHandler::class);
+
+    $handler->handle(new CreatePriceCommand(
+        $merchantId->toString(),
         $product->id()->toString(),
         1999,
         'USD',
@@ -73,10 +94,11 @@ test('handle throws InvalidPrice when a recurring price is requested without a b
 })->throws(InvalidPrice::class);
 
 test('handle records a PriceCreated integration event in the outbox', function () {
-    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand('Pro Plan'));
+    $merchantId = MerchantId::generate();
+    $product = app(CreateProductHandler::class)->handle(new CreateProductCommand($merchantId->toString(), 'Pro Plan'));
     $handler = app(CreatePriceHandler::class);
 
-    $price = $handler->handle(new CreatePriceCommand($product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
+    $price = $handler->handle(new CreatePriceCommand($merchantId->toString(), $product->id()->toString(), 1999, 'USD', PriceType::OneTime->value));
 
     $unpublished = app(IOutboxPort::class)->unpublished();
     $created = collect($unpublished)->firstWhere('eventType', 'price.created.v1');
