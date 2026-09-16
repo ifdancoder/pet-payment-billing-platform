@@ -17,11 +17,12 @@ use App\Infrastructure\Price\Adapters\Persistence\Models\PriceModel;
 use App\Infrastructure\Price\Adapters\Persistence\Repositories\EloquentPriceRepository;
 use App\Infrastructure\Product\Adapters\Persistence\Mappers\ProductMapper;
 use App\Infrastructure\Product\Adapters\Persistence\Repositories\EloquentProductRepository;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 function persistProduct(ProductId $productId): void
 {
     (new EloquentProductRepository(new ProductMapper))
-        ->save(Product::create($productId, ProductName::fromString('Pro Plan')));
+        ->save(Product::create($productId, MerchantId::generate(), ProductName::fromString('Pro Plan')));
 }
 
 test('save persists a new recurring price', function () {

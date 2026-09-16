@@ -9,6 +9,7 @@ use App\Domain\Product\Exceptions\ProductAlreadyArchived;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
 use App\Domain\Product\ValueObjects\ProductStatus;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class Product
 {
@@ -17,25 +18,28 @@ final class Product
 
     private function __construct(
         private readonly ProductId $id,
+        private readonly MerchantId $merchantId,
         private ProductName $name,
+        private ?string $description,
         private ProductStatus $status,
     ) {}
 
-    public static function create(ProductId $id, ProductName $name): self
+    public static function create(ProductId $id, MerchantId $merchantId, ProductName $name, ?string $description = null): self
     {
-        $product = new self($id, $name, ProductStatus::Active);
+        $product = new self($id, $merchantId, $name, $description, ProductStatus::Active);
         $product->recordEvent(new ProductCreated($id, $name));
 
         return $product;
     }
 
-    /**
-     * Rebuilds a Product from already-persisted data. Unlike create(), this
-     * does not record a ProductCreated event.
-     */
-    public static function reconstitute(ProductId $id, ProductName $name, ProductStatus $status): self
-    {
-        return new self($id, $name, $status);
+    public static function reconstitute(
+        ProductId $id,
+        MerchantId $merchantId,
+        ProductName $name,
+        ?string $description,
+        ProductStatus $status,
+    ): self {
+        return new self($id, $merchantId, $name, $description, $status);
     }
 
     public function id(): ProductId
@@ -43,9 +47,19 @@ final class Product
         return $this->id;
     }
 
+    public function merchantId(): MerchantId
+    {
+        return $this->merchantId;
+    }
+
     public function name(): ProductName
     {
         return $this->name;
+    }
+
+    public function description(): ?string
+    {
+        return $this->description;
     }
 
     public function status(): ProductStatus

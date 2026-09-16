@@ -8,23 +8,33 @@ use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
 use App\Domain\Product\ValueObjects\ProductStatus;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
-test('create exposes the given id and name, active by default', function () {
+test('create exposes the given id, merchant, name and description, active by default', function () {
     $id = ProductId::generate();
+    $merchantId = MerchantId::generate();
     $name = ProductName::fromString('Pro Plan');
 
-    $product = Product::create($id, $name);
+    $product = Product::create($id, $merchantId, $name, 'Pro tier subscription');
 
     expect($product->id()->equals($id))->toBeTrue()
+        ->and($product->merchantId()->equals($merchantId))->toBeTrue()
         ->and($product->name()->equals($name))->toBeTrue()
+        ->and($product->description())->toBe('Pro tier subscription')
         ->and($product->status())->toBe(ProductStatus::Active);
+});
+
+test('create defaults description to null', function () {
+    $product = Product::create(ProductId::generate(), MerchantId::generate(), ProductName::fromString('Pro Plan'));
+
+    expect($product->description())->toBeNull();
 });
 
 test('create records a ProductCreated event carrying the same data', function () {
     $id = ProductId::generate();
     $name = ProductName::fromString('Pro Plan');
 
-    $product = Product::create($id, $name);
+    $product = Product::create($id, MerchantId::generate(), $name);
     $events = $product->pullRecordedEvents();
 
     expect($events)->toHaveCount(1);
@@ -34,27 +44,30 @@ test('create records a ProductCreated event carrying the same data', function ()
 });
 
 test('pullRecordedEvents empties the recorded events', function () {
-    $product = Product::create(ProductId::generate(), ProductName::fromString('Pro Plan'));
+    $product = Product::create(ProductId::generate(), MerchantId::generate(), ProductName::fromString('Pro Plan'));
 
     $product->pullRecordedEvents();
 
     expect($product->pullRecordedEvents())->toBe([]);
 });
 
-test('reconstitute exposes the given id, name and status without recording an event', function () {
+test('reconstitute exposes the given id, merchant, name, description and status without recording an event', function () {
     $id = ProductId::generate();
+    $merchantId = MerchantId::generate();
     $name = ProductName::fromString('Pro Plan');
 
-    $product = Product::reconstitute($id, $name, ProductStatus::Archived);
+    $product = Product::reconstitute($id, $merchantId, $name, 'Pro tier subscription', ProductStatus::Archived);
 
     expect($product->id()->equals($id))->toBeTrue()
+        ->and($product->merchantId()->equals($merchantId))->toBeTrue()
         ->and($product->name()->equals($name))->toBeTrue()
+        ->and($product->description())->toBe('Pro tier subscription')
         ->and($product->status())->toBe(ProductStatus::Archived)
         ->and($product->pullRecordedEvents())->toBe([]);
 });
 
 test('archive sets the status to Archived and records a ProductArchived event', function () {
-    $product = Product::create(ProductId::generate(), ProductName::fromString('Pro Plan'));
+    $product = Product::create(ProductId::generate(), MerchantId::generate(), ProductName::fromString('Pro Plan'));
     $product->pullRecordedEvents();
 
     $product->archive();
@@ -69,7 +82,9 @@ test('archive sets the status to Archived and records a ProductArchived event', 
 test('archive throws when the product is already archived', function () {
     $product = Product::reconstitute(
         ProductId::generate(),
+        MerchantId::generate(),
         ProductName::fromString('Pro Plan'),
+        null,
         ProductStatus::Archived,
     );
 
@@ -77,7 +92,7 @@ test('archive throws when the product is already archived', function () {
 })->throws(ProductAlreadyArchived::class);
 
 test('rename changes the name', function () {
-    $product = Product::create(ProductId::generate(), ProductName::fromString('Pro Plan'));
+    $product = Product::create(ProductId::generate(), MerchantId::generate(), ProductName::fromString('Pro Plan'));
 
     $product->rename(ProductName::fromString('Pro Plan v2'));
 
@@ -87,7 +102,9 @@ test('rename changes the name', function () {
 test('rename throws when the product is archived', function () {
     $product = Product::reconstitute(
         ProductId::generate(),
+        MerchantId::generate(),
         ProductName::fromString('Pro Plan'),
+        null,
         ProductStatus::Archived,
     );
 

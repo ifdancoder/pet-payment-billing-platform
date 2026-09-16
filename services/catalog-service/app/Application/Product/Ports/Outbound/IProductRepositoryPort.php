@@ -5,6 +5,7 @@ namespace App\Application\Product\Ports\Outbound;
 use App\Domain\Product\Exceptions\ProductNotFound;
 use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 interface IProductRepositoryPort
 {
@@ -13,10 +14,10 @@ interface IProductRepositoryPort
     /**
      * @throws ProductNotFound
      */
-    public function get(ProductId $id): Product;
+    public function get(ProductId $id, MerchantId $merchantId): Product;
 
     /**
      * @return array<int, Product>
      */
-    public function all(): array;
+    public function all(MerchantId $merchantId): array;
 }

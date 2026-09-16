@@ -16,9 +16,10 @@ final class PriceController extends Controller
 {
     public function __construct(private readonly IPriceServicePort $priceService) {}
 
-    public function store(CreatePriceRequest $request, string $product): JsonResponse
+    public function store(CreatePriceRequest $request, string $merchant, string $product): JsonResponse
     {
         $price = $this->priceService->createPrice(new CreatePriceCommand(
+            $merchant,
             $product,
             $request->validated('amount_minor_units'),
             $request->validated('currency'),

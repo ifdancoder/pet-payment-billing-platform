@@ -9,6 +9,7 @@ use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class ArchiveProductHandler
 {
@@ -20,7 +21,10 @@ final class ArchiveProductHandler
 
     public function handle(ArchiveProductCommand $command): Product
     {
-        $product = $this->repository->get(ProductId::fromString($command->productId));
+        $product = $this->repository->get(
+            ProductId::fromString($command->productId),
+            MerchantId::fromString($command->merchantId),
+        );
 
         $product->archive();
 

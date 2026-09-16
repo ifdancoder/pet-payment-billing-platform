@@ -10,6 +10,7 @@ use App\Infrastructure\Price\Adapters\Persistence\Mappers\PriceMapper;
 use App\Infrastructure\Price\Adapters\Persistence\Models\PriceModel;
 use App\Infrastructure\Product\Adapters\Persistence\Mappers\ProductMapper;
 use App\Infrastructure\Product\Adapters\Persistence\Models\ProductModel;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class EloquentCatalogQuery implements ICatalogQueryPort
 {
@@ -18,9 +19,12 @@ final class EloquentCatalogQuery implements ICatalogQueryPort
         private readonly PriceMapper $priceMapper,
     ) {}
 
-    public function getProductCatalog(ProductId $productId): ProductCatalog
+    public function getProductCatalog(ProductId $productId, MerchantId $merchantId): ProductCatalog
     {
-        $productModel = ProductModel::query()->find($productId->toString());
+        $productModel = ProductModel::query()
+            ->where('id', $productId->toString())
+            ->where('merchant_id', $merchantId->toString())
+            ->first();
 
         if ($productModel === null) {
             throw ProductNotFound::withId($productId);
