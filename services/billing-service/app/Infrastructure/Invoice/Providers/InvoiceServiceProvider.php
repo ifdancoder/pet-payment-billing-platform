@@ -2,6 +2,8 @@
 
 namespace App\Infrastructure\Invoice\Providers;
 
+use App\Application\Invoice\Ports\Outbound\IInvoiceRepositoryPort;
+use App\Infrastructure\Invoice\Adapters\Persistence\Repositories\EloquentInvoiceRepository;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -12,7 +14,7 @@ class InvoiceServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(IInvoiceRepositoryPort::class, EloquentInvoiceRepository::class);
     }
 
     /**
