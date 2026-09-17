@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Invoice\Exceptions\InvalidInvoiceTransition;
 use App\Domain\Invoice\Exceptions\InvoiceAlreadyVoided;
 use App\Domain\Invoice\Exceptions\InvoiceNotFound;
 use Illuminate\Foundation\Application;
@@ -21,4 +22,5 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(fn (InvoiceNotFound $e) => response()->json(['message' => $e->getMessage()], 404));
         $exceptions->render(fn (InvoiceAlreadyVoided $e) => response()->json(['message' => $e->getMessage()], 409));
+        $exceptions->render(fn (InvalidInvoiceTransition $e) => response()->json(['message' => $e->getMessage()], 409));
     })->create();

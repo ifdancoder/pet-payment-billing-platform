@@ -2,6 +2,7 @@
 
 namespace App\Presentation\Invoice\Adapters\Inbound\Http\Controllers;
 
+use App\Application\Invoice\Commands\VoidInvoice\VoidInvoiceCommand;
 use App\Application\Invoice\Ports\Inbound\IInvoiceServicePort;
 use App\Application\Invoice\Queries\GetInvoice\GetInvoiceQuery;
 use App\Application\Invoice\Queries\ListInvoices\ListInvoicesQuery;
@@ -26,5 +27,12 @@ final class InvoiceController extends Controller
         $found = $this->invoiceService->getInvoice(new GetInvoiceQuery($merchant, $invoice));
 
         return InvoiceResource::make($found)->response();
+    }
+
+    public function void(string $merchant, string $invoice): JsonResponse
+    {
+        $voided = $this->invoiceService->voidInvoice(new VoidInvoiceCommand($merchant, $invoice));
+
+        return InvoiceResource::make($voided)->response();
     }
 }

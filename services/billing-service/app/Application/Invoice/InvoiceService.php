@@ -2,6 +2,8 @@
 
 namespace App\Application\Invoice;
 
+use App\Application\Invoice\Commands\VoidInvoice\VoidInvoiceCommand;
+use App\Application\Invoice\Commands\VoidInvoice\VoidInvoiceHandler;
 use App\Application\Invoice\Ports\Inbound\IInvoiceServicePort;
 use App\Application\Invoice\Queries\GetInvoice\GetInvoiceHandler;
 use App\Application\Invoice\Queries\GetInvoice\GetInvoiceQuery;
@@ -14,6 +16,7 @@ final class InvoiceService implements IInvoiceServicePort
     public function __construct(
         private readonly GetInvoiceHandler $getInvoiceHandler,
         private readonly ListInvoicesHandler $listInvoicesHandler,
+        private readonly VoidInvoiceHandler $voidInvoiceHandler,
     ) {}
 
     public function getInvoice(GetInvoiceQuery $query): Invoice
@@ -24,5 +27,10 @@ final class InvoiceService implements IInvoiceServicePort
     public function listInvoices(ListInvoicesQuery $query): array
     {
         return $this->listInvoicesHandler->handle($query);
+    }
+
+    public function voidInvoice(VoidInvoiceCommand $command): Invoice
+    {
+        return $this->voidInvoiceHandler->handle($command);
     }
 }
