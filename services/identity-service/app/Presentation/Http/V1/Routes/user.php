@@ -1,4 +1,8 @@
 <?php
 
-// User module routes, served under /api/v1 (see User\Providers\V1\UserServiceProvider).
-// Empty until the first endpoint (RegisterUser, ...) exists.
+use App\Presentation\Http\V1\Controllers\UserController;
+use Illuminate\Support\Facades\Route;
+
+// Also not nested under /merchants/{merchant}/... — a User has no
+// merchant of its own; Membership is what links a User to a Merchant.
+Route::post('/users', [UserController::class, 'store']);

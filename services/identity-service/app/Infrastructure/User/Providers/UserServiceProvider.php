@@ -2,8 +2,10 @@
 
 namespace App\Infrastructure\User\Providers;
 
+use App\Application\User\Ports\Inbound\IUserServicePort;
 use App\Application\User\Ports\Outbound\IPasswordHasherPort;
 use App\Application\User\Ports\Outbound\IUserRepositoryPort;
+use App\Application\User\UserService;
 use App\Infrastructure\User\Adapters\Persistence\Repositories\EloquentUserRepository;
 use App\Infrastructure\User\Adapters\Security\LaravelPasswordHasher;
 use App\Infrastructure\User\Providers\V1\UserServiceProvider as UserServiceProviderV1;
@@ -18,6 +20,7 @@ class UserServiceProvider extends ServiceProvider
     {
         $this->app->bind(IUserRepositoryPort::class, EloquentUserRepository::class);
         $this->app->bind(IPasswordHasherPort::class, LaravelPasswordHasher::class);
+        $this->app->bind(IUserServicePort::class, UserService::class);
 
         // API bindings are version-scoped: each supported version registers
         // its own provider under Providers/{Version}. Only V1 exists today;
