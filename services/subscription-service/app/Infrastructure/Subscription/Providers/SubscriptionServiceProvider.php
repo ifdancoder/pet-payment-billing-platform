@@ -10,14 +10,11 @@ use App\Application\Subscription\SubscriptionService;
 use App\Infrastructure\Subscription\Adapters\Gateways\HttpCatalogGateway;
 use App\Infrastructure\Subscription\Adapters\Gateways\HttpCustomerGateway;
 use App\Infrastructure\Subscription\Adapters\Persistence\Repositories\EloquentSubscriptionRepository;
-use Illuminate\Support\Facades\Route;
+use App\Infrastructure\Subscription\Providers\V1\SubscriptionServiceProvider as SubscriptionServiceProviderV1;
 use Illuminate\Support\ServiceProvider;
 
 class SubscriptionServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         $this->app->bind(ISubscriptionRepositoryPort::class, EloquentSubscriptionRepository::class);
@@ -32,17 +29,7 @@ class SubscriptionServiceProvider extends ServiceProvider
             ICatalogGatewayPort::class,
             fn () => new HttpCatalogGateway(config('services.catalog_service.base_url')),
         );
-    }
 
-    /**
-     * Bootstrap any application services.
-     */
-    public function boot(): void
-    {
-        Route::middleware('api')
-            ->prefix('api/v1')
-            ->group(function (): void {
-                $this->loadRoutesFrom(__DIR__.'/../../../Presentation/Subscription/Adapters/Inbound/Http/Routes/api.php');
-            });
+        $this->app->register(SubscriptionServiceProviderV1::class);
     }
 }
