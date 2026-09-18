@@ -10,7 +10,7 @@ use App\Application\Subscription\SubscriptionService;
 use App\Infrastructure\Subscription\Adapters\Gateways\HttpCatalogGateway;
 use App\Infrastructure\Subscription\Adapters\Gateways\HttpCustomerGateway;
 use App\Infrastructure\Subscription\Adapters\Persistence\Repositories\EloquentSubscriptionRepository;
-use Illuminate\Support\Facades\Route;
+use App\Infrastructure\Subscription\Providers\V1\SubscriptionServiceProvider as SubscriptionServiceProviderV1;
 use Illuminate\Support\ServiceProvider;
 
 class SubscriptionServiceProvider extends ServiceProvider
@@ -32,17 +32,10 @@ class SubscriptionServiceProvider extends ServiceProvider
             ICatalogGatewayPort::class,
             fn () => new HttpCatalogGateway(config('services.catalog_service.base_url')),
         );
-    }
 
-    /**
-     * Bootstrap any application services.
-     */
-    public function boot(): void
-    {
-        Route::middleware('api')
-            ->prefix('api/v1')
-            ->group(function (): void {
-                $this->loadRoutesFrom(__DIR__.'/../../../Presentation/Subscription/Adapters/Inbound/Http/Routes/api.php');
-            });
+        // API bindings are version-scoped: each supported version registers
+        // its own provider under Providers/{Version}. Only V1 exists today;
+        // adding V2 means a new sibling provider, never touching this one.
+        $this->app->register(SubscriptionServiceProviderV1::class);
     }
 }
