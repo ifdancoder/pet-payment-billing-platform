@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Presentation\Price\Adapters\Inbound\Http\Resources;
+namespace App\Presentation\Http\V1\Resources;
 
 use App\Domain\Price\Price;
 use Illuminate\Http\Request;
