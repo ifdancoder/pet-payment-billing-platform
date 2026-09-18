@@ -2,6 +2,8 @@
 
 namespace App\Infrastructure\Payment\Providers;
 
+use App\Application\Payment\PaymentService;
+use App\Application\Payment\Ports\Inbound\IPaymentServicePort;
 use App\Application\Payment\Ports\Outbound\IPaymentGatewayPort;
 use App\Application\Payment\Ports\Outbound\IPaymentRepositoryPort;
 use App\Infrastructure\Payment\Adapters\PaymentGateway\Fake\FakePaymentGateway;
@@ -17,6 +19,7 @@ class PaymentServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(IPaymentRepositoryPort::class, EloquentPaymentRepository::class);
+        $this->app->bind(IPaymentServicePort::class, PaymentService::class);
 
         // No Stripe adapter exists yet — Fake is bound unconditionally
         // until it does. Once it does, this branches by environment the
