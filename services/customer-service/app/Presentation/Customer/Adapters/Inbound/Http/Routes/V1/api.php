@@ -15,4 +15,3 @@ Route::prefix('/customers')
                 Route::delete('', [CustomerController::class, 'destroy']);
             });
     });
-
