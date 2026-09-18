@@ -8,7 +8,7 @@ use App\Domain\Price\ValueObjects\Money;
 use App\Domain\Price\ValueObjects\PriceId;
 use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\ValueObjects\ProductId;
-use App\Presentation\Price\Adapters\Inbound\Http\Resources\PriceResource;
+use App\Presentation\Http\V1\Resources\PriceResource;
 use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Http\Request;
 

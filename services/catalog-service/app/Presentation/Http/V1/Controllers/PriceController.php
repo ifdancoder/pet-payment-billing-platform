@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Presentation\Price\Adapters\Inbound\Http\Controllers;
+namespace App\Presentation\Http\V1\Controllers;
 
 use App\Application\Price\Commands\ActivatePrice\ActivatePriceCommand;
 use App\Application\Price\Commands\CreatePrice\CreatePriceCommand;
 use App\Application\Price\Commands\DeactivatePrice\DeactivatePriceCommand;
 use App\Application\Price\Ports\Inbound\IPriceServicePort;
 use App\Application\Price\Queries\GetPrice\GetPriceQuery;
-use App\Presentation\Price\Adapters\Inbound\Http\Requests\CreatePriceRequest;
-use App\Presentation\Price\Adapters\Inbound\Http\Resources\PriceResource;
+use App\Presentation\Http\V1\Requests\CreatePriceRequest;
+use App\Presentation\Http\V1\Resources\PriceResource;
 use App\Shared\Presentation\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 

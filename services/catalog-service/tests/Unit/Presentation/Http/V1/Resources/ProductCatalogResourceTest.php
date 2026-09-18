@@ -11,7 +11,7 @@ use App\Domain\Price\ValueObjects\PriceType;
 use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
-use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductCatalogResource;
+use App\Presentation\Http\V1\Resources\ProductCatalogResource;
 use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Http\Request;
 

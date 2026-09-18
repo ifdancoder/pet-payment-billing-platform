@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Presentation\Product\Adapters\Inbound\Http\Controllers;
+namespace App\Presentation\Http\V1\Controllers;
 
 use App\Application\Catalog\Ports\Inbound\ICatalogServicePort;
 use App\Application\Catalog\Queries\GetProductCatalog\GetProductCatalogQuery;
@@ -9,11 +9,11 @@ use App\Application\Product\Commands\CreateProduct\CreateProductCommand;
 use App\Application\Product\Commands\UpdateProduct\UpdateProductCommand;
 use App\Application\Product\Ports\Inbound\IProductServicePort;
 use App\Application\Product\Queries\ListProducts\ListProductsQuery;
-use App\Presentation\Product\Adapters\Inbound\Http\Requests\CreateProductRequest;
-use App\Presentation\Product\Adapters\Inbound\Http\Requests\UpdateProductRequest;
-use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductCatalogResource;
-use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductResource;
-use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductResourceCollection;
+use App\Presentation\Http\V1\Requests\CreateProductRequest;
+use App\Presentation\Http\V1\Requests\UpdateProductRequest;
+use App\Presentation\Http\V1\Resources\ProductCatalogResource;
+use App\Presentation\Http\V1\Resources\ProductResource;
+use App\Presentation\Http\V1\Resources\ProductResourceCollection;
 use App\Shared\Presentation\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 

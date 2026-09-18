@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Presentation\Product\Adapters\Inbound\Http\Resources;
+namespace App\Presentation\Http\V1\Resources;
 
 use App\Application\Catalog\ReadModels\ProductCatalog;
 use App\Domain\Price\Price;
-use App\Presentation\Price\Adapters\Inbound\Http\Resources\PriceResource;
+use App\Presentation\Http\V1\Resources\PriceResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 

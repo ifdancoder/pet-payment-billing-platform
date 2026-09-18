@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Presentation\Price\Adapters\Inbound\Http\Requests;
+namespace App\Presentation\Http\V1\Requests;
 
 use App\Domain\Price\ValueObjects\BillingInterval;
 use App\Domain\Price\ValueObjects\Currency;

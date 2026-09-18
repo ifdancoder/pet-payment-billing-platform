@@ -1,6 +1,6 @@
 <?php
 
-use App\Presentation\Product\Adapters\Inbound\Http\Controllers\ProductController;
+use App\Presentation\Http\V1\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('/merchants/{merchant}/products')

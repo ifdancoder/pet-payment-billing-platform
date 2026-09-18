@@ -3,7 +3,7 @@
 use App\Domain\Product\Product;
 use App\Domain\Product\ValueObjects\ProductId;
 use App\Domain\Product\ValueObjects\ProductName;
-use App\Presentation\Product\Adapters\Inbound\Http\Resources\ProductResource;
+use App\Presentation\Http\V1\Resources\ProductResource;
 use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Http\Request;
 
