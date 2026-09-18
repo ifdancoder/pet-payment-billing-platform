@@ -118,3 +118,17 @@ test('findByDeduplicationKey returns null when no notification matches', functio
 
     expect($repository->findByDeduplicationKey('payment_receipt:pay_missing:customer@example.com'))->toBeNull();
 });
+
+test('pending returns every Pending notification across every merchant', function () {
+    $repository = new EloquentNotificationRepository(new NotificationMapper);
+    $pending = makeNotification();
+    $repository->save($pending);
+    $inFlight = makeNotification();
+    $inFlight->startDelivery(DeliveryAttemptId::generate(), 'fake', new DateTimeImmutable);
+    $repository->save($inFlight);
+
+    $result = $repository->pending();
+
+    expect($result)->toHaveCount(1)
+        ->and($result[0]->id()->equals($pending->id()))->toBeTrue();
+});

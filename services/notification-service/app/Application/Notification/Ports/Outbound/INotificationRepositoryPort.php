@@ -28,4 +28,14 @@ interface INotificationRepositoryPort
      * underlying business fact.
      */
     public function findByDeduplicationKey(string $deduplicationKey): ?Notification;
+
+    /**
+     * Every Pending notification across every merchant — what the
+     * delivery worker drains. Unscoped by merchant, unlike all(): this
+     * is an internal worker query, not something a merchant-facing
+     * caller would ever run.
+     *
+     * @return array<int, Notification>
+     */
+    public function pending(): array;
 }

@@ -7,6 +7,7 @@ use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
 use App\Shared\Infrastructure\Persistence\Eloquent\Inbox\EloquentInbox;
 use App\Shared\Infrastructure\Transaction\LaravelTransactionManager;
 use App\Shared\Presentation\Console\ConsumePaymentSucceededCommand;
+use App\Shared\Presentation\Console\DeliverNotificationsCommand;
 use Illuminate\Support\ServiceProvider;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
@@ -55,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 ConsumePaymentSucceededCommand::class,
+                DeliverNotificationsCommand::class,
             ]);
         }
     }

@@ -6,6 +6,7 @@ use App\Application\Notification\Ports\Outbound\INotificationRepositoryPort;
 use App\Domain\Notification\Exceptions\NotificationNotFound;
 use App\Domain\Notification\Notification;
 use App\Domain\Notification\ValueObjects\NotificationId;
+use App\Domain\Notification\ValueObjects\NotificationStatus;
 use App\Infrastructure\Notification\Adapters\Persistence\Mappers\NotificationMapper;
 use App\Infrastructure\Notification\Adapters\Persistence\Models\NotificationModel;
 use App\Shared\Domain\ValueObjects\MerchantId;
@@ -56,6 +57,16 @@ final class EloquentNotificationRepository implements INotificationRepositoryPor
             ->first();
 
         return $model === null ? null : $this->mapper->toDomain($model);
+    }
+
+    public function pending(): array
+    {
+        return NotificationModel::query()
+            ->with('attempts')
+            ->where('status', NotificationStatus::Pending->value)
+            ->get()
+            ->map(fn (NotificationModel $model) => $this->mapper->toDomain($model))
+            ->all();
     }
 
     /**
