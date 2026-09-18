@@ -6,6 +6,7 @@ use App\Application\Notification\Ports\Outbound\INotificationRepositoryPort;
 use App\Domain\Notification\Exceptions\NotificationNotFound;
 use App\Domain\Notification\Notification;
 use App\Domain\Notification\ValueObjects\NotificationId;
+use App\Domain\Notification\ValueObjects\NotificationStatus;
 use App\Infrastructure\Notification\Adapters\Persistence\Mappers\NotificationMapper;
 use App\Infrastructure\Notification\Adapters\Persistence\Models\NotificationModel;
 use App\Shared\Domain\ValueObjects\MerchantId;
@@ -58,11 +59,17 @@ final class EloquentNotificationRepository implements INotificationRepositoryPor
         return $model === null ? null : $this->mapper->toDomain($model);
     }
 
-    /**
-     * Unlike an Invoice's lines, a DeliveryAttempt is not immutable once
-     * created — it starts Pending and later transitions to Succeeded or
-     * Failed — so every attempt is an upsert, not an insert-only append.
-     */
+    public function pending(): array
+    {
+        return NotificationModel::query()
+            ->with('attempts')
+            ->where('status', NotificationStatus::Pending->value)
+            ->get()
+            ->map(fn (NotificationModel $model) => $this->mapper->toDomain($model))
+            ->all();
+    }
+
+    /** Attempts are upserted because their status changes after creation. */
     private function persistAttempts(NotificationModel $model, Notification $notification): void
     {
         foreach ($notification->attempts() as $attempt) {

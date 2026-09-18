@@ -21,11 +21,12 @@ interface INotificationRepositoryPort
      */
     public function all(MerchantId $merchantId): array;
 
-    /**
-     * Looks up the notification already created for this deduplication
-     * key, so a handler can treat a redelivered or duplicate trigger as a
-     * no-op instead of creating a second notification for the same
-     * underlying business fact.
-     */
     public function findByDeduplicationKey(string $deduplicationKey): ?Notification;
+
+    /**
+     * Unscoped internal worker query.
+     *
+     * @return array<int, Notification>
+     */
+    public function pending(): array;
 }

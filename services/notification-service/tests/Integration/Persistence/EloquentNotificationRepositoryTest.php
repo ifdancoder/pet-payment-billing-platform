@@ -38,7 +38,7 @@ test('save persists a new notification with no attempts', function () {
     $model = NotificationModel::query()->with('attempts')->find($notification->id()->toString());
     expect($model)->not->toBeNull()
         ->and($model->attempts)->toHaveCount(0)
-        ->and($model->status)->toBe(1); // Pending
+        ->and($model->status)->toBe(1);
 });
 
 test('save persists new attempts and updates existing ones as they transition', function () {
@@ -53,9 +53,9 @@ test('save persists new attempts and updates existing ones as they transition', 
 
     $model = NotificationModel::query()->with('attempts')->find($notification->id()->toString());
     expect($model->attempts)->toHaveCount(1)
-        ->and($model->attempts->first()->status)->toBe(2) // Succeeded
+        ->and($model->attempts->first()->status)->toBe(2)
         ->and($model->attempts->first()->provider_reference)->toBe('0102018f-ses-message-id')
-        ->and($model->status)->toBe(3); // Sent
+        ->and($model->status)->toBe(3);
 });
 
 test('get returns the matching notification for the owning merchant, with its attempts intact', function () {
@@ -117,4 +117,18 @@ test('findByDeduplicationKey returns null when no notification matches', functio
     $repository = new EloquentNotificationRepository(new NotificationMapper);
 
     expect($repository->findByDeduplicationKey('payment_receipt:pay_missing:customer@example.com'))->toBeNull();
+});
+
+test('pending returns every Pending notification across every merchant', function () {
+    $repository = new EloquentNotificationRepository(new NotificationMapper);
+    $pending = makeNotification();
+    $repository->save($pending);
+    $inFlight = makeNotification();
+    $inFlight->startDelivery(DeliveryAttemptId::generate(), 'fake', new DateTimeImmutable);
+    $repository->save($inFlight);
+
+    $result = $repository->pending();
+
+    expect($result)->toHaveCount(1)
+        ->and($result[0]->id()->equals($pending->id()))->toBeTrue();
 });
