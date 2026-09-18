@@ -2,6 +2,8 @@
 
 namespace App\Infrastructure\Membership\Providers;
 
+use App\Application\Membership\MembershipService;
+use App\Application\Membership\Ports\Inbound\IMembershipServicePort;
 use App\Application\Membership\Ports\Outbound\IMembershipRepositoryPort;
 use App\Infrastructure\Membership\Adapters\Persistence\Repositories\EloquentMembershipRepository;
 use App\Infrastructure\Membership\Providers\V1\MembershipServiceProvider as MembershipServiceProviderV1;
@@ -15,6 +17,7 @@ class MembershipServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(IMembershipRepositoryPort::class, EloquentMembershipRepository::class);
+        $this->app->bind(IMembershipServicePort::class, MembershipService::class);
 
         // API bindings are version-scoped: each supported version registers
         // its own provider under Providers/{Version}. Only V1 exists today;
