@@ -4,7 +4,7 @@ use App\Domain\Customer\Customer;
 use App\Domain\Customer\ValueObjects\CustomerId;
 use App\Domain\Customer\ValueObjects\CustomerName;
 use App\Domain\Customer\ValueObjects\Email;
-use App\Presentation\Customer\Adapters\Inbound\Http\Resources\CustomerResource;
+use App\Presentation\Http\V1\Resources\CustomerResource;
 use Illuminate\Http\Request;
 
 test('toArray exposes the customer id, email and name', function () {
