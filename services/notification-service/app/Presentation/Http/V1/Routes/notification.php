@@ -1,4 +1,14 @@
 <?php
 
-// Notification module routes, served under /api/v1 (see Notification\Providers\V1\NotificationServiceProvider).
-// Empty until the first endpoint (GetNotification, ...) exists.
+use App\Presentation\Http\V1\Controllers\NotificationController;
+use Illuminate\Support\Facades\Route;
+
+Route::prefix('/merchants/{merchant}/notifications')
+    ->group(function () {
+        Route::get('', [NotificationController::class, 'index']);
+
+        Route::prefix('/{notification}')
+            ->group(function () {
+                Route::get('', [NotificationController::class, 'show']);
+            });
+    });

@@ -2,6 +2,8 @@
 
 namespace App\Infrastructure\Notification\Providers;
 
+use App\Application\Notification\NotificationService;
+use App\Application\Notification\Ports\Inbound\INotificationServicePort;
 use App\Application\Notification\Ports\Outbound\ICustomerContactGatewayPort;
 use App\Application\Notification\Ports\Outbound\IEmailSenderPort;
 use App\Application\Notification\Ports\Outbound\INotificationRepositoryPort;
@@ -21,6 +23,7 @@ class NotificationServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(INotificationRepositoryPort::class, EloquentNotificationRepository::class);
+        $this->app->bind(INotificationServicePort::class, NotificationService::class);
         $this->app->bind(ITemplateRendererPort::class, BladeTemplateRenderer::class);
 
         // No real provider adapter exists yet — Fake is bound
