@@ -2,6 +2,8 @@
 
 namespace App\Infrastructure\Merchant\Providers;
 
+use App\Application\Merchant\MerchantService;
+use App\Application\Merchant\Ports\Inbound\IMerchantServicePort;
 use App\Application\Merchant\Ports\Outbound\IMerchantRepositoryPort;
 use App\Infrastructure\Merchant\Adapters\Persistence\Repositories\EloquentMerchantRepository;
 use App\Infrastructure\Merchant\Providers\V1\MerchantServiceProvider as MerchantServiceProviderV1;
@@ -15,6 +17,7 @@ class MerchantServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(IMerchantRepositoryPort::class, EloquentMerchantRepository::class);
+        $this->app->bind(IMerchantServicePort::class, MerchantService::class);
 
         // API bindings are version-scoped: each supported version registers
         // its own provider under Providers/{Version}. Only V1 exists today;
