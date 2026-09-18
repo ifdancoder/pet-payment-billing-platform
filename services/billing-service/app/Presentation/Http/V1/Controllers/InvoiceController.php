@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Presentation\Invoice\Adapters\Inbound\Http\Controllers;
+namespace App\Presentation\Http\V1\Controllers;
 
 use App\Application\Invoice\Commands\VoidInvoice\VoidInvoiceCommand;
 use App\Application\Invoice\Ports\Inbound\IInvoiceServicePort;
 use App\Application\Invoice\Queries\GetInvoice\GetInvoiceQuery;
 use App\Application\Invoice\Queries\ListInvoices\ListInvoicesQuery;
-use App\Presentation\Invoice\Adapters\Inbound\Http\Resources\InvoiceResource;
-use App\Presentation\Invoice\Adapters\Inbound\Http\Resources\InvoiceResourceCollection;
+use App\Presentation\Http\V1\Resources\InvoiceResource;
+use App\Presentation\Http\V1\Resources\InvoiceResourceCollection;
 use App\Shared\Presentation\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
