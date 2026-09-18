@@ -4,7 +4,7 @@ use App\Domain\Customer\Customer;
 use App\Domain\Customer\ValueObjects\CustomerId;
 use App\Domain\Customer\ValueObjects\CustomerName;
 use App\Domain\Customer\ValueObjects\Email;
-use App\Presentation\Customer\Adapters\Inbound\Http\Resources\CustomerResourceCollection;
+use App\Presentation\Http\V1\Resources\CustomerResourceCollection;
 use Illuminate\Http\Request;
 
 test('toArray wraps every customer through CustomerResource', function () {

@@ -1,6 +1,6 @@
 <?php
 
-use App\Presentation\Customer\Adapters\Inbound\Http\Controllers\CustomerController;
+use App\Presentation\Http\V1\Controllers\CustomerController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('/customers')

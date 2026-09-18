@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Presentation\Customer\Adapters\Inbound\Http\Controllers;
+namespace App\Presentation\Http\V1\Controllers;
 
 use App\Application\Customer\Commands\CreateCustomer\CreateCustomerCommand;
 use App\Application\Customer\Commands\DeleteCustomer\DeleteCustomerCommand;
@@ -8,10 +8,10 @@ use App\Application\Customer\Commands\UpdateCustomer\UpdateCustomerCommand;
 use App\Application\Customer\Ports\Inbound\ICustomerServicePort;
 use App\Application\Customer\Queries\GetCustomer\GetCustomerQuery;
 use App\Application\Customer\Queries\ListCustomers\ListCustomersQuery;
-use App\Presentation\Customer\Adapters\Inbound\Http\Requests\CreateCustomerRequest;
-use App\Presentation\Customer\Adapters\Inbound\Http\Requests\UpdateCustomerRequest;
-use App\Presentation\Customer\Adapters\Inbound\Http\Resources\CustomerResource;
-use App\Presentation\Customer\Adapters\Inbound\Http\Resources\CustomerResourceCollection;
+use App\Presentation\Http\V1\Requests\CreateCustomerRequest;
+use App\Presentation\Http\V1\Requests\UpdateCustomerRequest;
+use App\Presentation\Http\V1\Resources\CustomerResource;
+use App\Presentation\Http\V1\Resources\CustomerResourceCollection;
 use App\Shared\Presentation\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;

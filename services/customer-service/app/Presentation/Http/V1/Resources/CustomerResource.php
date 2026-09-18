@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Presentation\Customer\Adapters\Inbound\Http\Resources;
+namespace App\Presentation\Http\V1\Resources;
 
 use App\Domain\Customer\Customer;
 use Illuminate\Http\Request;
