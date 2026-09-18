@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Presentation\Subscription\Adapters\Inbound\Http\Resources;
+namespace App\Presentation\Http\V1\Resources;
 
 use App\Domain\Subscription\Subscription;
 use Illuminate\Http\Resources\Json\ResourceCollection;

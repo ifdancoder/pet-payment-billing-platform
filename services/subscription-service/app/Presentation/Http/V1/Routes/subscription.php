@@ -1,6 +1,6 @@
 <?php
 
-use App\Presentation\Subscription\Adapters\Inbound\Http\Controllers\SubscriptionController;
+use App\Presentation\Http\V1\Controllers\SubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('/merchants/{merchant}/subscriptions')

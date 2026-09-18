@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Presentation\Subscription\Adapters\Inbound\Http\Controllers;
+namespace App\Presentation\Http\V1\Controllers;
 
 use App\Application\Subscription\Commands\ActivateSubscription\ActivateSubscriptionCommand;
 use App\Application\Subscription\Commands\CancelSubscription\CancelSubscriptionCommand;
@@ -9,9 +9,9 @@ use App\Application\Subscription\Commands\MarkSubscriptionPastDue\MarkSubscripti
 use App\Application\Subscription\Ports\Inbound\ISubscriptionServicePort;
 use App\Application\Subscription\Queries\GetSubscription\GetSubscriptionQuery;
 use App\Application\Subscription\Queries\ListSubscriptions\ListSubscriptionsQuery;
-use App\Presentation\Subscription\Adapters\Inbound\Http\Requests\CreateSubscriptionRequest;
-use App\Presentation\Subscription\Adapters\Inbound\Http\Resources\SubscriptionResource;
-use App\Presentation\Subscription\Adapters\Inbound\Http\Resources\SubscriptionResourceCollection;
+use App\Presentation\Http\V1\Requests\CreateSubscriptionRequest;
+use App\Presentation\Http\V1\Resources\SubscriptionResource;
+use App\Presentation\Http\V1\Resources\SubscriptionResourceCollection;
 use App\Shared\Presentation\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 
