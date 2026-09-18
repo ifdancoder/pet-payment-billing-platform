@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Presentation\Invoice\Adapters\Inbound\Http\Resources;
+namespace App\Presentation\Http\V1\Resources;
 
 use App\Domain\Invoice\Invoice;
 use Illuminate\Http\Resources\Json\ResourceCollection;
