@@ -11,6 +11,7 @@ use App\Shared\Infrastructure\Messaging\RabbitMQ\RabbitMqEventPublisher;
 use App\Shared\Infrastructure\Persistence\Eloquent\Inbox\EloquentInbox;
 use App\Shared\Infrastructure\Persistence\Eloquent\Outbox\EloquentOutbox;
 use App\Shared\Infrastructure\Transaction\LaravelTransactionManager;
+use App\Shared\Presentation\Console\ConsumeInvoiceCreatedCommand;
 use App\Shared\Presentation\Console\PublishOutboxMessagesCommand;
 use Illuminate\Support\ServiceProvider;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -18,9 +19,6 @@ use PhpAmqpLib\Connection\AMQPStreamConnection;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         $this->app->bind(ITransactionManagerPort::class, LaravelTransactionManager::class);
@@ -50,14 +48,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(IEventPublisherPort::class, RabbitMqEventPublisher::class);
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
                 PublishOutboxMessagesCommand::class,
+                ConsumeInvoiceCreatedCommand::class,
             ]);
         }
     }
