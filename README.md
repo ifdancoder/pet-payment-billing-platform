@@ -7,8 +7,10 @@ This is a project for working through distributed billing systems in
 practice: Clean Architecture, Hexagonal Architecture, DDD, event-driven
 communication between services.
 
-> Still early. Infrastructure and architecture first, application
-> services haven't been built yet.
+> All seven services are built. Now turning them into a real
+> production-style platform: gateway, messaging topology, reliability,
+> observability, Docker, Kubernetes, CI/CD, then end-to-end/load
+> testing. See "Status" below.
 
 ## Goals
 
@@ -36,7 +38,7 @@ And the reliability side that comes with any distributed system:
 Microservices, each one an independently executable Laravel app with its
 own database.
 
-Planned services:
+Services:
 
 | Service | Responsibility |
 | --- | --- |
@@ -77,8 +79,8 @@ pet-payment-billing-platform/
 
 ### services
 
-Where each Laravel service will live. Empty for now, nothing's been
-built yet.
+All seven Laravel services. Each is independently runnable with its own
+database; none are dockerized yet (see "Status").
 
 ### packages
 
@@ -197,6 +199,12 @@ make clean
 
 Credentials live in `.env`.
 
+The gateway's public routing table (`/v1/...` → each service, see
+[ADR 0001](docs/adr/0001-api-gateway-routing.md)) isn't reachable
+through `make up` yet — it routes correctly, but none of the seven
+services are containerized and added to `docker-compose.yaml` yet
+(step 5 of the roadmap above).
+
 ## Technology roadmap
 
 Initial infrastructure:
@@ -248,7 +256,37 @@ Deployment:
 
 Actively in progress.
 
-Current: Phase 0, repository and local infrastructure bootstrap.
+All seven services exist (Identity, Customer, Catalog, Subscription,
+Billing, Payment, Notification), each a fully working Clean/Hexagonal
+Laravel app with its own tests. No new services are planned — the
+business decomposition is done. What's left is turning these seven
+Laravel apps into an actual production-style platform, roughly in this
+order:
 
-Next: Phase 1, first application service and shared messaging
-conventions.
+1. **API Gateway / Ingress** — done for the routing/auth-boundary design
+   (see [ADR 0001](docs/adr/0001-api-gateway-routing.md)); not yet
+   reachable end-to-end since no service is dockerized.
+2. RabbitMQ topology — routing keys, queue naming, bindings, retry/DLQ
+   policy, publisher confirms, consumer ack/nack, versioning, formalized
+   platform-wide instead of decided per-service as each one was built.
+3. Distributed reliability — collect the Outbox/Inbox/idempotency
+   patterns already used per-service into one set of platform rules, and
+   actually test the crash scenarios (crash before ack, crash before
+   outbox marked, duplicate delivery, broker/DB unavailable, provider
+   timeout).
+4. Observability — OpenTelemetry traces/metrics/logs, correlation IDs
+   propagated through RabbitMQ headers, Grafana/Tempo/Prometheus/Loki.
+5. Docker / local environment — Dockerfiles and `docker-compose.yaml`
+   entries for all seven services, so the gateway from step 1 actually
+   has something to route to.
+6. Kubernetes — only once it's clear what's actually being deployed
+   (each service is more than one workload: API + consumer + outbox
+   worker, sometimes a CronJob).
+7. CI/CD — per-service pipelines in a monorepo-aware build (lint,
+   static analysis, test layers, build, scan, deploy, migrate, smoke
+   test), only running for services that actually changed.
+8. Contract + end-to-end testing — one E2E scenario exercising nearly
+   the whole platform: Merchant → API Key → Customer → Product/Price →
+   Subscription → Invoice → Payment → Notification.
+9. Security hardening.
+10. Load / failure testing.

@@ -1,7 +1,6 @@
 # Architecture overview
 
-How the billing platform is meant to fit together. This will change as
-the first services actually get built (see the root README, "Status").
+How the billing platform is meant to fit together.
 
 ## System context
 
@@ -12,7 +11,10 @@ service boundary.
 
 Traffic comes in through a single API gateway (Nginx locally, an
 ingress-nginx `Ingress` on Kubernetes, see [`kubernetes.md`](kubernetes.md))
-and gets routed to the owning service.
+and gets routed to the owning service. See
+[ADR 0001](../adr/0001-api-gateway-routing.md) for the routing table,
+the public `/v1/...` vs. internal `/api/v1/...` split, and why the
+gateway itself never authenticates a request.
 
 ## Service boundaries
 
@@ -26,7 +28,10 @@ and gets routed to the owning service.
 | Payment Service | Payments, refunds and payment providers |
 | Notification Service | Asynchronous customer notifications |
 
-None of these exist yet. `services/` is empty on purpose.
+All seven exist under `services/`, each an independently runnable
+Laravel app with its own database, not yet containerized (see
+[`kubernetes.md`](kubernetes.md) and the root README's roadmap for
+where Docker/Kubernetes land relative to everything else).
 
 ## Data ownership
 
