@@ -48,3 +48,4 @@ just the upside.
 
 - [0001. API gateway routing and the public/internal split](0001-api-gateway-routing.md)
 - [0002. RabbitMQ messaging contract](0002-rabbitmq-messaging.md)
+- [0003. Kubernetes foundation: runtime, manifests, health checks](0003-kubernetes-foundation.md)
