@@ -274,10 +274,9 @@ order:
    platform's core event chain is now wired end to end (Subscription →
    Billing → Payment → Billing/Subscription/Notification), including
    Billing translating payment outcomes into `subscription_id`-bearing
-   events for Subscription to consume. Retry/DLQ policy, publisher
-   confirms and prefetch aren't built yet. One real gap remains tracked:
-   catalog-service's Outbox never actually reaches RabbitMQ (stuck on a
-   log-only publisher).
+   events for Subscription to consume, and catalog-service's Outbox
+   actually reaching RabbitMQ (was stuck on a log-only publisher).
+   Retry/DLQ policy, publisher confirms and prefetch aren't built yet.
 3. Distributed reliability — collect the Outbox/Inbox/idempotency
    patterns already used per-service into one set of platform rules, and
    actually test the crash scenarios (crash before ack, crash before
