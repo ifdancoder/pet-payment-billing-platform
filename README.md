@@ -270,12 +270,14 @@ order:
    topology rules are written down
    ([ADR 0002](docs/adr/0002-rabbitmq-messaging.md) +
    [event catalog](docs/architecture/event-catalog.md)), formalizing
-   what five services had already been doing by imitation. Retry/DLQ
-   policy, publisher confirms and prefetch aren't built yet, and two
-   real gaps are now tracked instead of invisible: catalog-service's
-   Outbox never actually reaches RabbitMQ, and nothing consumes
-   `payment.succeeded.v1`/`payment.failed.v1` in Billing or Subscription
-   yet — the next concrete slice.
+   what five services had already been doing by imitation. The
+   platform's core event chain is now wired end to end (Subscription →
+   Billing → Payment → Billing/Subscription/Notification), including
+   Billing translating payment outcomes into `subscription_id`-bearing
+   events for Subscription to consume. Retry/DLQ policy, publisher
+   confirms and prefetch aren't built yet. One real gap remains tracked:
+   catalog-service's Outbox never actually reaches RabbitMQ (stuck on a
+   log-only publisher).
 3. Distributed reliability — collect the Outbox/Inbox/idempotency
    patterns already used per-service into one set of platform rules, and
    actually test the crash scenarios (crash before ack, crash before

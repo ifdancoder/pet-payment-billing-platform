@@ -101,11 +101,14 @@ test('activate sets the status to Active when PastDue', function () {
     expect($subscription->status())->toBe(SubscriptionStatus::Active);
 });
 
-test('activate throws when the subscription is already Active', function () {
+test('activate is idempotent when the subscription is already Active', function () {
     $subscription = Subscription::reconstitute(SubscriptionId::generate(), MerchantId::generate(), CustomerId::generate(), makePriceSnapshot(), SubscriptionStatus::Active);
 
     $subscription->activate();
-})->throws(InvalidSubscriptionTransition::class);
+
+    expect($subscription->status())->toBe(SubscriptionStatus::Active)
+        ->and($subscription->pullRecordedEvents())->toBe([]);
+});
 
 test('activate throws when the subscription is Canceled', function () {
     $subscription = Subscription::reconstitute(SubscriptionId::generate(), MerchantId::generate(), CustomerId::generate(), makePriceSnapshot(), SubscriptionStatus::Canceled);
@@ -131,11 +134,14 @@ test('markPastDue throws when the subscription is Pending', function () {
     $subscription->markPastDue();
 })->throws(InvalidSubscriptionTransition::class);
 
-test('markPastDue throws when the subscription is already PastDue', function () {
+test('markPastDue is idempotent when the subscription is already PastDue', function () {
     $subscription = Subscription::reconstitute(SubscriptionId::generate(), MerchantId::generate(), CustomerId::generate(), makePriceSnapshot(), SubscriptionStatus::PastDue);
 
     $subscription->markPastDue();
-})->throws(InvalidSubscriptionTransition::class);
+
+    expect($subscription->status())->toBe(SubscriptionStatus::PastDue)
+        ->and($subscription->pullRecordedEvents())->toBe([]);
+});
 
 test('cancel sets the status to Canceled and records a SubscriptionCanceled event when Active', function () {
     $subscription = Subscription::reconstitute(SubscriptionId::generate(), MerchantId::generate(), CustomerId::generate(), makePriceSnapshot(), SubscriptionStatus::Active);

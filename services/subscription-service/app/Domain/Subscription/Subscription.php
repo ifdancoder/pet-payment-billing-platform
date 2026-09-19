@@ -77,9 +77,19 @@ final class Subscription
      * Activates a Pending subscription on first successful payment, or
      * reactivates one that had fallen PastDue after a later successful
      * payment.
+     *
+     * Activating an already-Active subscription is a silent no-op rather
+     * than an error: invoice.paid.v1 fires on every renewal cycle, not
+     * just the first one, so by the time a later renewal is paid the
+     * subscription is normally Active already — that's the expected
+     * case, not a redelivery bug, and it must not fail either way.
      */
     public function activate(): void
     {
+        if ($this->status === SubscriptionStatus::Active) {
+            return;
+        }
+
         if (! in_array($this->status, [SubscriptionStatus::Pending, SubscriptionStatus::PastDue], true)) {
             throw InvalidSubscriptionTransition::forAction($this->id, 'be activated', $this->status);
         }
@@ -88,8 +98,18 @@ final class Subscription
         $this->recordEvent(new SubscriptionActivated($this->id));
     }
 
+    /**
+     * Marking an already-PastDue subscription past due again is a silent
+     * no-op rather than an error: a second, later payment attempt can
+     * fail too (invoice.payment_failed.v1 firing more than once for the
+     * same subscription across retries), and that must not fail either.
+     */
     public function markPastDue(): void
     {
+        if ($this->status === SubscriptionStatus::PastDue) {
+            return;
+        }
+
         if ($this->status !== SubscriptionStatus::Active) {
             throw InvalidSubscriptionTransition::forAction($this->id, 'be marked past due', $this->status);
         }

@@ -38,7 +38,7 @@ test('a request for a non-existent subscription returns not found', function () 
     $response->assertNotFound();
 });
 
-test('a request to activate an already-active subscription returns a conflict', function () {
+test('a request to activate an already-active subscription is idempotent', function () {
     $merchantId = MerchantId::generate();
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
@@ -63,5 +63,5 @@ test('a request to activate an already-active subscription returns a conflict', 
 
     $response = $this->postJson("/api/v1/merchants/{$merchantId->toString()}/subscriptions/{$subscription['id']}/activate");
 
-    $response->assertConflict();
+    $response->assertOk()->assertJsonPath('data.status', 'active');
 });
