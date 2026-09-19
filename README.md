@@ -266,9 +266,16 @@ order:
 1. **API Gateway / Ingress** — done for the routing/auth-boundary design
    (see [ADR 0001](docs/adr/0001-api-gateway-routing.md)); not yet
    reachable end-to-end since no service is dockerized.
-2. RabbitMQ topology — routing keys, queue naming, bindings, retry/DLQ
-   policy, publisher confirms, consumer ack/nack, versioning, formalized
-   platform-wide instead of decided per-service as each one was built.
+2. RabbitMQ topology — messaging contract, naming, envelope and queue
+   topology rules are written down
+   ([ADR 0002](docs/adr/0002-rabbitmq-messaging.md) +
+   [event catalog](docs/architecture/event-catalog.md)), formalizing
+   what five services had already been doing by imitation. Retry/DLQ
+   policy, publisher confirms and prefetch aren't built yet, and two
+   real gaps are now tracked instead of invisible: catalog-service's
+   Outbox never actually reaches RabbitMQ, and nothing consumes
+   `payment.succeeded.v1`/`payment.failed.v1` in Billing or Subscription
+   yet — the next concrete slice.
 3. Distributed reliability — collect the Outbox/Inbox/idempotency
    patterns already used per-service into one set of platform rules, and
    actually test the crash scenarios (crash before ack, crash before
