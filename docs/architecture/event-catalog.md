@@ -10,15 +10,22 @@ catalog is governed by.
 
 ## Wired end to end
 
-These three are published, consumed, and covered by Inbox on the
-consumer side — the platform's only complete async vertical slices
-today.
+Published, consumed, and covered by Inbox on the consumer side — the
+platform's complete async vertical slices today.
 
 | Event | Producer | Consumer(s) |
 | --- | --- | --- |
 | `subscription.created.v1` | subscription-service | billing-service (`SubscriptionCreatedConsumer` → creates an `Invoice`) |
 | `invoice.created.v1` | billing-service | payment-service (`InvoiceCreatedConsumer` → creates + processes a `Payment`) |
-| `payment.succeeded.v1` | payment-service | notification-service (`PaymentSucceededConsumer` → sends an email receipt) |
+| `payment.succeeded.v1` | payment-service | notification-service (`PaymentSucceededConsumer` → sends an email receipt); billing-service (`PaymentSucceededConsumer` → marks the `Invoice` Paid, publishes `invoice.paid.v1`) |
+| `payment.failed.v1` | payment-service | billing-service (`PaymentFailedConsumer` → the `Invoice` itself doesn't change, it stays Open awaiting another attempt, but this republishes `invoice.payment_failed.v1`) |
+
+`payment.succeeded.v1` / `payment.failed.v1` never carry
+`subscription_id` — Payment doesn't model subscriptions at all, only
+`invoice_id`. Billing is the natural translation hop (its own `Invoice`
+already links `invoice_id` ↔ `subscription_id`), which is why it
+republishes rather than Subscription consuming these two directly. See
+[ADR 0002](../adr/0002-rabbitmq-messaging.md) for the full reasoning.
 
 ## Published, no consumer yet
 
@@ -28,8 +35,8 @@ already flow onto the exchange with nobody listening.
 
 | Event | Producer | Missing consumer(s) | Why it matters |
 | --- | --- | --- | --- |
-| `payment.succeeded.v1` | payment-service | billing-service, subscription-service | Nothing marks an `Invoice` Paid or a `Subscription` Active on a real payment outcome. This is the next concrete implementation slice. |
-| `payment.failed.v1` | payment-service | *everyone* — zero consumers exist, not even notification-service | No failure-notification email, no subscription past-due transition on a real failed payment. |
+| `invoice.paid.v1` | billing-service | subscription-service | Nothing activates a `Subscription` on its invoice actually being paid. Next concrete slice. |
+| `invoice.payment_failed.v1` | billing-service | subscription-service | Nothing marks a `Subscription` past due on a real failed payment. Next concrete slice, alongside the one above. |
 | `subscription.activated.v1` | subscription-service | none | No known need yet. |
 | `subscription.canceled.v1` | subscription-service | none | A cancellation-confirmation notification would consume this; not built. |
 | `subscription.past_due.v1` | subscription-service | none | No known need yet. |

@@ -2,6 +2,7 @@
 
 namespace App\Shared\Presentation\Console;
 
+use App\Infrastructure\Invoice\Adapters\Messaging\Consumers\PaymentFailedConsumer;
 use App\Infrastructure\Invoice\Adapters\Messaging\Consumers\PaymentSucceededConsumer;
 use App\Infrastructure\Invoice\Adapters\Messaging\Consumers\SubscriptionCreatedConsumer;
 use App\Shared\Infrastructure\Messaging\RabbitMQ\RabbitMqEventPublisher;
@@ -12,8 +13,8 @@ use RuntimeException;
 
 /**
  * One queue per consuming service, not per event type (see
- * docs/adr/0002-rabbitmq-messaging.md): billing-service consumes two
- * event types today, so this binds both routing keys to the same queue
+ * docs/adr/0002-rabbitmq-messaging.md): billing-service consumes three
+ * event types today, so this binds every routing key to the same queue
  * and dispatches by the delivered message's routing key, rather than
  * running a separate queue/command per event.
  */
@@ -21,7 +22,7 @@ final class ConsumeBillingEventsCommand extends Command
 {
     private const QUEUE = 'billing.events.v1';
 
-    private const ROUTING_KEYS = ['subscription.created.v1', 'payment.succeeded.v1'];
+    private const ROUTING_KEYS = ['subscription.created.v1', 'payment.succeeded.v1', 'payment.failed.v1'];
 
     protected $signature = 'billing-events:consume';
 
@@ -31,6 +32,7 @@ final class ConsumeBillingEventsCommand extends Command
         AMQPChannel $channel,
         SubscriptionCreatedConsumer $subscriptionCreatedConsumer,
         PaymentSucceededConsumer $paymentSucceededConsumer,
+        PaymentFailedConsumer $paymentFailedConsumer,
     ): int {
         $channel->queue_declare(self::QUEUE, false, true, false, false);
 
@@ -52,6 +54,7 @@ final class ConsumeBillingEventsCommand extends Command
         match ($message->getRoutingKey()) {
             'subscription.created.v1' => $subscriptionCreatedConsumer->handle($headers['event_id'], $payload, new DateTimeImmutable($headers['occurred_at'])),
             'payment.succeeded.v1' => $paymentSucceededConsumer->handle($headers['event_id'], $payload),
+            'payment.failed.v1' => $paymentFailedConsumer->handle($headers['event_id'], $payload),
             default => throw new RuntimeException("Unroutable message with routing key \"{$message->getRoutingKey()}\" on queue \"".self::QUEUE.'".'),
         };
 

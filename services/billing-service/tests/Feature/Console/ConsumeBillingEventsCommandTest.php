@@ -13,6 +13,7 @@ use App\Domain\Invoice\ValueObjects\Money;
 use App\Domain\Invoice\ValueObjects\SubscriptionId;
 use App\Infrastructure\Invoice\Adapters\Persistence\Mappers\InvoiceMapper;
 use App\Infrastructure\Invoice\Adapters\Persistence\Repositories\EloquentInvoiceRepository;
+use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Support\Str;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -40,6 +41,7 @@ test('it declares the queue with bindings for every event type it consumes', fun
     $channel->shouldReceive('queue_declare')->once()->with('billing.events.v1', false, true, false, false);
     $channel->shouldReceive('queue_bind')->once()->with('billing.events.v1', 'billing.events', 'subscription.created.v1');
     $channel->shouldReceive('queue_bind')->once()->with('billing.events.v1', 'billing.events', 'payment.succeeded.v1');
+    $channel->shouldReceive('queue_bind')->once()->with('billing.events.v1', 'billing.events', 'payment.failed.v1');
     $channel->shouldReceive('basic_get')->once()->with('billing.events.v1')->andReturn(null);
     $this->app->instance(AMQPChannel::class, $channel);
 
@@ -64,7 +66,7 @@ test('it routes a subscription.created.v1 message to the invoice-creation flow',
     $message = aQueuedAmqpMessage($body, 'subscription.created.v1');
     $channel = Mockery::mock(AMQPChannel::class);
     $channel->shouldReceive('queue_declare')->once();
-    $channel->shouldReceive('queue_bind')->twice();
+    $channel->shouldReceive('queue_bind')->times(3);
     $channel->shouldReceive('basic_get')->once()->andReturn($message);
     $this->app->instance(AMQPChannel::class, $channel);
 
@@ -104,7 +106,7 @@ test('it routes a payment.succeeded.v1 message to the mark-invoice-paid flow', f
     $message = aQueuedAmqpMessage($body, 'payment.succeeded.v1');
     $channel = Mockery::mock(AMQPChannel::class);
     $channel->shouldReceive('queue_declare')->once();
-    $channel->shouldReceive('queue_bind')->twice();
+    $channel->shouldReceive('queue_bind')->times(3);
     $channel->shouldReceive('basic_get')->once()->andReturn($message);
     $this->app->instance(AMQPChannel::class, $channel);
 
@@ -116,10 +118,51 @@ test('it routes a payment.succeeded.v1 message to the mark-invoice-paid flow', f
     expect($persisted->status())->toBe(InvoiceStatus::Paid);
 });
 
+test('it routes a payment.failed.v1 message to the relay flow without changing the invoice', function () {
+    $merchantId = MerchantId::generate();
+    $invoice = Invoice::reconstitute(
+        InvoiceId::generate(),
+        $merchantId,
+        CustomerId::generate(),
+        SubscriptionId::generate(),
+        BillingPeriod::of(new DateTimeImmutable('2026-09-01T00:00:00+00:00'), new DateTimeImmutable('2026-10-01T00:00:00+00:00')),
+        [InvoiceLine::create(InvoiceLineId::generate(), null, null, 'Subscription', Money::of(1999, Currency::USD), 1)],
+        Money::of(1999, Currency::USD),
+        Money::of(1999, Currency::USD),
+        InvoiceStatus::Open,
+        null,
+        null,
+        null,
+    );
+    (new EloquentInvoiceRepository(new InvoiceMapper))->save($invoice);
+    $body = json_encode([
+        'payment_id' => (string) Str::uuid(),
+        'invoice_id' => $invoice->id()->toString(),
+        'merchant_id' => $merchantId->toString(),
+        'customer_id' => (string) Str::uuid(),
+        'failure_code' => 'card_declined',
+    ]);
+    $message = aQueuedAmqpMessage($body, 'payment.failed.v1');
+    $channel = Mockery::mock(AMQPChannel::class);
+    $channel->shouldReceive('queue_declare')->once();
+    $channel->shouldReceive('queue_bind')->times(3);
+    $channel->shouldReceive('basic_get')->once()->andReturn($message);
+    $this->app->instance(AMQPChannel::class, $channel);
+
+    $this->artisan('billing-events:consume')
+        ->expectsOutputToContain('Consumed 1 message(s).')
+        ->assertExitCode(0);
+
+    $persisted = app(IInvoiceRepositoryPort::class)->get($invoice->id(), $merchantId);
+    expect($persisted->status())->toBe(InvoiceStatus::Open);
+    $failed = collect(app(IOutboxPort::class)->unpublished())->firstWhere('eventType', 'invoice.payment_failed.v1');
+    expect($failed)->not->toBeNull();
+});
+
 test('it reports zero when there is nothing to consume', function () {
     $channel = Mockery::mock(AMQPChannel::class);
     $channel->shouldReceive('queue_declare')->once();
-    $channel->shouldReceive('queue_bind')->twice();
+    $channel->shouldReceive('queue_bind')->times(3);
     $channel->shouldReceive('basic_get')->once()->andReturn(null);
     $this->app->instance(AMQPChannel::class, $channel);
 
