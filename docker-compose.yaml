@@ -8,6 +8,8 @@ services:
     volumes:
       - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infrastructure/nginx/proxy-common.conf:/etc/nginx/proxy-common.conf:ro
+      - ./infrastructure/nginx/resolver.docker-compose.conf:/etc/nginx/generated/resolver.conf:ro
+      - ./infrastructure/nginx/dns_suffix.docker-compose.conf:/etc/nginx/generated/dns_suffix.conf:ro
     networks:
       - billing-network
 
