@@ -45,20 +45,23 @@ already flow onto the exchange with nobody listening.
 | `subscription.past_due.v1` | subscription-service | none | No known need yet. |
 | `invoice.voided.v1` | billing-service | none | No known need yet. |
 | `customer.created.v1` | customer-service | none | No known need yet. |
-| `product.created.v1` | catalog-service | none | **Also never actually reaches RabbitMQ** — catalog-service's `IEventPublisherPort` is bound to `LogEventPublisher` unconditionally, not `RabbitMqEventPublisher`. Its Outbox rows get marked published after only being logged. |
-| `product.archived.v1` | catalog-service | none | Same publisher gap as `product.created.v1`. |
-| `price.created.v1` | catalog-service | none | Same publisher gap. |
-| `price.activated.v1` | catalog-service | none | Same publisher gap. |
-| `price.deactivated.v1` | catalog-service | none | Same publisher gap. |
+| `product.created.v1` | catalog-service | none | No known need yet. |
+| `product.archived.v1` | catalog-service | none | No known need yet. |
+| `price.created.v1` | catalog-service | none | No known need yet. |
+| `price.activated.v1` | catalog-service | none | No known need yet. |
+| `price.deactivated.v1` | catalog-service | none | No known need yet. |
 
 Per the rule of thumb in ADR 0002's naming section — an event with no
-consumer probably shouldn't be published yet — most of these are
+consumer probably shouldn't be published yet — all of these are
 harmless (cheap to keep publishing, ready the day a consumer shows up).
-The five catalog-service events are the exception: they're not really
-"published with no consumer," they're **not published at all** despite
-the Outbox believing they are. That's a bug, not a design choice, and
-it's invisible from inside catalog-service itself — only visible by
-checking what's actually bound to `IEventPublisherPort`.
+
+catalog-service's five events used to be a second category entirely:
+they weren't really "published with no consumer," they were **not
+published at all** — `IEventPublisherPort` was bound to
+`LogEventPublisher` unconditionally, so Outbox rows got marked
+published after only being logged. Fixed: catalog-service now has the
+same `RabbitMqEventPublisher` + `AMQPChannel` wiring every other
+publishing service has.
 
 ## Envelope
 
