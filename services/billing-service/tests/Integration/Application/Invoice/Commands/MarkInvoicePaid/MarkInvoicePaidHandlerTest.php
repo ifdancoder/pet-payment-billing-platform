@@ -16,6 +16,7 @@ use App\Domain\Invoice\ValueObjects\PaymentId;
 use App\Domain\Invoice\ValueObjects\SubscriptionId;
 use App\Infrastructure\Invoice\Adapters\Persistence\Mappers\InvoiceMapper;
 use App\Infrastructure\Invoice\Adapters\Persistence\Repositories\EloquentInvoiceRepository;
+use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Support\Str;
 
@@ -111,4 +112,37 @@ test('handle is idempotent when the invoice is already Paid via a different even
     ));
 
     expect($result->status())->toBe(InvoiceStatus::Paid);
+});
+
+test('handle records an InvoicePaid integration event in the outbox', function () {
+    $merchantId = MerchantId::generate();
+    $invoice = seedOpenInvoiceForMarkPaid($merchantId);
+    $paymentId = PaymentId::generate();
+
+    app(MarkInvoicePaidHandler::class)->handle(new MarkInvoicePaidCommand(
+        (string) Str::uuid(),
+        'payment.succeeded.v1',
+        $invoice->id()->toString(),
+        $merchantId->toString(),
+        $paymentId->toString(),
+        new DateTimeImmutable,
+    ));
+
+    $unpublished = app(IOutboxPort::class)->unpublished();
+    $paid = collect($unpublished)->firstWhere('eventType', 'invoice.paid.v1');
+    expect($paid)->not->toBeNull()
+        ->and($paid->aggregateId)->toBe($invoice->id()->toString())
+        ->and($paid->payload['subscription_id'])->toBe($invoice->subscriptionId()->toString())
+        ->and($paid->payload['payment_id'])->toBe($paymentId->toString());
+});
+
+test('handle does not record an integration event when the event id is redelivered', function () {
+    $merchantId = MerchantId::generate();
+    $invoice = seedOpenInvoiceForMarkPaid($merchantId);
+    $command = new MarkInvoicePaidCommand((string) Str::uuid(), 'payment.succeeded.v1', $invoice->id()->toString(), $merchantId->toString(), PaymentId::generate()->toString(), new DateTimeImmutable);
+    app(MarkInvoicePaidHandler::class)->handle($command);
+
+    app(MarkInvoicePaidHandler::class)->handle($command);
+
+    expect(app(IOutboxPort::class)->unpublished())->toHaveCount(1);
 });

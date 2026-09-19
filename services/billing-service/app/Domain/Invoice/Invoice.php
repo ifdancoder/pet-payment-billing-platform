@@ -179,7 +179,7 @@ final class Invoice
         $this->paymentId = $paymentId;
         $this->paidAt = $paidAt;
 
-        $this->recordEvent(new InvoicePaid($this->id, $paymentId, $paidAt));
+        $this->recordEvent(new InvoicePaid($this->id, $this->merchantId, $this->customerId, $this->subscriptionId, $paymentId, $this->total, $paidAt));
     }
 
     public function void(DateTimeImmutable $voidedAt): void

@@ -118,7 +118,10 @@ test('reconstitute exposes the given data and status without recording an event'
 });
 
 test('markPaid sets the status to Paid and records an InvoicePaid event when Open', function () {
-    $invoice = Invoice::create(InvoiceId::generate(), MerchantId::generate(), CustomerId::generate(), SubscriptionId::generate(), aBillingPeriod(), someInvoiceLines());
+    $merchantId = MerchantId::generate();
+    $customerId = CustomerId::generate();
+    $subscriptionId = SubscriptionId::generate();
+    $invoice = Invoice::create(InvoiceId::generate(), $merchantId, $customerId, $subscriptionId, aBillingPeriod(), someInvoiceLines());
     $invoice->pullRecordedEvents();
     $paymentId = PaymentId::generate();
     $paidAt = new DateTimeImmutable('2026-09-05T00:00:00+00:00');
@@ -132,7 +135,11 @@ test('markPaid sets the status to Paid and records an InvoicePaid event when Ope
     expect($events)->toHaveCount(1)
         ->and($events[0])->toBeInstanceOf(InvoicePaid::class)
         ->and($events[0]->invoiceId->equals($invoice->id()))->toBeTrue()
-        ->and($events[0]->paymentId->equals($paymentId))->toBeTrue();
+        ->and($events[0]->merchantId->equals($merchantId))->toBeTrue()
+        ->and($events[0]->customerId->equals($customerId))->toBeTrue()
+        ->and($events[0]->subscriptionId->equals($subscriptionId))->toBeTrue()
+        ->and($events[0]->paymentId->equals($paymentId))->toBeTrue()
+        ->and($events[0]->total->amountMinorUnits())->toBe(3500);
 });
 
 test('markPaid is idempotent when the invoice is already Paid', function () {
