@@ -14,6 +14,9 @@ use Illuminate\Http\Request;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         health: '/up',
+        then: function (): void {
+            require __DIR__.'/../routes/health.php';
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         //
