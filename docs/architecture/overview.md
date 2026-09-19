@@ -47,7 +47,11 @@ regardless of how things are actually deployed.
   answer right away.
 - **Asynchronous**: integration events over RabbitMQ, used for
   cross-service workflows and propagating state changes (a subscription
-  change triggering invoice generation, for example).
+  change triggering invoice generation, for example). See
+  [ADR 0002](../adr/0002-rabbitmq-messaging.md) for the messaging
+  contract (delivery semantics, envelope, naming, queue topology) and
+  [`event-catalog.md`](event-catalog.md) for every event that exists
+  today, who publishes it, and who actually consumes it.
 
 ## Reliability patterns
 
@@ -87,4 +91,6 @@ Prometheus, Tempo, Loki, Grafana) is scaffolded under
 
 - [`kubernetes.md`](kubernetes.md) for the Kubernetes infra layer and how
   it maps to this architecture.
+- [`event-catalog.md`](event-catalog.md) for every integration event,
+  its producer, and its actual consumers.
 - [`../adr/README.md`](../adr/README.md) for decisions not captured here.
