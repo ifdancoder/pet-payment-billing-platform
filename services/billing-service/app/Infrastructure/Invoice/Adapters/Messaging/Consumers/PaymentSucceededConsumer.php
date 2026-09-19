@@ -1,0 +1,32 @@
+<?php
+
+namespace App\Infrastructure\Invoice\Adapters\Messaging\Consumers;
+
+use App\Application\Invoice\Commands\MarkInvoicePaid\MarkInvoicePaidCommand;
+use App\Application\Invoice\Commands\MarkInvoicePaid\MarkInvoicePaidHandler;
+use DateTimeImmutable;
+
+/**
+ * Translates a decoded payment.succeeded.v1 message into a
+ * MarkInvoicePaidCommand. Deliberately has no idea RabbitMQ exists — it
+ * takes plain data, so it's testable without an AMQPMessage at all.
+ */
+final class PaymentSucceededConsumer
+{
+    public function __construct(private readonly MarkInvoicePaidHandler $handler) {}
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function handle(string $eventId, array $payload): void
+    {
+        $this->handler->handle(new MarkInvoicePaidCommand(
+            $eventId,
+            'payment.succeeded.v1',
+            $payload['invoice_id'],
+            $payload['merchant_id'],
+            $payload['payment_id'],
+            new DateTimeImmutable($payload['paid_at']),
+        ));
+    }
+}
