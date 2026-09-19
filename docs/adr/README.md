@@ -44,8 +44,6 @@ What gets easier, what gets harder. Trade-offs and follow-up work, not
 just the upside.
 ```
 
-## Status
+## Recorded
 
-Nothing recorded yet, the project's still in Phase 0 (see the root
-README, "Status"). First ADRs will probably show up with Phase 1, once
-the first service and its messaging conventions get decided.
+- [0001. API gateway routing and the public/internal split](0001-api-gateway-routing.md)

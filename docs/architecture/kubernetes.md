@@ -29,10 +29,11 @@ deployment on their own timeline.
   | `external-secrets/` | Syncs secrets from an external store into native `Secret` objects | Keeps credentials out of the manifests |
   | `observability/` | OpenTelemetry Collector, Prometheus, Grafana, Tempo, Loki | Where every service's traces/metrics/logs land, see `overview.md`'s Observability section |
 
-Application services aren't part of the Kubernetes manifests yet.
-`services/` is empty (see the root README, "Status"). Each service gets
-its own deployment manifests once it exists; `platform/` only covers the
-shared, platform-owned pieces.
+Application services aren't part of the Kubernetes manifests yet, even
+though all seven now exist under `services/` — they're only dockerized
+and deployed once the roadmap actually reaches that phase (see the root
+README, "Status"). Each service gets its own deployment manifests then;
+`platform/` only covers the shared, platform-owned pieces.
 
 ## Current status
 
@@ -43,8 +44,9 @@ shared, platform-owned pieces.
   downstream yet (no services, no queues, no secrets to sync). Each one
   documents its own plan for later.
 
-Matches Phase 0 of the project: the Kubernetes layer is scaffolded ahead
-of the services it'll eventually host, not deployed anywhere yet.
+The Kubernetes layer is still scaffolded ahead of the services it'll
+eventually host — the platform-level manifests exist, but nothing here
+is deployed anywhere yet.
 
 ## Related docs
 
