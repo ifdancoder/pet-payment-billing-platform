@@ -1,0 +1,21 @@
+# Named customer-service, not customer-api — this is the Service for the
+# "customer" capability's HTTP endpoint (the only workload that gets one;
+# a future worker/outbox Deployment for this service wouldn't), and the
+# name has to match what the gateway's nginx.conf already expects as its
+# upstream (see infrastructure/nginx/nginx.conf, ADR 0001). Port 8000
+# matches that same expectation; the container itself listens on 8080
+# (ADR 0003), so targetPort bridges the two.
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-service
+  labels:
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    app.kubernetes.io/name: customer
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
