@@ -3,12 +3,15 @@
 namespace App\Shared\Infrastructure\Providers;
 
 use App\Shared\Application\Ports\Outbound\IEventPublisherPort;
+use App\Shared\Application\Ports\Outbound\IInboxPort;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
 use App\Shared\Infrastructure\Messaging\LogEventPublisher;
 use App\Shared\Infrastructure\Messaging\RabbitMQ\RabbitMqEventPublisher;
+use App\Shared\Infrastructure\Persistence\Eloquent\Inbox\EloquentInbox;
 use App\Shared\Infrastructure\Persistence\Eloquent\Outbox\EloquentOutbox;
 use App\Shared\Infrastructure\Transaction\LaravelTransactionManager;
+use App\Shared\Presentation\Console\ConsumeSubscriptionEventsCommand;
 use App\Shared\Presentation\Console\PublishOutboxMessagesCommand;
 use Illuminate\Support\ServiceProvider;
 use PhpAmqpLib\Channel\AMQPChannel;
@@ -23,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(ITransactionManagerPort::class, LaravelTransactionManager::class);
         $this->app->bind(IOutboxPort::class, EloquentOutbox::class);
+        $this->app->bind(IInboxPort::class, EloquentInbox::class);
 
         if ($this->app->environment('testing')) {
             $this->app->bind(IEventPublisherPort::class, LogEventPublisher::class);
@@ -55,6 +59,7 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 PublishOutboxMessagesCommand::class,
+                ConsumeSubscriptionEventsCommand::class,
             ]);
         }
     }

@@ -2,7 +2,6 @@
 
 use App\Application\Subscription\Commands\ActivateSubscription\ActivateSubscriptionCommand;
 use App\Application\Subscription\Commands\ActivateSubscription\ActivateSubscriptionHandler;
-use App\Domain\Subscription\Exceptions\InvalidSubscriptionTransition;
 use App\Domain\Subscription\Exceptions\SubscriptionNotFound;
 use App\Domain\Subscription\Subscription;
 use App\Domain\Subscription\ValueObjects\BillingInterval;
@@ -67,12 +66,14 @@ test('handle throws SubscriptionNotFound when no subscription matches', function
     ));
 })->throws(SubscriptionNotFound::class);
 
-test('handle throws InvalidSubscriptionTransition when the subscription is already Active', function () {
+test('handle is idempotent when the subscription is already Active', function () {
     $merchantId = MerchantId::generate();
     $subscription = seedSubscription($merchantId, SubscriptionStatus::Active);
 
-    app(ActivateSubscriptionHandler::class)->handle(new ActivateSubscriptionCommand($merchantId->toString(), $subscription->id()->toString()));
-})->throws(InvalidSubscriptionTransition::class);
+    $result = app(ActivateSubscriptionHandler::class)->handle(new ActivateSubscriptionCommand($merchantId->toString(), $subscription->id()->toString()));
+
+    expect($result->status())->toBe(SubscriptionStatus::Active);
+});
 
 test('handle records a SubscriptionActivated integration event in the outbox', function () {
     $merchantId = MerchantId::generate();
