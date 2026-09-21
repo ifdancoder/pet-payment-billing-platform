@@ -40,7 +40,7 @@ this file as slices get added, the same way
 | Component | Not built. Would live per-service, e.g. `services/subscription-service/tests/Component/`. |
 | Contract | Not built. One producer-side test per event in the [event catalog](event-catalog.md), one consumer-side test per service that consumes it. |
 | E2E (`tests/e2e/`) | **First scenario done: `successful-subscription`.** All seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts — Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. See its own [README](../../tests/e2e/successful-subscription/README.md). |
-| Resilience (`tests/resilience/`) | **First scenario done: `duplicate-delivery`.** The same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. See its own [README](../../tests/resilience/duplicate-delivery/README.md). |
+| Resilience (`tests/resilience/`) | **Two scenarios done.** `duplicate-delivery`: the same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. `outbox-recovery`: the test stops `billing-outbox` itself (via `docker compose stop`), creates an Invoice while it's down, then proves the missed row reaches the wire once it's running again — see their own READMEs, [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.md). |
 | `kind`-based platform smoke tests | Not built. Separate from all of the above — see ADR 0004, "Docker Compose for business tests, Kubernetes for platform tests." |
 
 ## Building the next slice
@@ -174,6 +174,20 @@ both deliveries — RabbitMQ has no idea they're "the same event," it
 delivered exactly what was published — and only the Inbox's
 `recordIfNew()` guard is what kept a second Invoice from existing.
 
+`outbox-recovery` needed a genuinely new capability none of the tests
+above it did: the test controls Docker itself, stopping and restarting
+`billing-outbox` mid-scenario via `tests/Support/DockerCompose.php` (a
+thin `docker compose stop/start` wrapper, local to this test for
+now — same copy-first, share-on-third-use discipline as `eventually()`
+and `AmqpTestClient`). Stopping the relay *before* creating anything
+matters: the Outbox row under test has to be written while the relay
+is provably down, not race one that just hasn't reached it yet.
+Verified live this was a real stop, not a simulated one: `docker
+compose ps` showed the container `Up` for less time than it had existed
+— a genuine stop-and-restart, not a no-op — and its logs contained
+exactly one successful publish once it came back, for the exact row it
+had missed.
+
 What's next, none of it blocking what exists today:
 
 - `tests/e2e/failed-payment/` and `tests/e2e/overdue-subscription/` —
@@ -181,10 +195,13 @@ What's next, none of it blocking what exists today:
   outcome from the test side first (see "Fake providers" below); not
   buildable yet, not because a fake provider doesn't exist, but because
   it can't currently be told to fail on purpose.
-- The rest of `tests/resilience/` — consumer crash, RabbitMQ outage,
-  Outbox recovery. Each of these can reuse a service integration
-  slice's own `docker-compose.yaml` as its starting stack, the same way
-  `duplicate-delivery` reused `subscription-to-billing`'s.
+- `tests/resilience/rabbitmq-outage/` and `tests/resilience/consumer-crash/`
+  — the remaining two failure modes. `rabbitmq-outage` can likely reuse
+  `outbox-recovery`'s `DockerCompose` helper directly (stop `rabbitmq`
+  itself instead of one consumer of it); `consumer-crash` needs the
+  harder problem of stopping a worker at a precise point mid-transaction
+  rather than between its polling loop's iterations, which neither of
+  the first two resilience tests needed to solve.
 - Component and Contract layers — still not started at all; see their
   own rows in the status table above.
 

@@ -349,11 +349,15 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    семь сервисов, реальная инфраструктура, без сокращений — Merchant →
    Customer → Product/Price → Subscription → Invoice → Payment →
    Subscription Active → Notification, полностью пройдено через
-   реальный HTTP. Плюс первый resilience-тест,
-   [`duplicate-delivery`](tests/resilience/duplicate-delivery/): один и
+   реальный HTTP. Плюс два resilience-теста:
+   [`duplicate-delivery`](tests/resilience/duplicate-delivery/) (один и
    тот же `event_id`, опубликованный дважды, доказывающий, что Inbox у
    Billing реально останавливает второй от создания дублирующего
    Invoice — проверено вживую, что консьюмер реально обработал обе
-   доставки, а не что гонка просто не дала второй доставке прийти.
+   доставки, а не что гонка просто не дала второй доставке прийти) и
+   [`outbox-recovery`](tests/resilience/outbox-recovery/) (тест сам
+   останавливает `billing-outbox` посреди сценария, создаёт Invoice,
+   пока он не работает, затем доказывает, что пропущенная строка
+   доходит до wire, как только он снова запущен).
 9. Security hardening.
 10. Load / failure тестирование.

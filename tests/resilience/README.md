@@ -12,6 +12,10 @@ happy path works. See
   README. The same `event_id` published twice; proves Billing's Inbox
   actually stops the second one from creating a duplicate Invoice, not
   just that the code has a `recordIfNew()` call in it.
+- [`outbox-recovery/`](outbox-recovery/) — done, see its own README.
+  Stops `billing-outbox` mid-scenario (the test controls Docker
+  itself), creates an Invoice while it's down, then proves the missed
+  row reaches the wire once it's running again — not lost, not
+  replayed from scratch.
 
-Not built yet: `consumer-crash/`, `rabbitmq-outage/`,
-`outbox-recovery/`.
+Not built yet: `consumer-crash/`, `rabbitmq-outage/`.

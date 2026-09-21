@@ -1,0 +1,110 @@
+name: billing-platform-resilience-outbox-recovery
+
+# Reuses the same billing-consumer/billing-outbox boundary
+# tests/integration/subscription-to-billing/ and
+# tests/integration/billing-to-payment/ already exercise — this isn't
+# a new boundary, it's a new question about an existing one: does the
+# Outbox relay actually catch up on rows it missed while it was down,
+# rather than losing them or needing the original write replayed. See
+# docs/architecture/testing-strategy.md.
+#
+# Each app service runs its migration inline (`migrate --force` before
+# `frankenphp`) rather than as a separate Job — see
+# tests/integration/subscription-to-billing/docker-compose.yaml for why
+# that's fine here but not in Kubernetes.
+
+x-app-env: &app_env
+  APP_ENV: production
+  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_DEBUG: "false"
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USERNAME: billing
+  DB_PASSWORD: billing
+  SESSION_DRIVER: array
+  CACHE_STORE: array
+  QUEUE_CONNECTION: sync
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_USER: billing
+  RABBITMQ_DEFAULT_PASS: billing
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: billing
+      POSTGRES_DB: postgres
+    volumes:
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # AMQP port published to the host — this test publishes the seed
+  # event directly and reads a test-bound queue to confirm
+  # invoice.created.v1 stays stuck while billing-outbox is stopped,
+  # then arrives once it's started back up.
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: billing
+      RABBITMQ_DEFAULT_PASS: billing
+    ports:
+      - "31672:5672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  billing-api:
+    build: ../../../services/billing-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    ports:
+      - "18004:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  billing-consumer:
+    build: ../../../services/billing-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan billing-events:consume; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  # The thing under test: does this recover unpublished rows after
+  # being stopped and restarted mid-scenario — deliberately stopped by
+  # the test itself, not by docker compose up choosing not to start it.
+  billing-outbox:
+    build: ../../../services/billing-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+# An explicit subnet, not Docker's auto-assigned pool — see
+# tests/integration/subscription-to-billing/docker-compose.yaml for
+# why. A different /24 than every other tests/integration/*/,
+# tests/e2e/*/ and tests/resilience/*/ stack's, so all can run at once.
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.38.0.0/24
