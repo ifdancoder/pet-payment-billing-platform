@@ -331,9 +331,9 @@ order:
    Resilience layers built one vertical slice at a time, same as the
    RabbitMQ chain itself was
    ([ADR 0004](docs/adr/0004-testing-strategy.md) +
-   [testing strategy](docs/architecture/testing-strategy.md)). First
-   slice done: `subscription-to-billing` service integration test
-   (real Postgres, real RabbitMQ, no mocking) in
-   [`tests/integration/`](tests/integration/).
+   [testing strategy](docs/architecture/testing-strategy.md)). Two
+   service integration slices done so far (real Postgres, real
+   RabbitMQ, no mocking): `subscription-to-billing` and
+   `billing-to-payment`, in [`tests/integration/`](tests/integration/).
 9. Security hardening.
 10. Load / failure testing.

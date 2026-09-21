@@ -1,0 +1,139 @@
+name: billing-platform-test-billing-to-payment
+
+# Brings up exactly the two services this scenario touches, plus their
+# shared infra — not all seven. See
+# docs/architecture/testing-strategy.md: a service integration test
+# exercises 2-3 services, never the whole platform.
+#
+# No subscription-service here: billing only ever creates an Invoice by
+# consuming subscription.created.v1, and that inbound boundary is
+# already covered by tests/integration/subscription-to-billing/. This
+# test publishes that same event directly onto the exchange (the test
+# itself stands in for Subscription's Outbox) so this scenario stays a
+# genuine 2-service test of the billing-api -> RabbitMQ -> payment-api
+# boundary, not a 3-service one.
+#
+# Each app service runs its migration inline (`migrate --force` before
+# `frankenphp`) rather than as a separate Job — see
+# tests/integration/subscription-to-billing/docker-compose.yaml for why
+# that's fine here but not in Kubernetes.
+
+x-app-env: &app_env
+  APP_ENV: production
+  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_DEBUG: "false"
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USERNAME: billing
+  DB_PASSWORD: billing
+  SESSION_DRIVER: array
+  CACHE_STORE: array
+  QUEUE_CONNECTION: sync
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_USER: billing
+  RABBITMQ_DEFAULT_PASS: billing
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: billing
+      POSTGRES_DB: postgres
+    volumes:
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # AMQP port published to the host — unlike
+  # subscription-to-billing's stack, this test talks to RabbitMQ
+  # directly (it plays the role of Subscription's Outbox), not just
+  # through each service's own HTTP API.
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: billing
+      RABBITMQ_DEFAULT_PASS: billing
+    ports:
+      - "25672:5672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  billing-api:
+    build: ../../../services/billing-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    ports:
+      - "18004:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  # Consumes the subscription.created.v1 message the test publishes
+  # directly and creates the Invoice.
+  billing-consumer:
+    build: ../../../services/billing-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan billing-events:consume; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  # Publishes invoice.created.v1 once the Invoice above is created —
+  # the thing this whole scenario is actually verifying reaches Payment.
+  billing-outbox:
+    build: ../../../services/billing-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  payment-api:
+    build: ../../../services/payment-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: payment
+    ports:
+      - "18005:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  # Consumes invoice.created.v1 and auto-creates + processes a Payment
+  # (the fake payment gateway always succeeds today).
+  payment-consumer:
+    build: ../../../services/payment-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan invoice-created:consume; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: payment
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+# An explicit subnet, not Docker's auto-assigned pool — see
+# tests/integration/subscription-to-billing/docker-compose.yaml for
+# why. A different /24 than that stack's, so both can run at once.
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.32.0.0/24

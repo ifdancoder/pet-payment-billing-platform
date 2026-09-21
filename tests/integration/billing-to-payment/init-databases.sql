@@ -1,0 +1,2 @@
+CREATE DATABASE billing;
+CREATE DATABASE payment;

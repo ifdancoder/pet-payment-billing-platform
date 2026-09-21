@@ -10,3 +10,5 @@
 
 - [`subscription-to-billing/`](subscription-to-billing/) — готово, см.
   собственный README.
+- [`billing-to-payment/`](billing-to-payment/) — готово, см. собственный
+  README.

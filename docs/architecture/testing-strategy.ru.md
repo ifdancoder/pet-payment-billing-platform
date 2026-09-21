@@ -30,7 +30,7 @@
 | Срез | Статус |
 | --- | --- |
 | `subscription-to-billing` | **Готово.** `POST /subscriptions` → реальный Outbox → реальный RabbitMQ → реальный `billing-events:consume` → Invoice Open. См. его собственный [README](../../tests/integration/subscription-to-billing/README.ru.md). |
-| `billing-to-payment` | Не построено. `invoice.created.v1` → Payment автоматически создаёт и обрабатывает Payment. |
+| `billing-to-payment` | **Готово.** Billing консьюмит напрямую опубликованный `subscription.created.v1` → Invoice Open → реальный Outbox → реальный RabbitMQ → реальный `invoice-created:consume` → Payment succeeded. См. его собственный [README](../../tests/integration/billing-to-payment/README.ru.md). |
 | `payment-to-billing` | Не построено. `payment.succeeded.v1`/`payment.failed.v1` → Billing транслирует в `invoice.paid.v1`/`invoice.payment_failed.v1`. |
 | `billing-to-subscription` | Не построено. `invoice.paid.v1`/`invoice.payment_failed.v1` → Subscription переходит в Active/PastDue. |
 | `payment-to-notification` | Не построено. `payment.succeeded.v1` → Notification отправляет receipt. |
@@ -41,7 +41,7 @@
 | --- | --- |
 | Component | Не построено. Будет жить по сервисам, например `services/subscription-service/tests/Component/`. |
 | Contract | Не построено. Один producer-тест на событие из [каталога событий](event-catalog.ru.md), один consumer-тест на каждый сервис, который его читает. |
-| E2E (`tests/e2e/`) | Не построено. Сначала нужны `billing-to-payment` и `payment-to-billing` — см. «Следующий срез» ниже. |
+| E2E (`tests/e2e/`) | Не построено. Сначала нужны `payment-to-billing` и `billing-to-subscription` — см. «Следующий срез» ниже. |
 | Resilience (`tests/resilience/`) | Не построено. |
 | `kind`-based platform smoke tests | Не построено. Отдельно от всего вышеперечисленного — см. ADR 0004, «Docker Compose для бизнес-тестов, Kubernetes — для платформенных». |
 
@@ -50,40 +50,64 @@
 Не переходите сразу к полному E2E. Каждый service integration срез
 строится, доказывается и мёрджится сам по себе — так же, как сама
 цепочка событий RabbitMQ строилась по одному вертикальному срезу за
-раз (см. историю [каталога событий](event-catalog.ru.md)). Конкретно,
-для `billing-to-payment`:
+раз (см. историю [каталога событий](event-catalog.ru.md)).
 
-1. Скопируйте `tests/integration/subscription-to-billing/` как
-   отправную точку: та же форма `docker-compose.yaml` (Postgres,
-   RabbitMQ, роли `-api` обоих сервисов + какие `-consumer`/`-outbox`
-   нужны сценарию), тот же самостоятельный Pest-проект, тот же
-   помощник `eventually()`.
-2. Замените на `billing-api` + `billing-outbox` (billing уже
-   публикует `invoice.created.v1` через
-   `InvoiceCreatedIntegrationEvent`) и `payment-api` +
-   `payment-consumer` (`invoice-created:consume`).
-3. Тест: создайте Invoice напрямую через собственный HTTP API billing
-   (не нужно идти через Subscription для этого среза — эта граница уже
-   покрыта `subscription-to-billing`), затем через `eventually()`
-   проверьте, что появился Payment через `GET /payments` на
-   payment-service, `status: succeeded` (fake payment provider
-   автоматически успешен).
+`billing-to-payment` выявил реальное ограничение, которое стоит нести
+дальше: у Billing нет прямого HTTP-эндпоинта «создать Invoice» — он
+создаёт его только консьюмя `subscription.created.v1`. Вместо того
+чтобы тащить третий сервис в «2-сервисный» тест только ради
+производства этого события, тест публикует его напрямую в exchange, в
+том же самом wire-формате, что производит `RabbitMqEventPublisher`
+(см.
+[`tests/integration/billing-to-payment/tests/Support/EventPublisher.php`](../../tests/integration/billing-to-payment/tests/Support/EventPublisher.php)).
+Этот же паттерн обобщается: для любого следующего service integration
+теста сначала проверьте, действительно ли вышестоящему событию нужен
+целый отдельный сервис, чтобы его произвести, или его можно
+опубликовать напрямую (как это делала бы producer-сторона Contract
+теста), сохраняя срез действительно 2-3-сервисным, а не расползающимся
+к полной цепочке. Тест также сам объявляет и биндит целевую очередь
+перед публикацией — публикация до того, как настоящий консьюмер в
+своей первой итерации цикла успел забиндить очередь, молча теряет
+сообщение на topic exchange; эту гонку стоит закрывать явно, а не
+забивать тест задержкой на старте.
 
-Когда `billing-to-payment`, `payment-to-billing` и
-`billing-to-subscription` будут построены, первый сценарий
-`tests/e2e/` (`successful-subscription`) — это в основном сборка их
-`docker-compose.yaml`-сервисов в один стек и написание одного теста,
-который проходит всю цепочку через HTTP — не новая интеграционная
-работа, а композиция уже существующей.
+Конкретно, для `payment-to-billing` (следующий срез):
+
+1. Скопируйте `tests/integration/billing-to-payment/` как отправную
+   точку: та же форма `docker-compose.yaml`, тот же самостоятельный
+   Pest-проект, тот же помощник `eventually()` — это будет уже второй
+   раз, когда `eventually()` копируется, а не шарится; вынести его в
+   общее место (например, Composer-пакет `tests/support/`) стоит на
+   *третьем* срезе, а не раньше, чем он реально понадобится дважды.
+2. Замените на `payment-api` + `payment-outbox` (payment уже публикует
+   `payment.succeeded.v1`/`payment.failed.v1`) и `billing-api` +
+   `billing-consumer` (`billing-events:consume` уже биндит оба routing
+   key).
+3. Тест: опубликуйте `payment.succeeded.v1` напрямую (у payment-service
+   тоже нет прямого HTTP-эндпоинта «пометить платёж успешным» — та же
+   логика, что выше), в том же wire-формате, что производит
+   `PaymentSucceededIntegrationEvent`, затем через `eventually()`
+   проверьте, что целевой Invoice перешёл в `status: paid` через
+   `GET /invoices` на billing-service, и что `invoice.paid.v1`
+   действительно был republish-нут (либо проверив это через
+   `billing-to-subscription`, когда он появится, либо проверив, что
+   сообщение попало в объявленную самим тестом очередь, забинженную на
+   этот routing key).
+
+Когда `payment-to-billing` и `billing-to-subscription` будут
+построены, первый сценарий `tests/e2e/` (`successful-subscription`) —
+это в основном сборка их `docker-compose.yaml`-сервисов в один стек и
+написание одного теста, который проходит всю цепочку через HTTP — не
+новая интеграционная работа, а композиция уже существующей.
 
 ## Асинхронные проверки
 
-См. ADR 0004, «Асинхронные проверки: polling, а не sleep». Помощник
-`eventually()` сегодня живёт в
-[`tests/integration/subscription-to-billing/tests/Support/eventually.php`](../../tests/integration/subscription-to-billing/tests/Support/eventually.php);
-как только он понадобится второму срезу, он переезжает в общее место
-(например, Composer-пакет `tests/support/`), а не копируется в третий
-раз.
+См. ADR 0004, «Асинхронные проверки: polling, а не sleep». Сегодня
+помощник `eventually()` копируется в собственный `tests/Support/`
+каждого среза — у `subscription-to-billing` и `billing-to-payment`
+уже по идентичной собственной копии. Вынесите его в общее место
+(например, Composer-пакет `tests/support/`), когда он понадобится
+`payment-to-billing`, а не копируйте в третий раз.
 
 ## Fake providers
 
