@@ -1,5 +1,7 @@
 # Billing Platform
 
+*[Русская версия](README.ru.md)*
+
 A billing and subscription platform built as a set of independently
 deployable PHP/Laravel services.
 
@@ -72,7 +74,9 @@ pet-payment-billing-platform/
 │   └── adr/
 ├── scripts/
 ├── tests/
-│   └── e2e/
+│   ├── integration/
+│   ├── e2e/
+│   └── resilience/
 ├── docker-compose.yaml
 └── Makefile
 ```
@@ -80,7 +84,9 @@ pet-payment-billing-platform/
 ### services
 
 All seven Laravel services. Each is independently runnable with its own
-database; none are dockerized yet (see "Status").
+database. Each also has a Dockerfile now and runs in the `kind` cluster
+under `infrastructure/kubernetes/`; none are wired into the local
+`docker-compose.yaml` yet (see "Status").
 
 ### packages
 
@@ -105,7 +111,22 @@ local dev.
 
 ### docs
 
-Architecture notes and ADRs.
+Architecture notes and ADRs. English is canonical; where a Russian
+translation exists it sits alongside as `*.ru.md`.
+
+### tests
+
+Cross-service tests that don't belong to any single service — see
+[`docs/architecture/testing-strategy.md`](docs/architecture/testing-strategy.md)
+for the full pyramid (each service's own `tests/Unit`, `Integration`
+and `Feature` cover everything below this level):
+
+- `integration/` — 2-3 real services through a real RabbitMQ, each its
+  own Docker Compose stack + standalone Pest project.
+- `e2e/` — full business flows across every service, fake
+  payment/email providers.
+- `resilience/` — failure-mode scenarios (duplicate delivery, consumer
+  crash, broker outage), not business scenarios.
 
 ## Principles
 
@@ -264,8 +285,10 @@ Laravel apps into an actual production-style platform, roughly in this
 order:
 
 1. **API Gateway / Ingress** — done for the routing/auth-boundary design
-   (see [ADR 0001](docs/adr/0001-api-gateway-routing.md)); not yet
-   reachable end-to-end since no service is dockerized.
+   (see [ADR 0001](docs/adr/0001-api-gateway-routing.md)) and reachable
+   end-to-end in the `kind` cluster (Ingress → gateway → each service);
+   still not reachable through local `docker-compose` (`make up`) since
+   no service is wired into that compose file yet (step 5).
 2. RabbitMQ topology — messaging contract, naming, envelope and queue
    topology rules are written down
    ([ADR 0002](docs/adr/0002-rabbitmq-messaging.md) +
@@ -284,17 +307,33 @@ order:
    timeout).
 4. Observability — OpenTelemetry traces/metrics/logs, correlation IDs
    propagated through RabbitMQ headers, Grafana/Tempo/Prometheus/Loki.
-5. Docker / local environment — Dockerfiles and `docker-compose.yaml`
-   entries for all seven services, so the gateway from step 1 actually
-   has something to route to.
-6. Kubernetes — only once it's clear what's actually being deployed
-   (each service is more than one workload: API + consumer + outbox
-   worker, sometimes a CronJob).
+5. Docker / local environment — Dockerfiles done for all seven
+   services; `docker-compose.yaml` entries (so `make up` actually has
+   something for the gateway to route to) aren't written yet. The two
+   test-only compose stacks under `tests/integration/*/docker-compose.yaml`
+   aren't a substitute — they exist to run one test suite, not for
+   day-to-day local dev.
+6. Kubernetes — done for the core RabbitMQ vertical slice: all seven
+   services run in a local `kind` cluster (`infrastructure/kubernetes/`),
+   each split into the right workloads (API Deployment, plus a Consumer
+   and/or Outbox Deployment for whichever have messaging roles — not
+   one Pod per service), with health probes, PodDisruptionBudgets and
+   topology spread. NetworkPolicy and HPA/KEDA manifests exist but
+   aren't applied locally (`kind`'s CNI doesn't enforce NetworkPolicy,
+   and there's no metrics-server) — see
+   `infrastructure/kubernetes/platform/README.md`.
 7. CI/CD — per-service pipelines in a monorepo-aware build (lint,
    static analysis, test layers, build, scan, deploy, migrate, smoke
    test), only running for services that actually changed.
-8. Contract + end-to-end testing — one E2E scenario exercising nearly
-   the whole platform: Merchant → API Key → Customer → Product/Price →
-   Subscription → Invoice → Payment → Notification.
+8. Contract + end-to-end testing — a full pyramid, not one big E2E
+   suite: Unit/Application/Integration per service (exists already),
+   plus new Component, Contract, Service integration, E2E and
+   Resilience layers built one vertical slice at a time, same as the
+   RabbitMQ chain itself was
+   ([ADR 0004](docs/adr/0004-testing-strategy.md) +
+   [testing strategy](docs/architecture/testing-strategy.md)). First
+   slice done: `subscription-to-billing` service integration test
+   (real Postgres, real RabbitMQ, no mocking) in
+   [`tests/integration/`](tests/integration/).
 9. Security hardening.
 10. Load / failure testing.

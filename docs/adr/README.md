@@ -44,8 +44,15 @@ What gets easier, what gets harder. Trade-offs and follow-up work, not
 just the upside.
 ```
 
+## Language
+
+English is canonical. Where a Russian translation exists it sits next
+to the original as `NNNN-short-title.ru.md`, linked from the top of
+each file — not every ADR has one.
+
 ## Recorded
 
 - [0001. API gateway routing and the public/internal split](0001-api-gateway-routing.md)
 - [0002. RabbitMQ messaging contract](0002-rabbitmq-messaging.md)
 - [0003. Kubernetes foundation: runtime, manifests, health checks](0003-kubernetes-foundation.md)
+- [0004. Testing strategy: the pyramid, and where each layer runs](0004-testing-strategy.md) ([ru](0004-testing-strategy.ru.md))

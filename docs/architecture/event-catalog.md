@@ -1,5 +1,7 @@
 # Event catalog
 
+*[Русская версия](event-catalog.ru.md)*
+
 Every integration event published on `billing.events` today, its
 producer, and who actually consumes it — not who's *supposed* to
 eventually, unless marked as a known gap. Rebuilt directly from the
