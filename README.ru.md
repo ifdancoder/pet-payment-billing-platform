@@ -343,13 +343,19 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    платформы (реальный Postgres, реальный RabbitMQ, без моков):
    `subscription-to-billing`, `billing-to-payment`, `payment-to-billing`,
    `billing-to-subscription` и `payment-to-notification`, в
-   [`tests/integration/`](tests/integration/). Плюс первый полный
-   E2E-сценарий,
-   [`successful-subscription`](tests/e2e/successful-subscription/): все
+   [`tests/integration/`](tests/integration/). Плюс два полных
+   E2E-сценария:
+   [`successful-subscription`](tests/e2e/successful-subscription/) (все
    семь сервисов, реальная инфраструктура, без сокращений — Merchant →
    Customer → Product/Price → Subscription → Invoice → Payment →
    Subscription Active → Notification, полностью пройдено через
-   реальный HTTP. Плюс все четыре изначально запланированных
+   реальный HTTP) и
+   [`failed-payment`](tests/e2e/failed-payment/) (та же цепочка, но
+   сумма Price — зарезервированное decline-триггер значение
+   `FakePaymentGateway`, так что списание гарантированно отклоняется —
+   доказывает, что Invoice остаётся Open, Payment становится Failed с
+   настоящим кодом отказа, а Subscription остаётся Pending, а не
+   PastDue). Плюс все четыре изначально запланированных
    resilience-теста, готовы:
    [`duplicate-delivery`](tests/resilience/duplicate-delivery/) (один и
    тот же `event_id`, опубликованный дважды, доказывающий, что Inbox у

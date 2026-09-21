@@ -1,0 +1,33 @@
+{
+    "name": "billing-platform/e2e-failed-payment",
+    "description": "End-to-end test: a subscription purchase whose payment is declined stays exactly where a real decline leaves it — Invoice Open, Payment Failed, Subscription still Pending — walking every hop through real HTTP against all seven real services, no direct-publish shortcuts.",
+    "type": "project",
+    "repositories": [
+        {"type": "path", "url": "../../support"}
+    ],
+    "require": {
+        "php": "^8.3",
+        "billing-platform/test-support": "@dev",
+        "guzzlehttp/guzzle": "^7.9",
+        "ramsey/uuid": "^4.7"
+    },
+    "require-dev": {
+        "pestphp/pest": "^5.2"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "pest"
+    }
+}

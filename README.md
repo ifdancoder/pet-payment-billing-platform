@@ -336,12 +336,17 @@ order:
    (real Postgres, real RabbitMQ, no mocking): `subscription-to-billing`,
    `billing-to-payment`, `payment-to-billing`, `billing-to-subscription`
    and `payment-to-notification`, in
-   [`tests/integration/`](tests/integration/). Plus the first full E2E
-   scenario, [`successful-subscription`](tests/e2e/successful-subscription/):
-   all seven services, real infra, no shortcuts — Merchant → Customer →
+   [`tests/integration/`](tests/integration/). Plus two full E2E
+   scenarios: [`successful-subscription`](tests/e2e/successful-subscription/)
+   (all seven services, real infra, no shortcuts — Merchant → Customer →
    Product/Price → Subscription → Invoice → Payment → Subscription
-   Active → Notification, walked entirely through real HTTP. Plus all
-   four originally planned resilience tests, done:
+   Active → Notification, walked entirely through real HTTP) and
+   [`failed-payment`](tests/e2e/failed-payment/) (same chain, but the
+   Price's amount is `FakePaymentGateway`'s reserved decline-trigger
+   value, so the charge is guaranteed to decline — proves the Invoice
+   stays Open, the Payment ends up Failed with a real failure code, and
+   the Subscription stays Pending rather than PastDue). Plus all four
+   originally planned resilience tests, done:
    [`duplicate-delivery`](tests/resilience/duplicate-delivery/) (the
    same `event_id` published twice, proving Billing's Inbox actually
    stops the second one from creating a duplicate Invoice — verified

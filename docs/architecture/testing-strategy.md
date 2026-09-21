@@ -39,7 +39,7 @@ this file as slices get added, the same way
 | --- | --- |
 | Component | Not built. Would live per-service, e.g. `services/subscription-service/tests/Component/`. |
 | Contract | Not built. One producer-side test per event in the [event catalog](event-catalog.md), one consumer-side test per service that consumes it. |
-| E2E (`tests/e2e/`) | **First scenario done: `successful-subscription`.** All seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts — Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. See its own [README](../../tests/e2e/successful-subscription/README.md). |
+| E2E (`tests/e2e/`) | **Two scenarios done: `successful-subscription`, `failed-payment`.** Both use all seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts. `successful-subscription`: Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. `failed-payment`: same chain, but the Price's amount is `FakePaymentGateway`'s reserved decline-trigger value, so the charge is guaranteed to decline — proves the Invoice stays Open, the Payment ends up Failed with a real failure code, and the Subscription stays Pending rather than PastDue. See their own READMEs: [successful-subscription](../../tests/e2e/successful-subscription/README.md), [failed-payment](../../tests/e2e/failed-payment/README.md). |
 | Resilience (`tests/resilience/`) | **All four originally planned scenarios done.** `duplicate-delivery`: the same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. `outbox-recovery`: the test stops `billing-outbox` itself (via `docker compose stop`), creates an Invoice while it's down, then proves the missed row reaches the wire once it's running again. `rabbitmq-outage`: the test stops the broker itself; proves creating a Subscription isn't affected at all (the HTTP create flow never resolves `AMQPChannel`), then proves both the outbox relay and the consumer recover their own connections once RabbitMQ is back — verified live via genuine `Connection refused` errors in both workers' own logs while it was down. `consumer-crash`: kills `billing-consumer` for real, timed via a small, additive, off-by-default delay hook in `ConsumeBillingEventsCommand` to land precisely between its DB commit and its AMQP ack, so RabbitMQ genuinely redelivers the message rather than simulating a duplicate — proves the restarted consumer's own Inbox guard stops it from creating a second Invoice. See their own READMEs: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.md), [consumer-crash](../../tests/resilience/consumer-crash/README.md). |
 | `kind`-based platform smoke tests | Not built. Separate from all of the above — see ADR 0004, "Docker Compose for business tests, Kubernetes for platform tests." |
 
@@ -240,13 +240,43 @@ only *after* a successful ack) appeared exactly **once**; `docker
 compose ps` showed the container `Up` for less time than it had
 existed, confirming a genuine kill-and-restart rather than a no-op.
 
+`failed-payment` closed the "Fake providers" gap the previous version
+of this doc flagged: `ChargeRequest` carries only an attempt id and an
+amount, no card/token concept a test could set to "always decline", and
+adding one would have meant threading a "how should this fail" concept
+through Subscription and Billing too, just to reach a gateway three
+hops downstream. Instead, `FakePaymentGateway` gained one deterministic
+trigger already available at every layer between an E2E test and the
+gateway without any new plumbing: the amount itself. A charge for
+exactly `66660000` minor units (any currency) — `DECLINE_TRIGGER_AMOUNT_MINOR_UNITS`,
+deliberately unmistakable so no real price ever lands on it by
+accident — always declines with `card_declined`; everything else still
+always succeeds. That's the entire change; nothing outside
+`FakePaymentGateway` itself needed to move. The scenario built on it is
+otherwise pure composition of hops `tests/integration/` already proved
+in isolation (`subscription-to-billing`, `billing-to-payment`,
+`billing-to-subscription`'s own guard-condition test) — what only a
+full E2E run adds is confirming the real, gateway-driven decline leaves
+the Invoice Open, the Payment Failed, and the Subscription Pending
+(never PastDue, since it never reached Active), with the same
+documented `sleep()`-over-`eventually()` exception as
+`payment-to-notification` and `consumer-crash` used to prove those
+three are absences, not "not yet". Verified live:
+`billing-consumer` consumed exactly 2 messages (`subscription.created.v1`,
+`payment.failed.v1`), `payment-outbox` published exactly 1
+(`payment.failed.v1`), `subscription-consumer` consumed exactly 1
+(`invoice.payment_failed.v1`), and `notification-ingest-consumer`
+consumed **0** — direct confirmation it never saw anything, not just
+that nothing showed up over HTTP.
+
 What's next, none of it blocking what exists today:
 
-- `tests/e2e/failed-payment/` and `tests/e2e/overdue-subscription/` —
-  both need deterministic *control* over the fake payment provider's
-  outcome from the test side first (see "Fake providers" below); not
-  buildable yet, not because a fake provider doesn't exist, but because
-  it can't currently be told to fail on purpose.
+- `tests/e2e/overdue-subscription/` — needs a *previously Active*
+  subscription's payment to fail (the PastDue transition
+  `HandleInvoicePaymentFailedHandler` guards on, not the
+  Pending-stays-Pending case `failed-payment` already covers), which
+  means seeding a real successful billing cycle first before triggering
+  the decline-amount trick a second time.
 - Component and Contract layers — still not started at all; see their
   own rows in the status table above.
 - Migrating `eventually()`'s two remaining un-migrated local copies
@@ -266,19 +296,21 @@ the shared package is a follow-up, not done yet.
 
 ## Fake providers
 
-Already safe for the happy path, less complete for failure paths.
+Safe for both the happy path and (for payments) the failure path.
 `IPaymentGatewayPort` and `IEmailSenderPort` are both bound
 unconditionally to their `Fake*` implementations in each service's own
 `ServiceProvider` — not gated by environment, not swapped for a real
 provider anywhere yet — so no E2E test can accidentally hit a live
 payment processor or send a real email today; there's no code path to
-one. `FakePaymentGateway::charge()` and `FakeEmailSender::send()` both
-always return success unconditionally, though, which is exactly what
-`successful-subscription` needs and nothing more.
+one.
 
-What's actually missing is *deterministic control* over the outcome
-from the test side, needed for `tests/e2e/failed-payment/` and any
-resilience scenario that wants a payment to fail on purpose (a known
-token/card → decline or timeout, selectable per request) rather than
-always succeeding. Until that exists, only the happy-path E2E scenario
-is buildable; failure-path scenarios need this piece first.
+`FakePaymentGateway::charge()` returns success for every amount except
+one: `FakePaymentGateway::DECLINE_TRIGGER_AMOUNT_MINOR_UNITS`
+(`66660000` minor units, any currency) always declines with
+`card_declined`. That single deterministic trigger, not a card/token
+field, is what `tests/e2e/failed-payment/` drives from the test side —
+see that scenario's own README and "Building the next slice" above for
+why the amount, not a new field threaded through three services, is
+the trigger. `FakeEmailSender::send()` still always returns success
+unconditionally; no test yet needs it to fail, and nothing currently
+asks it to.

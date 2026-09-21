@@ -11,12 +11,18 @@ fake-провайдерами платежей/email вместо настоящ
   собственный README. Happy path: Merchant → Customer → Product/Price →
   Subscription → Invoice → Payment → Subscription Active →
   Notification.
+- [`failed-payment/`](failed-payment/) — готово, см. собственный README.
+  Первый failure-path сценарий: те же семь сервисов, но сумма Price —
+  зарезервированное decline-триггер значение `FakePaymentGateway`, так
+  что списание гарантированно отклоняется. Доказывает, что Invoice
+  остаётся Open, Payment становится Failed с настоящим кодом отказа
+  провайдера, а Subscription — так и не дошедший до Active — остаётся
+  Pending, а не PastDue.
 
-Ещё не построено: failure-path сценарии (`failed-payment`,
-`overdue-subscription`) — обоим нужно детерминированное *управление*
-исходом fake-провайдера платежей со стороны теста, которого пока нет
-(сам fake-провайдер есть и всегда успешен — см. раздел «Fake providers»
-документа стратегии тестирования).
+Ещё не построено: `overdue-subscription` — нужен платёж, проваливающийся
+у *уже Active* подписки (переход в PastDue, а не guard
+«Pending остаётся Pending», уже покрытый `failed-payment`), а значит —
+сначала засеять настоящий успешный billing-цикл.
 
 Не путать с отдельными `kind`-based Kubernetes platform smoke tests
 (инфраструктурные вопросы: роутит ли Ingress, остаётся ли доступным
