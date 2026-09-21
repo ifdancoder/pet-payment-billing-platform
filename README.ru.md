@@ -343,7 +343,12 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    RabbitMQ, без моков): `subscription-to-billing`,
    `billing-to-payment`, `payment-to-billing` и
    `billing-to-subscription`, в
-   [`tests/integration/`](tests/integration/) — уже есть каждый срез,
-   нужный первому сценарию `tests/e2e/`.
+   [`tests/integration/`](tests/integration/). Плюс первый полный
+   E2E-сценарий,
+   [`successful-subscription`](tests/e2e/successful-subscription/): все
+   семь сервисов, реальная инфраструктура, без сокращений — Merchant →
+   Customer → Product/Price → Subscription → Invoice → Payment →
+   Subscription Active → Notification, полностью пройдено через
+   реальный HTTP.
 9. Security hardening.
 10. Load / failure тестирование.

@@ -33,7 +33,7 @@
 | `billing-to-payment` | **Готово.** Billing консьюмит напрямую опубликованный `subscription.created.v1` → Invoice Open → реальный Outbox → реальный RabbitMQ → реальный `invoice-created:consume` → Payment succeeded. См. его собственный [README](../../tests/integration/billing-to-payment/README.ru.md). |
 | `payment-to-billing` | **Готово.** Напрямую опубликованный `subscription.created.v1` сеет Invoice, дальше *реальная* цепочка отрабатывает до конца (настоящий `billing-outbox`, настоящий `payment-consumer`, настоящий `payment-outbox`) до настоящего `payment.succeeded.v1` → Billing помечает Invoice как Paid и republish-ит `invoice.paid.v1` (проверено прямо на wire, не только через HTTP). См. его собственный [README](../../tests/integration/payment-to-billing/README.ru.md). |
 | `billing-to-subscription` | **Готово.** Два теста: напрямую опубликованный `invoice.paid.v1` активирует реальную, созданную через HTTP Pending-подписку; напрямую опубликованный `invoice.payment_failed.v1` помечает её PastDue, но только когда она реально уже Active (проверяет собственное guard-условие `HandleInvoicePaymentFailedHandler`, а не только сам переход). См. его собственный [README](../../tests/integration/billing-to-subscription/README.ru.md). |
-| `payment-to-notification` | Не построено. `payment.succeeded.v1` → Notification отправляет receipt. Не блокирует первый E2E-сценарий. |
+| `payment-to-notification` | Не построено как отдельный изолированный срез, но сама граница уже реально проверяется E2E-сценарием `successful-subscription` ниже (Notification консьюмит `payment.succeeded.v1` независимо от собственного консьюминга того же события Billing). Отдельный 2-сервисный срез всё равно стоило бы иметь по той же причине, что у каждой другой границы он есть — быстрее и локальнее падение — просто не срочно. |
 
 ### Всё остальное в пирамиде
 
@@ -41,7 +41,7 @@
 | --- | --- |
 | Component | Не построено. Будет жить по сервисам, например `services/subscription-service/tests/Component/`. |
 | Contract | Не построено. Один producer-тест на событие из [каталога событий](event-catalog.ru.md), один consumer-тест на каждый сервис, который его читает. |
-| E2E (`tests/e2e/`) | Не построено, но каждый service integration срез, нужный первому сценарию, уже существует — см. «Следующий срез» ниже. |
+| E2E (`tests/e2e/`) | **Первый сценарий готов: `successful-subscription`.** Все семь сервисов, реальный Postgres, реальный RabbitMQ, нигде никаких трюков с прямой публикацией — Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, полностью пройдено через реальный HTTP. См. его собственный [README](../../tests/e2e/successful-subscription/README.ru.md). |
 | Resilience (`tests/resilience/`) | Не построено. |
 | `kind`-based platform smoke tests | Не построено. Отдельно от всего вышеперечисленного — см. ADR 0004, «Docker Compose для бизнес-тестов, Kubernetes — для платформенных». |
 
@@ -121,21 +121,54 @@ Active (публикуя `invoice.paid.v1` и дожидаясь) прежде �
 только тест, который реально сначала дошёл до Active.
 
 Когда `subscription-to-billing`, `billing-to-payment`,
-`payment-to-billing` и `billing-to-subscription` построены, каждый
-service integration срез, нужный первому сценарию `tests/e2e/`
-(`successful-subscription`), уже существует. Построить его — это в
-основном собрать `docker-compose.yaml`-сервисы всех срезов в один стек
-(все семь сервисов, не «2-3» — см. таблицу пирамиды) и написать один
-тест, который проходит всю цепочку через HTTP: реально создать
-Subscription, через `eventually()` проверить, что она дошла до
-`active`, без каких-либо трюков с прямой публикацией — E2E-тест
-доказывает, что вся система производит событие, а не что сервис умеет
-консьюмить то, что ему вручили. `payment-to-notification` не является
-жёстким блокером (сценарий может проверять всё до Subscription `active`
-и без него), но его стоит иметь до того, как объявлять
-`successful-subscription` «готовым», поскольку receipt — часть
-настоящего бизнес-флоу. Fake providers, при ближайшем рассмотрении,
-блокером вообще не оказались — см. «Fake providers» ниже.
+`payment-to-billing` и `billing-to-subscription` были готовы,
+`successful-subscription` оказался в основном композицией, ровно как и
+предполагалось: те же самые сервисы `docker-compose.yaml`, что уже
+использовал каждый срез, собранные в один стек из 16 контейнеров (все
+семь сервисов, не «2-3» — см. таблицу пирамиды), и один тест, который
+проходит всю цепочку через настоящий HTTP без единого трюка с прямой
+публикацией — реально создать Subscription, через `eventually()`
+проверить Invoice → Paid, Payment → succeeded, Subscription → `active`,
+и Notification-receipt, в этом порядке. Проверено вживую: ровно одно
+сообщение на каждом шаге по всей цепочке (проверено в логах каждого
+воркера, а не просто выведено из прохождения HTTP-проверок), без
+дублей, без потерь.
+
+Построение этого выявило одну вещь, стоящую того, чтобы её унести
+дальше — то, чего не показал бы срез поменьше: когда контейнеры всех
+семи сервисов стартуют одновременно вместо двух-трёх, стартовая гонка,
+которая на самом деле есть в любом `docker-compose.yaml` этого
+репозитория — worker `-consumer`/`-outbox` зависит только от здоровья
+`postgres`, а не от завершения миграции собственного `-api`-контейнера
+— впервые проявилась как реально наблюдаемая, залогированная ошибка
+(`billing-outbox` опросил `outbox_messages` до того, как `migrate
+--force` в `billing-api` успел её создать). Она самовосстановилась в
+собственном цикле повтора и не завалила тест, поэтому она
+задокументирована, а не «исправлена» — полное обоснование, почему это
+правильное решение для одноразового, single-replica-на-сервис
+compose-стека (в отличие от Kubernetes, где отдельный migrate Job
+существует именно для того, чтобы это исключить) — в собственном
+README `successful-subscription`.
+
+Что дальше, и ничто из этого не блокирует то, что уже есть:
+
+- Отдельный service integration срез `payment-to-notification` — сама
+  граница уже проверяется `successful-subscription`, но
+  сфокусированный 2-сервисный тест всё равно быстрее локализовал бы
+  падение именно там.
+- `tests/e2e/failed-payment/` и `tests/e2e/overdue-subscription/` —
+  обоим сначала нужно детерминированное *управление* исходом
+  fake-провайдера платежей со стороны теста (см. «Fake providers»
+  ниже); пока не строятся не потому, что fake-провайдера нет, а
+  потому, что его пока нельзя попросить провалиться намеренно.
+- `tests/resilience/` — повторная доставка, падение консьюмера,
+  недоступность RabbitMQ, восстановление Outbox. Каждый из них может
+  переиспользовать `docker-compose.yaml` какого-нибудь service
+  integration среза как стартовый стек — так же, как
+  `successful-subscription` переиспользовал стеки всех четырёх service
+  integration срезов.
+- Уровни Component и Contract — всё ещё вообще не начаты; см. их
+  собственные строки в таблице статуса выше.
 
 ## Асинхронные проверки
 

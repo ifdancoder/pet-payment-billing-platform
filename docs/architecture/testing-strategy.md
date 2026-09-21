@@ -31,7 +31,7 @@ this file as slices get added, the same way
 | `billing-to-payment` | **Done.** Billing consumes a directly-published `subscription.created.v1` → Invoice Open → real Outbox → real RabbitMQ → real `invoice-created:consume` → Payment succeeded. See its own [README](../../tests/integration/billing-to-payment/README.md). |
 | `payment-to-billing` | **Done.** A directly-published `subscription.created.v1` seeds an Invoice, then the *real* chain runs the rest of the way (real `billing-outbox`, real `payment-consumer`, real `payment-outbox`) to a real `payment.succeeded.v1` → Billing marks the Invoice Paid and republishes `invoice.paid.v1` (verified on the wire, not just via HTTP). See its own [README](../../tests/integration/payment-to-billing/README.md). |
 | `billing-to-subscription` | **Done.** Two tests: a directly-published `invoice.paid.v1` activates a real, HTTP-created Pending subscription; a directly-published `invoice.payment_failed.v1` marks it PastDue, but only once it's genuinely Active first (exercises `HandleInvoicePaymentFailedHandler`'s own guard, not just the transition). See its own [README](../../tests/integration/billing-to-subscription/README.md). |
-| `payment-to-notification` | Not built. `payment.succeeded.v1` → Notification delivers a receipt. Doesn't block the first E2E scenario. |
+| `payment-to-notification` | Not built as its own isolated slice, but the boundary itself is now exercised for real by the `successful-subscription` E2E scenario below (Notification consuming `payment.succeeded.v1` independently of Billing's own consumption of it). A dedicated 2-service slice would still be worth having for the same reason every other boundary has one — faster, more localized failures — just not urgent. |
 
 ### Everything else in the pyramid
 
@@ -39,7 +39,7 @@ this file as slices get added, the same way
 | --- | --- |
 | Component | Not built. Would live per-service, e.g. `services/subscription-service/tests/Component/`. |
 | Contract | Not built. One producer-side test per event in the [event catalog](event-catalog.md), one consumer-side test per service that consumes it. |
-| E2E (`tests/e2e/`) | Not built, but every service integration slice its first scenario needs now exists — see "Building the next slice" below. |
+| E2E (`tests/e2e/`) | **First scenario done: `successful-subscription`.** All seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts — Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. See its own [README](../../tests/e2e/successful-subscription/README.md). |
 | Resilience (`tests/resilience/`) | Not built. |
 | `kind`-based platform smoke tests | Not built. Separate from all of the above — see ADR 0004, "Docker Compose for business tests, Kubernetes for platform tests." |
 
@@ -115,20 +115,51 @@ failed payment is supposed to stay Pending, and only a test that
 actually reaches Active first can tell the two cases apart.
 
 With `subscription-to-billing`, `billing-to-payment`,
-`payment-to-billing` and `billing-to-subscription` all done, every
-service integration slice the first `tests/e2e/` scenario
-(`successful-subscription`) needs now exists. Building it is mostly
-assembling every slice's `docker-compose.yaml` services into one stack
-(all seven services, not "2-3" — see the pyramid table) and writing one
-test that walks the whole chain via HTTP: create a Subscription for
-real, `eventually()` assert it reaches `active`, without any
-direct-publish shortcuts — an E2E test proves the whole system
-produces the event, not that a service can consume one handed to it.
-`payment-to-notification` isn't a hard blocker (the scenario can assert
-up through Subscription `active` without it) but is worth having before
-declaring `successful-subscription` "done," since the receipt is part
-of the actual business flow. Fake providers turned out *not* to be a
-blocker at all, on closer look — see "Fake providers" below.
+`payment-to-billing` and `billing-to-subscription` all done,
+`successful-subscription` turned out to be mostly composition, exactly
+as predicted: every `docker-compose.yaml` service each slice already
+used, assembled into one 16-container stack (all seven services, not
+"2-3" — see the pyramid table), and one test that walks the whole chain
+via real HTTP with zero direct-publish shortcuts — create a
+Subscription for real, `eventually()` assert Invoice → Paid, Payment →
+succeeded, Subscription → `active`, and a receipt Notification, in that
+order. Verified live: exactly one message at every hop across the
+entire chain (checked in each worker's own logs, not just inferred from
+the HTTP assertions passing), no duplicates, no drops.
+
+Building it surfaced one thing worth carrying forward, distinct from
+anything a smaller slice would show: with seven services' containers
+all starting at once instead of two or three, a startup race that
+every `docker-compose.yaml` in this repo actually has — a
+`-consumer`/`-outbox` worker depends only on `postgres` being healthy,
+not on its own `-api` container's migration having finished — showed up
+for the first time as an observed, logged error (`billing-outbox`
+querying `outbox_messages` before `billing-api`'s `migrate --force` had
+created it). It self-healed within its own retry loop and didn't fail
+the test, so it's documented rather than "fixed" — see
+`successful-subscription`'s own README for the full reasoning on why
+that's the right call for a disposable, single-replica-per-service
+compose stack (as opposed to Kubernetes, where a separate migrate Job
+exists specifically to rule this out).
+
+What's next, none of it blocking what exists today:
+
+- A dedicated `payment-to-notification` service integration slice —
+  the boundary itself is already exercised by `successful-subscription`,
+  but a focused 2-service test would still localize a break there
+  faster.
+- `tests/e2e/failed-payment/` and `tests/e2e/overdue-subscription/` —
+  both need deterministic *control* over the fake payment provider's
+  outcome from the test side first (see "Fake providers" below); not
+  buildable yet, not because a fake provider doesn't exist, but because
+  it can't currently be told to fail on purpose.
+- `tests/resilience/` — duplicate delivery, consumer crash, RabbitMQ
+  outage, Outbox recovery. Each of these can reuse a service
+  integration slice's own `docker-compose.yaml` as its starting stack,
+  the same way `successful-subscription` reused all four service
+  integration slices' stacks.
+- Component and Contract layers — still not started at all; see their
+  own rows in the status table above.
 
 ## Asynchronous assertions
 
