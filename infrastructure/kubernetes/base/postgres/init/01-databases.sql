@@ -1,10 +1,8 @@
--- DB-per-service on one shared Postgres instance for local/dev use: a
--- separate logical database per service, not seven physical servers
--- (see docs/adr/0003-kubernetes-foundation.md). Add one line here per
--- service as it gets containerized — this only runs once, against an
--- empty data directory, so an existing cluster won't pick up additions
--- without a volume reset.
+-- Runs only when PostgreSQL initializes an empty data directory.
 CREATE DATABASE customer;
 CREATE DATABASE catalog;
 CREATE DATABASE subscription;
 CREATE DATABASE billing;
+CREATE DATABASE identity;
+CREATE DATABASE payment;
+CREATE DATABASE notification;

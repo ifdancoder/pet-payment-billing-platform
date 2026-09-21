@@ -25,7 +25,7 @@ function fakeCustomerServiceContact(string $customerId, ?string $email = 'jane@e
     Http::fake([
         "*/api/v1/customers/{$customerId}" => $email === null
             ? Http::response(['message' => 'not found'], 404)
-            : Http::response(['id' => $customerId, 'email' => $email, 'name' => 'Jane Doe'], 200),
+            : Http::response(['data' => ['id' => $customerId, 'email' => $email, 'name' => 'Jane Doe']], 200),
     ]);
 }
 

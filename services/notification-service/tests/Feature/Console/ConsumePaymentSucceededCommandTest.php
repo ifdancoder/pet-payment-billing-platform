@@ -12,7 +12,7 @@ test('it consumes and acks one pending message and reports it', function () {
     $merchantId = MerchantId::generate()->toString();
     $customerId = (string) Str::uuid();
     Http::fake([
-        "*/api/v1/customers/{$customerId}" => Http::response(['id' => $customerId, 'email' => 'jane@example.com', 'name' => 'Jane Doe'], 200),
+        "*/api/v1/customers/{$customerId}" => Http::response(['data' => ['id' => $customerId, 'email' => 'jane@example.com', 'name' => 'Jane Doe']], 200),
     ]);
     $body = json_encode([
         'payment_id' => (string) Str::uuid(),
