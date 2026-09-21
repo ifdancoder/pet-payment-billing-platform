@@ -51,11 +51,19 @@ final class AmqpTestClient
      * Publishes directly onto the exchange. Returns the event_id so the
      * caller can assert on it downstream (e.g. Inbox dedup).
      *
+     * Pass $eventId explicitly to simulate a real redelivery — the same
+     * event_id arriving twice, exactly as at-least-once delivery
+     * produces after a crash-before-ack or an unacked message timing
+     * out — rather than two independent events that happen to describe
+     * the same thing. Every service's Inbox dedups on event_id, not on
+     * payload equality, so this is the only way to test that guard for
+     * real (see tests/resilience/duplicate-delivery/).
+     *
      * @param  array<string, mixed>  $payload
      */
-    public function publish(string $routingKey, string $aggregateType, string $aggregateId, array $payload, ?DateTimeImmutable $occurredAt = null): string
+    public function publish(string $routingKey, string $aggregateType, string $aggregateId, array $payload, ?DateTimeImmutable $occurredAt = null, ?string $eventId = null): string
     {
-        $eventId = Uuid::uuid4()->toString();
+        $eventId ??= Uuid::uuid4()->toString();
 
         $this->channel()->basic_publish(
             new AMQPMessage(json_encode($payload, JSON_THROW_ON_ERROR), [

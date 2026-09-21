@@ -1,0 +1,96 @@
+name: billing-platform-resilience-duplicate-delivery
+
+# Reuses the same billing-consumer boundary
+# tests/integration/subscription-to-billing/ and
+# tests/integration/billing-to-payment/ already exercise — not a new
+# boundary, a new *question* about an existing one: does Inbox dedup
+# actually survive a real duplicate delivery, not just "the code has a
+# recordIfNew() call in it." See docs/architecture/testing-strategy.md.
+#
+# Each app service runs its migration inline (`migrate --force` before
+# `frankenphp`) rather than as a separate Job — see
+# tests/integration/subscription-to-billing/docker-compose.yaml for why
+# that's fine here but not in Kubernetes.
+
+x-app-env: &app_env
+  APP_ENV: production
+  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_DEBUG: "false"
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USERNAME: billing
+  DB_PASSWORD: billing
+  SESSION_DRIVER: array
+  CACHE_STORE: array
+  QUEUE_CONNECTION: sync
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_USER: billing
+  RABBITMQ_DEFAULT_PASS: billing
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: billing
+      POSTGRES_DB: postgres
+    volumes:
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # AMQP port published to the host — this test publishes the same
+  # event_id twice, simulating a real redelivery.
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: billing
+      RABBITMQ_DEFAULT_PASS: billing
+    ports:
+      - "30672:5672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  billing-api:
+    build: ../../../services/billing-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    ports:
+      - "18004:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  # The thing under test: does its Inbox actually stop a redelivered
+  # subscription.created.v1 from creating a second Invoice.
+  billing-consumer:
+    build: ../../../services/billing-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan billing-events:consume; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+# An explicit subnet, not Docker's auto-assigned pool — see
+# tests/integration/subscription-to-billing/docker-compose.yaml for
+# why. A different /24 than every tests/integration/*/ and
+# tests/e2e/*/ stack's, so all can run at once.
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.37.0.0/24

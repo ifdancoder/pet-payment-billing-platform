@@ -40,7 +40,7 @@ this file as slices get added, the same way
 | Component | Not built. Would live per-service, e.g. `services/subscription-service/tests/Component/`. |
 | Contract | Not built. One producer-side test per event in the [event catalog](event-catalog.md), one consumer-side test per service that consumes it. |
 | E2E (`tests/e2e/`) | **First scenario done: `successful-subscription`.** All seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts — Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. See its own [README](../../tests/e2e/successful-subscription/README.md). |
-| Resilience (`tests/resilience/`) | Not built. |
+| Resilience (`tests/resilience/`) | **First scenario done: `duplicate-delivery`.** The same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. See its own [README](../../tests/resilience/duplicate-delivery/README.md). |
 | `kind`-based platform smoke tests | Not built. Separate from all of the above — see ADR 0004, "Docker Compose for business tests, Kubernetes for platform tests." |
 
 ## Building the next slice
@@ -156,19 +156,35 @@ ADR 0004 warns against — it's the only honest way to test an absence;
 polling would just mean "hasn't happened *yet*," not "doesn't happen."
 
 With every event boundary in the platform's core chain now covered by
-its own service integration slice, what's next, none of it blocking
-what exists today:
+its own service integration slice, `duplicate-delivery` started
+`tests/resilience/` — the pyramid's other still-mostly-empty branch, and
+a genuinely different kind of test from everything above it. A service
+integration slice asks "does this boundary work"; a resilience test
+asks "does it keep working when RabbitMQ's own delivery guarantee
+actually exercises the ugly case it's *supposed* to handle." It reuses
+`billing-consumer` from `subscription-to-billing`/`billing-to-payment`
+rather than standing up a new boundary, and needed one small addition
+to `AmqpTestClient`: an explicit `eventId` parameter on `publish()`, so
+the test can publish the *same* event twice — every other slice was
+happy letting it auto-generate a fresh one, since nothing before this
+needed to simulate an actual redelivery rather than an independent
+event that happens to look similar. Verified live that this wasn't a
+cheap pass: `billing-consumer`'s own logs showed it genuinely processed
+both deliveries — RabbitMQ has no idea they're "the same event," it
+delivered exactly what was published — and only the Inbox's
+`recordIfNew()` guard is what kept a second Invoice from existing.
+
+What's next, none of it blocking what exists today:
 
 - `tests/e2e/failed-payment/` and `tests/e2e/overdue-subscription/` —
   both need deterministic *control* over the fake payment provider's
   outcome from the test side first (see "Fake providers" below); not
   buildable yet, not because a fake provider doesn't exist, but because
   it can't currently be told to fail on purpose.
-- `tests/resilience/` — duplicate delivery, consumer crash, RabbitMQ
-  outage, Outbox recovery. Each of these can reuse a service
-  integration slice's own `docker-compose.yaml` as its starting stack,
-  the same way `successful-subscription` reused all four service
-  integration slices' stacks that existed at the time.
+- The rest of `tests/resilience/` — consumer crash, RabbitMQ outage,
+  Outbox recovery. Each of these can reuse a service integration
+  slice's own `docker-compose.yaml` as its starting stack, the same way
+  `duplicate-delivery` reused `subscription-to-billing`'s.
 - Component and Contract layers — still not started at all; see their
   own rows in the status table above.
 
