@@ -32,8 +32,8 @@
 | `subscription-to-billing` | **Готово.** `POST /subscriptions` → реальный Outbox → реальный RabbitMQ → реальный `billing-events:consume` → Invoice Open. См. его собственный [README](../../tests/integration/subscription-to-billing/README.ru.md). |
 | `billing-to-payment` | **Готово.** Billing консьюмит напрямую опубликованный `subscription.created.v1` → Invoice Open → реальный Outbox → реальный RabbitMQ → реальный `invoice-created:consume` → Payment succeeded. См. его собственный [README](../../tests/integration/billing-to-payment/README.ru.md). |
 | `payment-to-billing` | **Готово.** Напрямую опубликованный `subscription.created.v1` сеет Invoice, дальше *реальная* цепочка отрабатывает до конца (настоящий `billing-outbox`, настоящий `payment-consumer`, настоящий `payment-outbox`) до настоящего `payment.succeeded.v1` → Billing помечает Invoice как Paid и republish-ит `invoice.paid.v1` (проверено прямо на wire, не только через HTTP). См. его собственный [README](../../tests/integration/payment-to-billing/README.ru.md). |
-| `billing-to-subscription` | Не построено. `invoice.paid.v1`/`invoice.payment_failed.v1` → Subscription переходит в Active/PastDue. |
-| `payment-to-notification` | Не построено. `payment.succeeded.v1` → Notification отправляет receipt. |
+| `billing-to-subscription` | **Готово.** Два теста: напрямую опубликованный `invoice.paid.v1` активирует реальную, созданную через HTTP Pending-подписку; напрямую опубликованный `invoice.payment_failed.v1` помечает её PastDue, но только когда она реально уже Active (проверяет собственное guard-условие `HandleInvoicePaymentFailedHandler`, а не только сам переход). См. его собственный [README](../../tests/integration/billing-to-subscription/README.ru.md). |
+| `payment-to-notification` | Не построено. `payment.succeeded.v1` → Notification отправляет receipt. Не блокирует первый E2E-сценарий. |
 
 ### Всё остальное в пирамиде
 
@@ -41,7 +41,7 @@
 | --- | --- |
 | Component | Не построено. Будет жить по сервисам, например `services/subscription-service/tests/Component/`. |
 | Contract | Не построено. Один producer-тест на событие из [каталога событий](event-catalog.ru.md), один consumer-тест на каждый сервис, который его читает. |
-| E2E (`tests/e2e/`) | Не построено. Сначала нужен `billing-to-subscription` — см. «Следующий срез» ниже. |
+| E2E (`tests/e2e/`) | Не построено, но каждый service integration срез, нужный первому сценарию, уже существует — см. «Следующий срез» ниже. |
 | Resilience (`tests/resilience/`) | Не построено. |
 | `kind`-based platform smoke tests | Не построено. Отдельно от всего вышеперечисленного — см. ADR 0004, «Docker Compose для бизнес-тестов, Kubernetes — для платформенных». |
 
@@ -102,33 +102,40 @@ HTTP-видимое состояние. `payment-to-billing` используе�
 подтвердить, что `invoice.paid.v1` реально несёт обратно
 `subscription_id` — в этом и есть весь смысл этого hop-а трансляции.
 
-Конкретно, для `billing-to-subscription` (следующий срез):
+`billing-to-subscription` разрешил свою версию того же вопроса чисто,
+потому что у Subscription (в отличие от Invoice или Payment) есть
+настоящий эндпоинт `POST /subscriptions`: не понадобился трюк с прямой
+публикацией, чтобы его посеять — просто настоящий запрос через
+настоящий create-флоу, поэтому `customer-service` и `catalog-service`
+в этом стеке, хотя ни один из них не является границей под тестом (этот
+флоу вызывает их синхронно). Самого billing-service в этом стеке
+*нет* — публикация им обоих событий уже покрыта `payment-to-billing`,
+поэтому тест публикует `invoice.paid.v1`/`invoice.payment_failed.v1`
+напрямую, та же логика, что и во всех предыдущих срезах. Это также
+первый срез, проверяющий *guard-условие*, а не просто переход:
+`HandleInvoicePaymentFailedHandler` срабатывает только на `Active` →
+`PastDue`, поэтому его второй тест сначала реально доводит подписку до
+Active (публикуя `invoice.paid.v1` и дожидаясь) прежде чем опубликовать
+`invoice.payment_failed.v1` — самый первый неудачный платёж Pending-
+подписки должен остаться Pending, и отличить эти два случая может
+только тест, который реально сначала дошёл до Active.
 
-1. Скопируйте `tests/integration/payment-to-billing/` как отправную
-   точку: та же форма `docker-compose.yaml`, та же зависимость от
-   `tests/support/` через его `path`-репозиторий.
-2. Замените на `billing-api` + `billing-outbox` и `subscription-api` +
-   `subscription-consumer` (`subscription-events:consume` уже биндит и
-   `invoice.paid.v1`, и `invoice.payment_failed.v1`).
-3. Тест: посейте Invoice тем же способом (напрямую опубликованный
-   `subscription.created.v1`) *и* Subscription — собственный консьюмер
-   Subscription ищет Subscription по ID из payload события, так что он
-   должен уже существовать, а прямого HTTP-эндпоинта подделать это тоже
-   нет. Либо опубликуйте соответствующий `subscription.created.v1`
-   через реальный create-флоу subscription-api (внеся сам
-   subscription-service в этот стек, поскольку только он реально может
-   создать строку Subscription), либо посейте его напрямую тоже —
-   решите, когда реальное ограничение станет видно, так же, как дизайн
-   `payment-to-billing` изменился, когда прояснилось его собственное
-   ограничение. Затем через `eventually()` проверьте, что Subscription
-   перешла в `status: active` через `GET /subscriptions` на
-   subscription-service.
-
-Когда `billing-to-subscription` будет построен, первый сценарий
-`tests/e2e/` (`successful-subscription`) — это в основном сборка
-`docker-compose.yaml`-сервисов всех срезов в один стек и написание
-одного теста, который проходит всю цепочку через HTTP — не новая
-интеграционная работа, а композиция уже существующей.
+Когда `subscription-to-billing`, `billing-to-payment`,
+`payment-to-billing` и `billing-to-subscription` построены, каждый
+service integration срез, нужный первому сценарию `tests/e2e/`
+(`successful-subscription`), уже существует. Построить его — это в
+основном собрать `docker-compose.yaml`-сервисы всех срезов в один стек
+(все семь сервисов, не «2-3» — см. таблицу пирамиды) и написать один
+тест, который проходит всю цепочку через HTTP: реально создать
+Subscription, через `eventually()` проверить, что она дошла до
+`active`, без каких-либо трюков с прямой публикацией — E2E-тест
+доказывает, что вся система производит событие, а не что сервис умеет
+консьюмить то, что ему вручили. `payment-to-notification` не является
+жёстким блокером (сценарий может проверять всё до Subscription `active`
+и без него), но его стоит иметь до того, как объявлять
+`successful-subscription` «готовым», поскольку receipt — часть
+настоящего бизнес-флоу. Fake providers, при ближайшем рассмотрении,
+блокером вообще не оказались — см. «Fake providers» ниже.
 
 ## Асинхронные проверки
 
@@ -141,12 +148,20 @@ HTTP-видимое состояние. `payment-to-billing` используе�
 
 ## Fake providers
 
-Ещё не построено. Нужно до любого E2E- или resilience-теста, который
-касается Payment или Notification: адаптер `PAYMENT_GATEWAY=fake` с
-детерминированными исходами (известный token/card → success, decline
-или timeout) и адаптер `NOTIFICATION_DRIVER=fake`, который
-записывает, что он «отправил», вместо вызова настоящего провайдера.
-У Payment уже есть `fake`-провайдер для автоматической обработки
-первой попытки (см. поле `provider: "fake"` в записях платежа) — чего
-не хватает для E2E, так это детерминированного *управления* исходом со
-стороны теста, а не самого факта наличия fake-адаптера.
+Уже безопасно для happy path, менее полно для failure-путей.
+`IPaymentGatewayPort` и `IEmailSenderPort` оба безусловно забиндены на
+свои реализации `Fake*` в собственном `ServiceProvider` каждого
+сервиса — не зависят от окружения, нигде ещё не заменены на настоящего
+провайдера — так что ни один E2E-тест сегодня не может случайно
+попасть на живой платёжный процессинг или отправить настоящий email:
+для этого просто нет пути в коде. При этом `FakePaymentGateway::charge()`
+и `FakeEmailSender::send()` оба всегда безусловно возвращают успех —
+ровно то, что нужно `successful-subscription`, и ничего больше.
+
+Чего реально не хватает — это *детерминированного управления* исходом
+со стороны теста, нужного для `tests/e2e/failed-payment/` и любого
+resilience-сценария, где платёж должен провалиться намеренно
+(известный token/card → decline или timeout, выбираемый для конкретного
+запроса), а не всегда успешно проходить. Пока этого нет, строить можно
+только happy-path E2E-сценарий; failure-сценариям сначала нужен этот
+кусок.

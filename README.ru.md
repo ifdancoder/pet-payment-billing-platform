@@ -339,9 +339,11 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    же, как строилась сама цепочка RabbitMQ
    ([ADR 0004](docs/adr/0004-testing-strategy.ru.md) +
    [стратегия тестирования](docs/architecture/testing-strategy.ru.md)).
-   Готово три service integration среза (реальный Postgres, реальный
+   Готово четыре service integration среза (реальный Postgres, реальный
    RabbitMQ, без моков): `subscription-to-billing`,
-   `billing-to-payment` и `payment-to-billing`, в
-   [`tests/integration/`](tests/integration/).
+   `billing-to-payment`, `payment-to-billing` и
+   `billing-to-subscription`, в
+   [`tests/integration/`](tests/integration/) — уже есть каждый срез,
+   нужный первому сценарию `tests/e2e/`.
 9. Security hardening.
 10. Load / failure тестирование.

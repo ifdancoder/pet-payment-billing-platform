@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="./vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true">
+    <testsuites>
+        <testsuite name="Default">
+            <directory>tests</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <!--
+            This stack's docker-compose.yaml maps RabbitMQ's AMQP port
+            to 27672 on the host, not AmqpTestClient::fromEnv()'s
+            default of 25672 — every tests/integration/*/ stack uses a
+            distinct host port so more than one can run at once.
+        -->
+        <env name="RABBITMQ_PORT" value="27672"/>
+    </php>
+</phpunit>

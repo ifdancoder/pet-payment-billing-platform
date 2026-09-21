@@ -1,0 +1,33 @@
+{
+    "name": "billing-platform/test-billing-to-subscription",
+    "description": "Service integration test: Billing Service -> RabbitMQ -> Subscription Service. Publishes invoice.paid.v1/invoice.payment_failed.v1 directly (standing in for Billing's own Outbox, already covered by tests/integration/payment-to-billing/) and talks to Subscription's real create flow plus customer/catalog-service over HTTP.",
+    "type": "project",
+    "repositories": [
+        {"type": "path", "url": "../../support"}
+    ],
+    "require": {
+        "php": "^8.3",
+        "billing-platform/test-support": "@dev",
+        "guzzlehttp/guzzle": "^7.9",
+        "ramsey/uuid": "^4.7"
+    },
+    "require-dev": {
+        "pestphp/pest": "^5.2"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "pest"
+    }
+}
