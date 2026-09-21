@@ -15,3 +15,6 @@ for the full pyramid and current status of every slice.
 - [`payment-to-billing/`](payment-to-billing/) — done, see its own
   README. The first slice to use [`../support/`](../support/) instead
   of a local copy of `eventually()`.
+- [`billing-to-subscription/`](billing-to-subscription/) — done, see
+  its own README. Completes the last slice `tests/e2e/` needs before
+  its first scenario can be assembled.

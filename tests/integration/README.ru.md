@@ -15,3 +15,6 @@
 - [`payment-to-billing/`](payment-to-billing/) — готово, см. собственный
   README. Первый срез, использующий [`../support/`](../support/) вместо
   локальной копии `eventually()`.
+- [`billing-to-subscription/`](billing-to-subscription/) — готово, см.
+  собственный README. Закрывает последний срез, нужный `tests/e2e/`
+  перед сборкой его первого сценария.

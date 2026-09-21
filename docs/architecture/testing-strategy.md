@@ -30,8 +30,8 @@ this file as slices get added, the same way
 | `subscription-to-billing` | **Done.** `POST /subscriptions` → real Outbox → real RabbitMQ → real `billing-events:consume` → Invoice Open. See its own [README](../../tests/integration/subscription-to-billing/README.md). |
 | `billing-to-payment` | **Done.** Billing consumes a directly-published `subscription.created.v1` → Invoice Open → real Outbox → real RabbitMQ → real `invoice-created:consume` → Payment succeeded. See its own [README](../../tests/integration/billing-to-payment/README.md). |
 | `payment-to-billing` | **Done.** A directly-published `subscription.created.v1` seeds an Invoice, then the *real* chain runs the rest of the way (real `billing-outbox`, real `payment-consumer`, real `payment-outbox`) to a real `payment.succeeded.v1` → Billing marks the Invoice Paid and republishes `invoice.paid.v1` (verified on the wire, not just via HTTP). See its own [README](../../tests/integration/payment-to-billing/README.md). |
-| `billing-to-subscription` | Not built. `invoice.paid.v1`/`invoice.payment_failed.v1` → Subscription activates/marks PastDue. |
-| `payment-to-notification` | Not built. `payment.succeeded.v1` → Notification delivers a receipt. |
+| `billing-to-subscription` | **Done.** Two tests: a directly-published `invoice.paid.v1` activates a real, HTTP-created Pending subscription; a directly-published `invoice.payment_failed.v1` marks it PastDue, but only once it's genuinely Active first (exercises `HandleInvoicePaymentFailedHandler`'s own guard, not just the transition). See its own [README](../../tests/integration/billing-to-subscription/README.md). |
+| `payment-to-notification` | Not built. `payment.succeeded.v1` → Notification delivers a receipt. Doesn't block the first E2E scenario. |
 
 ### Everything else in the pyramid
 
@@ -39,7 +39,7 @@ this file as slices get added, the same way
 | --- | --- |
 | Component | Not built. Would live per-service, e.g. `services/subscription-service/tests/Component/`. |
 | Contract | Not built. One producer-side test per event in the [event catalog](event-catalog.md), one consumer-side test per service that consumes it. |
-| E2E (`tests/e2e/`) | Not built. Needs `billing-to-subscription` wired first — see "Building the next slice" below. |
+| E2E (`tests/e2e/`) | Not built, but every service integration slice its first scenario needs now exists — see "Building the next slice" below. |
 | Resilience (`tests/resilience/`) | Not built. |
 | `kind`-based platform smoke tests | Not built. Separate from all of the above — see ADR 0004, "Docker Compose for business tests, Kubernetes for platform tests." |
 
@@ -96,32 +96,39 @@ not just that its own HTTP-visible state changed. `payment-to-billing`
 uses it to confirm `invoice.paid.v1` really carries `subscription_id`
 back, which is the entire point of that translation hop.
 
-Concretely, for `billing-to-subscription` (next):
+`billing-to-subscription` resolved its own version of the same
+question cleanly, because Subscription (unlike Invoice or Payment) has
+a real `POST /subscriptions` endpoint: no direct-publish trick was
+needed to seed one, just a real request through the real create flow —
+which is why `customer-service` and `catalog-service` are in that
+stack even though neither is the boundary under test (that flow calls
+them synchronously). billing-service itself is *not* in that stack —
+its publish of both events is already covered by `payment-to-billing`,
+so the test publishes `invoice.paid.v1`/`invoice.payment_failed.v1`
+directly, same reasoning as every slice before it. It's also the first
+slice to assert a *guard condition*, not just a transition:
+`HandleInvoicePaymentFailedHandler` only fires `Active` → `PastDue`, so
+its second test drives the subscription to genuinely Active first
+(publishing `invoice.paid.v1` and waiting) before publishing
+`invoice.payment_failed.v1` — a Pending subscription's first-ever
+failed payment is supposed to stay Pending, and only a test that
+actually reaches Active first can tell the two cases apart.
 
-1. Copy `tests/integration/payment-to-billing/` as a starting point:
-   same `docker-compose.yaml` shape, same `tests/support/` dependency
-   via its `path` repository.
-2. Swap in `billing-api` + `billing-outbox` and `subscription-api` +
-   `subscription-consumer` (`subscription-events:consume` already
-   binds `invoice.paid.v1` and `invoice.payment_failed.v1`).
-3. The test: seed an Invoice the same way (directly-published
-   `subscription.created.v1`) *and* a Subscription — Subscription's
-   own consumer looks up the Subscription by ID from the event payload,
-   so one needs to exist first, and there's no HTTP endpoint to fake
-   that either. Either publish a matching `subscription.created.v1`
-   through subscription-api's real create flow (bringing
-   subscription-service itself into this stack, since it's the only
-   thing that can actually create a Subscription row) or seed one more
-   directly — decide once the actual constraint is visible, the same
-   way `payment-to-billing`'s design changed once its own constraint
-   became clear. Then `eventually()` assert the Subscription moved to
-   `status: active` via `GET /subscriptions` on subscription-service.
-
-Once `billing-to-subscription` exists, the first `tests/e2e/` scenario
-(`successful-subscription`) is mostly assembling every slice's
-`docker-compose.yaml` services into one stack and writing one test that
-walks the whole chain via HTTP — not new integration work, just
-composition.
+With `subscription-to-billing`, `billing-to-payment`,
+`payment-to-billing` and `billing-to-subscription` all done, every
+service integration slice the first `tests/e2e/` scenario
+(`successful-subscription`) needs now exists. Building it is mostly
+assembling every slice's `docker-compose.yaml` services into one stack
+(all seven services, not "2-3" — see the pyramid table) and writing one
+test that walks the whole chain via HTTP: create a Subscription for
+real, `eventually()` assert it reaches `active`, without any
+direct-publish shortcuts — an E2E test proves the whole system
+produces the event, not that a service can consume one handed to it.
+`payment-to-notification` isn't a hard blocker (the scenario can assert
+up through Subscription `active` without it) but is worth having before
+declaring `successful-subscription` "done," since the receipt is part
+of the actual business flow. Fake providers turned out *not* to be a
+blocker at all, on closer look — see "Fake providers" below.
 
 ## Asynchronous assertions
 
@@ -134,12 +141,19 @@ the shared package is a follow-up, not done yet.
 
 ## Fake providers
 
-Not built yet. Needed before any E2E or resilience test that touches
-Payment or Notification: a `PAYMENT_GATEWAY=fake` adapter with
-deterministic outcomes (a known token/card → success, decline, or
-timeout) and a `NOTIFICATION_DRIVER=fake` adapter that records what it
-"sent" instead of calling a real provider. Payment already has a
-`fake` provider for its automatic first-attempt processing (see the
-`provider: "fake"` field in payment records) — the E2E-facing piece
-that's missing is deterministic *control* over the outcome from the
-test side, not the fake adapter's existence.
+Already safe for the happy path, less complete for failure paths.
+`IPaymentGatewayPort` and `IEmailSenderPort` are both bound
+unconditionally to their `Fake*` implementations in each service's own
+`ServiceProvider` — not gated by environment, not swapped for a real
+provider anywhere yet — so no E2E test can accidentally hit a live
+payment processor or send a real email today; there's no code path to
+one. `FakePaymentGateway::charge()` and `FakeEmailSender::send()` both
+always return success unconditionally, though, which is exactly what
+`successful-subscription` needs and nothing more.
+
+What's actually missing is *deterministic control* over the outcome
+from the test side, needed for `tests/e2e/failed-payment/` and any
+resilience scenario that wants a payment to fail on purpose (a known
+token/card → decline or timeout, selectable per request) rather than
+always succeeding. Until that exists, only the happy-path E2E scenario
+is buildable; failure-path scenarios need this piece first.
