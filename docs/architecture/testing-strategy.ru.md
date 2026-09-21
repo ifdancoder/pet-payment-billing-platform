@@ -6,7 +6,7 @@
 — что реально построено сегодня, и что дальше. Собрана по факту кода и
 дерева `tests/`, а не по целевому дизайну; обновляйте этот файл по мере
 появления новых срезов, так же, как
-[`event-catalog.md`](event-catalog.md) отслеживает цепочку сообщений.
+[`event-catalog.ru.md`](event-catalog.ru.md) отслеживает цепочку сообщений.
 
 ## Уровни в одной таблице
 
@@ -31,7 +31,7 @@
 | --- | --- |
 | `subscription-to-billing` | **Готово.** `POST /subscriptions` → реальный Outbox → реальный RabbitMQ → реальный `billing-events:consume` → Invoice Open. См. его собственный [README](../../tests/integration/subscription-to-billing/README.ru.md). |
 | `billing-to-payment` | **Готово.** Billing консьюмит напрямую опубликованный `subscription.created.v1` → Invoice Open → реальный Outbox → реальный RabbitMQ → реальный `invoice-created:consume` → Payment succeeded. См. его собственный [README](../../tests/integration/billing-to-payment/README.ru.md). |
-| `payment-to-billing` | Не построено. `payment.succeeded.v1`/`payment.failed.v1` → Billing транслирует в `invoice.paid.v1`/`invoice.payment_failed.v1`. |
+| `payment-to-billing` | **Готово.** Напрямую опубликованный `subscription.created.v1` сеет Invoice, дальше *реальная* цепочка отрабатывает до конца (настоящий `billing-outbox`, настоящий `payment-consumer`, настоящий `payment-outbox`) до настоящего `payment.succeeded.v1` → Billing помечает Invoice как Paid и republish-ит `invoice.paid.v1` (проверено прямо на wire, не только через HTTP). См. его собственный [README](../../tests/integration/payment-to-billing/README.ru.md). |
 | `billing-to-subscription` | Не построено. `invoice.paid.v1`/`invoice.payment_failed.v1` → Subscription переходит в Active/PastDue. |
 | `payment-to-notification` | Не построено. `payment.succeeded.v1` → Notification отправляет receipt. |
 
@@ -41,7 +41,7 @@
 | --- | --- |
 | Component | Не построено. Будет жить по сервисам, например `services/subscription-service/tests/Component/`. |
 | Contract | Не построено. Один producer-тест на событие из [каталога событий](event-catalog.ru.md), один consumer-тест на каждый сервис, который его читает. |
-| E2E (`tests/e2e/`) | Не построено. Сначала нужны `payment-to-billing` и `billing-to-subscription` — см. «Следующий срез» ниже. |
+| E2E (`tests/e2e/`) | Не построено. Сначала нужен `billing-to-subscription` — см. «Следующий срез» ниже. |
 | Resilience (`tests/resilience/`) | Не построено. |
 | `kind`-based platform smoke tests | Не построено. Отдельно от всего вышеперечисленного — см. ADR 0004, «Docker Compose для бизнес-тестов, Kubernetes — для платформенных». |
 
@@ -71,43 +71,73 @@
 сообщение на topic exchange; эту гонку стоит закрывать явно, а не
 забивать тест задержкой на старте.
 
-Конкретно, для `payment-to-billing` (следующий срез):
+`payment-to-billing` уточнил этот план, столкнувшись со своим
+собственным ограничением: чтобы пометить Invoice как Paid, он должен
+уже существовать в базе billing (`MarkInvoicePaidHandler` ищет его по
+ID и падает, если его нет), поэтому подделка `payment.succeeded.v1`
+напрямую — изначальный план — означала бы выдумывание `payment_id` и
+`invoice_id`, за которыми ничего реального не стоит, что доказывало бы
+только, что консьюмер умеет распарсить корректно сформированное
+сообщение, а не что граница работает с реальными, сгенерированными
+системой, скоррелированными ID. Вместо этого: посеять один Invoice
+напрямую опубликованным `subscription.created.v1` (тот же паттерн, что
+в `billing-to-payment`), а дальше дать отработать *реальной* цепочке —
+`invoice.created.v1`, Payment и `payment.succeeded.v1` производятся
+настоящим кодом `billing-outbox`/`payment-consumer`/`payment-outbox`.
+Прямая публикация — для того, чтобы засеять состояние, до которого тест
+иначе не может дотянуться, а не короткий путь в обход настоящего
+publish-пути сервиса, когда именно этот путь и является предметом
+проверки.
 
-1. Скопируйте `tests/integration/billing-to-payment/` как отправную
-   точку: та же форма `docker-compose.yaml`, тот же самостоятельный
-   Pest-проект, тот же помощник `eventually()` — это будет уже второй
-   раз, когда `eventually()` копируется, а не шарится; вынести его в
-   общее место (например, Composer-пакет `tests/support/`) стоит на
-   *третьем* срезе, а не раньше, чем он реально понадобится дважды.
-2. Замените на `payment-api` + `payment-outbox` (payment уже публикует
-   `payment.succeeded.v1`/`payment.failed.v1`) и `billing-api` +
-   `billing-consumer` (`billing-events:consume` уже биндит оба routing
-   key).
-3. Тест: опубликуйте `payment.succeeded.v1` напрямую (у payment-service
-   тоже нет прямого HTTP-эндпоинта «пометить платёж успешным» — та же
-   логика, что выше), в том же wire-формате, что производит
-   `PaymentSucceededIntegrationEvent`, затем через `eventually()`
-   проверьте, что целевой Invoice перешёл в `status: paid` через
-   `GET /invoices` на billing-service, и что `invoice.paid.v1`
-   действительно был republish-нут (либо проверив это через
-   `billing-to-subscription`, когда он появится, либо проверив, что
-   сообщение попало в объявленную самим тестом очередь, забинженную на
-   этот routing key).
+Здесь же `eventually()` и механика publish/bind переехали в
+[`tests/support/`](../../tests/support/), общий локальный
+Composer-пакет — третий срез, ровно тогда, когда более ранняя версия
+этого документа и предписывала extraction (см. «Асинхронные проверки»
+ниже). Его `AmqpTestClient` обобщает и `EventPublisher` из
+`billing-to-payment` (publish + declare/bind перед публикацией), и
+добавляет `bindTestQueue()`: приватную одноразовую очередь, забинженную
+на один routing key, для проверки, что сервис реально что-то
+republish-нул на wire — а не просто что изменилось его собственное
+HTTP-видимое состояние. `payment-to-billing` использует это, чтобы
+подтвердить, что `invoice.paid.v1` реально несёт обратно
+`subscription_id` — в этом и есть весь смысл этого hop-а трансляции.
 
-Когда `payment-to-billing` и `billing-to-subscription` будут
-построены, первый сценарий `tests/e2e/` (`successful-subscription`) —
-это в основном сборка их `docker-compose.yaml`-сервисов в один стек и
-написание одного теста, который проходит всю цепочку через HTTP — не
-новая интеграционная работа, а композиция уже существующей.
+Конкретно, для `billing-to-subscription` (следующий срез):
+
+1. Скопируйте `tests/integration/payment-to-billing/` как отправную
+   точку: та же форма `docker-compose.yaml`, та же зависимость от
+   `tests/support/` через его `path`-репозиторий.
+2. Замените на `billing-api` + `billing-outbox` и `subscription-api` +
+   `subscription-consumer` (`subscription-events:consume` уже биндит и
+   `invoice.paid.v1`, и `invoice.payment_failed.v1`).
+3. Тест: посейте Invoice тем же способом (напрямую опубликованный
+   `subscription.created.v1`) *и* Subscription — собственный консьюмер
+   Subscription ищет Subscription по ID из payload события, так что он
+   должен уже существовать, а прямого HTTP-эндпоинта подделать это тоже
+   нет. Либо опубликуйте соответствующий `subscription.created.v1`
+   через реальный create-флоу subscription-api (внеся сам
+   subscription-service в этот стек, поскольку только он реально может
+   создать строку Subscription), либо посейте его напрямую тоже —
+   решите, когда реальное ограничение станет видно, так же, как дизайн
+   `payment-to-billing` изменился, когда прояснилось его собственное
+   ограничение. Затем через `eventually()` проверьте, что Subscription
+   перешла в `status: active` через `GET /subscriptions` на
+   subscription-service.
+
+Когда `billing-to-subscription` будет построен, первый сценарий
+`tests/e2e/` (`successful-subscription`) — это в основном сборка
+`docker-compose.yaml`-сервисов всех срезов в один стек и написание
+одного теста, который проходит всю цепочку через HTTP — не новая
+интеграционная работа, а композиция уже существующей.
 
 ## Асинхронные проверки
 
-См. ADR 0004, «Асинхронные проверки: polling, а не sleep». Сегодня
-помощник `eventually()` копируется в собственный `tests/Support/`
-каждого среза — у `subscription-to-billing` и `billing-to-payment`
-уже по идентичной собственной копии. Вынесите его в общее место
-(например, Composer-пакет `tests/support/`), когда он понадобится
-`payment-to-billing`, а не копируйте в третий раз.
+См. ADR 0004, «Асинхронные проверки: polling, а не sleep». Помощник
+`eventually()` живёт в [`tests/support/`](../../tests/support/) начиная
+с `payment-to-billing`, третьего среза, которому он понадобился —
+у `subscription-to-billing` и `billing-to-payment` всё ещё свои более
+ранние, идентичные локальные копии в `tests/Support/`; их миграция на
+общий пакет — последующая работа, пока не сделана.
 
 ## Fake providers
 

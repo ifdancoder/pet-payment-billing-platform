@@ -12,3 +12,6 @@ for the full pyramid and current status of every slice.
   its own README.
 - [`billing-to-payment/`](billing-to-payment/) — done, see its own
   README.
+- [`payment-to-billing/`](payment-to-billing/) — done, see its own
+  README. The first slice to use [`../support/`](../support/) instead
+  of a local copy of `eventually()`.

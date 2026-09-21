@@ -29,7 +29,7 @@ this file as slices get added, the same way
 | --- | --- |
 | `subscription-to-billing` | **Done.** `POST /subscriptions` → real Outbox → real RabbitMQ → real `billing-events:consume` → Invoice Open. See its own [README](../../tests/integration/subscription-to-billing/README.md). |
 | `billing-to-payment` | **Done.** Billing consumes a directly-published `subscription.created.v1` → Invoice Open → real Outbox → real RabbitMQ → real `invoice-created:consume` → Payment succeeded. See its own [README](../../tests/integration/billing-to-payment/README.md). |
-| `payment-to-billing` | Not built. `payment.succeeded.v1`/`payment.failed.v1` → Billing translates to `invoice.paid.v1`/`invoice.payment_failed.v1`. |
+| `payment-to-billing` | **Done.** A directly-published `subscription.created.v1` seeds an Invoice, then the *real* chain runs the rest of the way (real `billing-outbox`, real `payment-consumer`, real `payment-outbox`) to a real `payment.succeeded.v1` → Billing marks the Invoice Paid and republishes `invoice.paid.v1` (verified on the wire, not just via HTTP). See its own [README](../../tests/integration/payment-to-billing/README.md). |
 | `billing-to-subscription` | Not built. `invoice.paid.v1`/`invoice.payment_failed.v1` → Subscription activates/marks PastDue. |
 | `payment-to-notification` | Not built. `payment.succeeded.v1` → Notification delivers a receipt. |
 
@@ -39,7 +39,7 @@ this file as slices get added, the same way
 | --- | --- |
 | Component | Not built. Would live per-service, e.g. `services/subscription-service/tests/Component/`. |
 | Contract | Not built. One producer-side test per event in the [event catalog](event-catalog.md), one consumer-side test per service that consumes it. |
-| E2E (`tests/e2e/`) | Not built. Needs `payment-to-billing` and `billing-to-subscription` wired first — see "Building the next slice" below. |
+| E2E (`tests/e2e/`) | Not built. Needs `billing-to-subscription` wired first — see "Building the next slice" below. |
 | Resilience (`tests/resilience/`) | Not built. |
 | `kind`-based platform smoke tests | Not built. Separate from all of the above — see ADR 0004, "Docker Compose for business tests, Kubernetes for platform tests." |
 
@@ -67,43 +67,70 @@ the real consumer's own first loop iteration has bound its queue
 silently drops the message on a topic exchange, a race worth avoiding
 explicitly rather than padding the test with a startup delay.
 
-Concretely, for `payment-to-billing` (next):
+`payment-to-billing` refined that plan once it hit its own constraint:
+marking an Invoice Paid needs one to already exist in billing's own
+database (`MarkInvoicePaidHandler` looks it up by ID and throws if it's
+missing), so faking `payment.succeeded.v1` directly — the original
+plan — would've meant inventing a `payment_id` and `invoice_id` with
+nothing real behind them, proving only that the consumer can parse a
+well-formed message, not that the boundary works with real,
+system-generated, correlated IDs. What it does instead: seed one
+Invoice with a directly-published `subscription.created.v1` (same
+pattern as `billing-to-payment`), then let the *real* chain run the
+rest of the way — `invoice.created.v1`, the Payment, and
+`payment.succeeded.v1` are all produced by real `billing-outbox`/
+`payment-consumer`/`payment-outbox` code. Direct-publishing is for
+seeding state a test has no other way to reach, not a shortcut around
+exercising a service's own real publish path when that path is exactly
+what's under test.
 
-1. Copy `tests/integration/billing-to-payment/` as a starting point:
-   same `docker-compose.yaml` shape, same standalone Pest project, same
-   `eventually()` helper — this will be the second time `eventually()`
-   is copied rather than shared; extract it into a common location
-   (e.g. a `tests/support/` Composer package) on the *third* slice
-   rather than before it's actually needed twice over.
-2. Swap in `payment-api` + `payment-outbox` (payment already publishes
-   `payment.succeeded.v1`/`payment.failed.v1`) and `billing-api` +
-   `billing-consumer` (`billing-events:consume` already binds both
-   routing keys).
-3. The test: publish `payment.succeeded.v1` directly (payment-service
-   has no direct "mark this payment succeeded" HTTP endpoint either —
-   same reasoning as above), matching the wire format
-   `PaymentSucceededIntegrationEvent` produces, then `eventually()`
-   assert the targeted Invoice moved to `status: paid` via
-   `GET /invoices` on billing-service, and that `invoice.paid.v1` was
-   in fact republished (either by checking `billing-to-subscription`
-   once it exists, or by asserting the message landed on a
-   test-declared queue bound to that routing key).
+This is also where `eventually()` and the publish/bind mechanics moved
+into [`tests/support/`](../../tests/support/), a shared local Composer
+package — the third slice, exactly when the earlier version of this
+doc said to extract it (see "Asynchronous assertions" below). Its
+`AmqpTestClient` generalizes both `billing-to-payment`'s
+`EventPublisher` (publish + declare/bind before publishing) and adds
+`bindTestQueue()`: a private, throwaway queue bound to one routing key,
+for asserting a service actually republished something onto the wire —
+not just that its own HTTP-visible state changed. `payment-to-billing`
+uses it to confirm `invoice.paid.v1` really carries `subscription_id`
+back, which is the entire point of that translation hop.
 
-Once `payment-to-billing` and `billing-to-subscription` both exist, the
-first `tests/e2e/` scenario (`successful-subscription`) is mostly
-assembling their `docker-compose.yaml` services into one stack and
-writing one test that walks the whole chain via HTTP — not new
-integration work, just composition.
+Concretely, for `billing-to-subscription` (next):
+
+1. Copy `tests/integration/payment-to-billing/` as a starting point:
+   same `docker-compose.yaml` shape, same `tests/support/` dependency
+   via its `path` repository.
+2. Swap in `billing-api` + `billing-outbox` and `subscription-api` +
+   `subscription-consumer` (`subscription-events:consume` already
+   binds `invoice.paid.v1` and `invoice.payment_failed.v1`).
+3. The test: seed an Invoice the same way (directly-published
+   `subscription.created.v1`) *and* a Subscription — Subscription's
+   own consumer looks up the Subscription by ID from the event payload,
+   so one needs to exist first, and there's no HTTP endpoint to fake
+   that either. Either publish a matching `subscription.created.v1`
+   through subscription-api's real create flow (bringing
+   subscription-service itself into this stack, since it's the only
+   thing that can actually create a Subscription row) or seed one more
+   directly — decide once the actual constraint is visible, the same
+   way `payment-to-billing`'s design changed once its own constraint
+   became clear. Then `eventually()` assert the Subscription moved to
+   `status: active` via `GET /subscriptions` on subscription-service.
+
+Once `billing-to-subscription` exists, the first `tests/e2e/` scenario
+(`successful-subscription`) is mostly assembling every slice's
+`docker-compose.yaml` services into one stack and writing one test that
+walks the whole chain via HTTP — not new integration work, just
+composition.
 
 ## Asynchronous assertions
 
 See ADR 0004, "Asynchronous assertions: poll, don't sleep." The
-`eventually()` helper is copied into each slice's own
-`tests/Support/` today — `subscription-to-billing` and
-`billing-to-payment` each have their own identical copy. Extract it
-into a shared location (e.g. a `tests/support/` Composer package) when
-`payment-to-billing` needs it too, rather than copying it a third
-time.
+`eventually()` helper lives in [`tests/support/`](../../tests/support/)
+as of `payment-to-billing`, the third slice to need it —
+`subscription-to-billing` and `billing-to-payment` still have their own
+earlier, identical local copies in `tests/Support/`; migrating them to
+the shared package is a follow-up, not done yet.
 
 ## Fake providers
 

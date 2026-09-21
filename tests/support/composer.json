@@ -1,0 +1,20 @@
+{
+    "name": "billing-platform/test-support",
+    "description": "Shared helpers for tests/integration/* and tests/e2e/* Pest projects: eventually() polling and a generic AMQP test client. Not a Laravel package, not shared with any service's own vendor — see docs/architecture/testing-strategy.md.",
+    "type": "library",
+    "require": {
+        "php": "^8.3",
+        "php-amqplib/php-amqplib": "^3.7",
+        "ramsey/uuid": "^4.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "BillingPlatform\\TestSupport\\": "src/"
+        },
+        "files": [
+            "src/eventually.php"
+        ]
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

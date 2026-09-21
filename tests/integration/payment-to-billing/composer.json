@@ -1,0 +1,33 @@
+{
+    "name": "billing-platform/test-payment-to-billing",
+    "description": "Service integration test: Billing Service -> RabbitMQ -> Payment Service -> RabbitMQ -> Billing Service. Seeds an Invoice by publishing subscription.created.v1 directly, then drives the real invoice.created.v1 -> Payment -> payment.succeeded.v1 -> Invoice Paid -> invoice.paid.v1 chain, talking to the two real services over HTTP plus a test-bound queue.",
+    "type": "project",
+    "repositories": [
+        {"type": "path", "url": "../../support"}
+    ],
+    "require": {
+        "php": "^8.3",
+        "billing-platform/test-support": "@dev",
+        "guzzlehttp/guzzle": "^7.9",
+        "ramsey/uuid": "^4.7"
+    },
+    "require-dev": {
+        "pestphp/pest": "^5.2"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "pest"
+    }
+}
