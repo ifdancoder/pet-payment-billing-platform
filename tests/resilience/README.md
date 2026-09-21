@@ -17,5 +17,10 @@ happy path works. See
   itself), creates an Invoice while it's down, then proves the missed
   row reaches the wire once it's running again — not lost, not
   replayed from scratch.
+- [`rabbitmq-outage/`](rabbitmq-outage/) — done, see its own README.
+  Stops the broker itself; proves creating a Subscription isn't
+  affected at all (the HTTP create flow never resolves `AMQPChannel`),
+  then proves both the outbox relay and the consumer recover their own
+  connections on their own once RabbitMQ is back.
 
-Not built yet: `consumer-crash/`, `rabbitmq-outage/`.
+Not built yet: `consumer-crash/`.

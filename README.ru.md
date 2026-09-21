@@ -349,15 +349,21 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    семь сервисов, реальная инфраструктура, без сокращений — Merchant →
    Customer → Product/Price → Subscription → Invoice → Payment →
    Subscription Active → Notification, полностью пройдено через
-   реальный HTTP. Плюс два resilience-теста:
+   реальный HTTP. Плюс три resilience-теста:
    [`duplicate-delivery`](tests/resilience/duplicate-delivery/) (один и
    тот же `event_id`, опубликованный дважды, доказывающий, что Inbox у
    Billing реально останавливает второй от создания дублирующего
    Invoice — проверено вживую, что консьюмер реально обработал обе
-   доставки, а не что гонка просто не дала второй доставке прийти) и
+   доставки, а не что гонка просто не дала второй доставке прийти),
    [`outbox-recovery`](tests/resilience/outbox-recovery/) (тест сам
    останавливает `billing-outbox` посреди сценария, создаёт Invoice,
    пока он не работает, затем доказывает, что пропущенная строка
-   доходит до wire, как только он снова запущен).
+   доходит до wire, как только он снова запущен) и
+   [`rabbitmq-outage`](tests/resilience/rabbitmq-outage/) (тест сам
+   останавливает брокер; доказывает, что создание Subscription вообще
+   не затрагивается, затем доказывает, что и outbox relay, и консьюмер
+   сами восстанавливают свои соединения, как только RabbitMQ вернулся
+   — проверено вживую через настоящие ошибки `Connection refused` в
+   логах обоих worker-ов, пока он был недоступен).
 9. Security hardening.
 10. Load / failure тестирование.
