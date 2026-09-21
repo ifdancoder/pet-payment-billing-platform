@@ -331,10 +331,11 @@ order:
    Resilience layers built one vertical slice at a time, same as the
    RabbitMQ chain itself was
    ([ADR 0004](docs/adr/0004-testing-strategy.md) +
-   [testing strategy](docs/architecture/testing-strategy.md)). Four
-   service integration slices done (real Postgres, real RabbitMQ, no
-   mocking): `subscription-to-billing`, `billing-to-payment`,
-   `payment-to-billing` and `billing-to-subscription`, in
+   [testing strategy](docs/architecture/testing-strategy.md)). All five
+   service integration slices for the platform's core event chain done
+   (real Postgres, real RabbitMQ, no mocking): `subscription-to-billing`,
+   `billing-to-payment`, `payment-to-billing`, `billing-to-subscription`
+   and `payment-to-notification`, in
    [`tests/integration/`](tests/integration/). Plus the first full E2E
    scenario, [`successful-subscription`](tests/e2e/successful-subscription/):
    all seven services, real infra, no shortcuts — Merchant → Customer →

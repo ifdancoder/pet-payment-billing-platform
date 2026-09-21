@@ -339,10 +339,10 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    же, как строилась сама цепочка RabbitMQ
    ([ADR 0004](docs/adr/0004-testing-strategy.ru.md) +
    [стратегия тестирования](docs/architecture/testing-strategy.ru.md)).
-   Готово четыре service integration среза (реальный Postgres, реальный
-   RabbitMQ, без моков): `subscription-to-billing`,
-   `billing-to-payment`, `payment-to-billing` и
-   `billing-to-subscription`, в
+   Готовы все пять service integration срезов основной цепочки событий
+   платформы (реальный Postgres, реальный RabbitMQ, без моков):
+   `subscription-to-billing`, `billing-to-payment`, `payment-to-billing`,
+   `billing-to-subscription` и `payment-to-notification`, в
    [`tests/integration/`](tests/integration/). Плюс первый полный
    E2E-сценарий,
    [`successful-subscription`](tests/e2e/successful-subscription/): все
