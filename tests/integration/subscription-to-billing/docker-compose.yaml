@@ -1,0 +1,147 @@
+name: billing-platform-test-subscription-to-billing
+
+# Brings up exactly the two services this scenario touches — plus their
+# shared infra and subscription-service's two synchronous dependencies
+# (customer/catalog, needed to create a subscription at all) — not all
+# seven. See docs/architecture/testing-strategy.md: a service
+# integration test exercises 2-3 services, never the whole platform.
+#
+# Each app service runs its migration inline (`migrate --force` before
+# `frankenphp`) rather than as a separate Job — there's exactly one
+# replica each here and the container is thrown away after the test, so
+# the N-replica migration race that a Kubernetes Job avoids doesn't
+# apply (see docs/adr/0003-kubernetes-foundation.md for why it matters
+# there).
+
+x-app-env: &app_env
+  APP_ENV: production
+  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_DEBUG: "false"
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USERNAME: billing
+  DB_PASSWORD: billing
+  SESSION_DRIVER: array
+  CACHE_STORE: array
+  QUEUE_CONNECTION: sync
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_USER: billing
+  RABBITMQ_DEFAULT_PASS: billing
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: billing
+      POSTGRES_DB: postgres
+    volumes:
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: billing
+      RABBITMQ_DEFAULT_PASS: billing
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  customer-service:
+    build: ../../../services/customer-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: customer
+    ports:
+      - "18001:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  catalog-service:
+    build: ../../../services/catalog-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: catalog
+    ports:
+      - "18002:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  subscription-api:
+    build: ../../../services/subscription-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: subscription
+      CUSTOMER_SERVICE_URL: http://customer-service:8080
+      CATALOG_SERVICE_URL: http://catalog-service:8080
+    ports:
+      - "18003:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      customer-service: {condition: service_started}
+      catalog-service: {condition: service_started}
+
+  # Same image as subscription-api, different command — the Outbox
+  # relay runs as its own process, exactly like in Kubernetes (see
+  # infrastructure/kubernetes/base/subscription/outbox-deployment.yaml)
+  # instead of Laravel's scheduler, so this test exercises the actual
+  # publish path rather than a shortcut.
+  subscription-outbox:
+    build: ../../../services/subscription-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: subscription
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  billing-api:
+    build: ../../../services/billing-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    ports:
+      - "18004:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  # Consumes subscription.created.v1 and creates the Invoice — the
+  # thing this whole scenario is actually verifying.
+  billing-consumer:
+    build: ../../../services/billing-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan billing-events:consume; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+# An explicit subnet, not Docker's auto-assigned pool — this dev
+# machine runs several other compose projects (the platform's own
+# docker-compose.yaml on 172.28.0.0/24, kind on 172.30.0.0/16) and
+# Docker's default pool has repeatedly run out mid-session; matches the
+# root docker-compose.yaml's own fix for the same problem.
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24

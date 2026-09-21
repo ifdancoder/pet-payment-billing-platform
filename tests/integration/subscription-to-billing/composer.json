@@ -1,0 +1,29 @@
+{
+    "name": "billing-platform/test-subscription-to-billing",
+    "description": "Service integration test: Subscription Service -> RabbitMQ -> Billing Service. Talks to real running services over HTTP, no shared code with any service's own vendor.",
+    "type": "project",
+    "require": {
+        "php": "^8.3",
+        "guzzlehttp/guzzle": "^7.9",
+        "ramsey/uuid": "^4.7"
+    },
+    "require-dev": {
+        "pestphp/pest": "^5.2"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "pest"
+    }
+}
