@@ -23,7 +23,7 @@ final class HttpCatalogGateway implements ICatalogGatewayPort
 
         $response->throw();
 
-        $body = $response->json();
+        $body = $response->json('data');
 
         return new PriceData(
             $body['id'],

@@ -1,0 +1,73 @@
+# Same image as subscription-api, different container command — "not 1
+# Laravel service = 1 Pod" (see docs/adr/0003-kubernetes-foundation.md):
+# the Outbox relay is its own Deployment, split by command, not by
+# image.
+#
+# `outbox:publish` itself only publishes whatever is currently
+# unpublished and returns — there's no long-running consume loop inside
+# the app, so the loop lives in the container command instead. The
+# `trap ... TERM INT` plus backgrounding `sleep` (`sleep 2 & wait $!`)
+# means a SIGTERM during the sleep interrupts it and exits immediately,
+# instead of waiting out the full sleep first; terminationGracePeriodSeconds
+# only needs to cover an in-flight `outbox:publish` batch finishing.
+#
+# replicas: 1 — EloquentOutbox's `unpublished()`/`markPublished()` pair
+# isn't yet safe for concurrent readers (no `FOR UPDATE SKIP LOCKED`),
+# so running more than one replica could double-publish. Multi-replica
+# safety for this workload is a follow-up hardening item, not something
+# this milestone (moving the existing topology into Kubernetes as-is)
+# needs to solve.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subscription-outbox
+  labels:
+    app.kubernetes.io/component: outbox
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: subscription
+      app.kubernetes.io/component: outbox
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: subscription
+        app.kubernetes.io/component: outbox
+    spec:
+      serviceAccountName: subscription
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: subscription-outbox
+          image: subscription-service:local
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 2 & wait $!; done"]
+          envFrom:
+            - configMapRef:
+                name: subscription-config
+            - secretRef:
+                name: subscription-secret
+            - secretRef:
+                name: rabbitmq-secret
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

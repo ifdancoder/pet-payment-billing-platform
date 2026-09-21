@@ -1,0 +1,18 @@
+# Named subscription-service, matching what the gateway's nginx.conf
+# already expects as its upstream (see infrastructure/nginx/nginx.conf,
+# ADR 0001). Only the api workload gets a Service — outbox and consumer
+# don't receive traffic.
+apiVersion: v1
+kind: Service
+metadata:
+  name: subscription-service
+  labels:
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    app.kubernetes.io/name: subscription
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

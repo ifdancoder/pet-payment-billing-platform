@@ -1,0 +1,18 @@
+# Named catalog-service, matching what the gateway's nginx.conf already
+# expects as its upstream (see infrastructure/nginx/nginx.conf, ADR
+# 0001), and what subscription-service's CATALOG_SERVICE_URL points at
+# for its synchronous price lookup.
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog-service
+  labels:
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    app.kubernetes.io/name: catalog
+    app.kubernetes.io/component: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

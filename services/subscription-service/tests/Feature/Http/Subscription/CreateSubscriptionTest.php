@@ -10,16 +10,18 @@ test('a valid request creates a subscription and returns it', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane'], 200),
+        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
-            'id' => $priceId->toString(),
-            'product_id' => '11111111-1111-4111-8111-111111111111',
-            'amount_minor_units' => 1999,
-            'currency' => 'USD',
-            'type' => 'recurring',
-            'billing_interval' => 'month',
-            'billing_interval_count' => 1,
-            'status' => 'active',
+            'data' => [
+                'id' => $priceId->toString(),
+                'product_id' => '11111111-1111-4111-8111-111111111111',
+                'amount_minor_units' => 1999,
+                'currency' => 'USD',
+                'type' => 'recurring',
+                'billing_interval' => 'month',
+                'billing_interval_count' => 1,
+                'status' => 'active',
+            ],
         ], 200),
     ]);
 
@@ -73,7 +75,7 @@ test('a request for a non-existent price returns not found', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane'], 200),
+        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response(['message' => 'not found'], 404),
     ]);
 
@@ -90,16 +92,18 @@ test('a request for a one-time price returns a conflict', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane'], 200),
+        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
-            'id' => $priceId->toString(),
-            'product_id' => '11111111-1111-4111-8111-111111111111',
-            'amount_minor_units' => 4999,
-            'currency' => 'USD',
-            'type' => 'one_time',
-            'billing_interval' => null,
-            'billing_interval_count' => null,
-            'status' => 'active',
+            'data' => [
+                'id' => $priceId->toString(),
+                'product_id' => '11111111-1111-4111-8111-111111111111',
+                'amount_minor_units' => 4999,
+                'currency' => 'USD',
+                'type' => 'one_time',
+                'billing_interval' => null,
+                'billing_interval_count' => null,
+                'status' => 'active',
+            ],
         ], 200),
     ]);
 
@@ -116,16 +120,18 @@ test('a request for an inactive price returns a conflict', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane'], 200),
+        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
-            'id' => $priceId->toString(),
-            'product_id' => '11111111-1111-4111-8111-111111111111',
-            'amount_minor_units' => 1999,
-            'currency' => 'USD',
-            'type' => 'recurring',
-            'billing_interval' => 'month',
-            'billing_interval_count' => 1,
-            'status' => 'inactive',
+            'data' => [
+                'id' => $priceId->toString(),
+                'product_id' => '11111111-1111-4111-8111-111111111111',
+                'amount_minor_units' => 1999,
+                'currency' => 'USD',
+                'type' => 'recurring',
+                'billing_interval' => 'month',
+                'billing_interval_count' => 1,
+                'status' => 'inactive',
+            ],
         ], 200),
     ]);
 

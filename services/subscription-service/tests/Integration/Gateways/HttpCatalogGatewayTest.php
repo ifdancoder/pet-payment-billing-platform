@@ -11,15 +11,17 @@ test('findPrice returns price data when the price exists', function () {
     $priceId = PriceId::generate();
     Http::fake([
         "https://catalog.internal/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
-            'id' => $priceId->toString(),
-            'merchant_id' => $merchantId->toString(),
-            'product_id' => '11111111-1111-4111-8111-111111111111',
-            'amount_minor_units' => 1999,
-            'currency' => 'USD',
-            'type' => 'recurring',
-            'billing_interval' => 'month',
-            'billing_interval_count' => 1,
-            'status' => 'active',
+            'data' => [
+                'id' => $priceId->toString(),
+                'merchant_id' => $merchantId->toString(),
+                'product_id' => '11111111-1111-4111-8111-111111111111',
+                'amount_minor_units' => 1999,
+                'currency' => 'USD',
+                'type' => 'recurring',
+                'billing_interval' => 'month',
+                'billing_interval_count' => 1,
+                'status' => 'active',
+            ],
         ], 200),
     ]);
 

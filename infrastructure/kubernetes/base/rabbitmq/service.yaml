@@ -1,0 +1,23 @@
+# Named rabbitmq — every service's RABBITMQ_HOST config value already
+# expects that name (same as docker-compose's service name), and it's
+# what the gateway-style $dns_suffix / bare-name resolution story
+# doesn't even need to worry about here: PHP's own (musl) resolver
+# applies /etc/resolv.conf search domains normally, unlike nginx's
+# resolver module (see docs/adr/0003-kubernetes-foundation.md).
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  labels:
+    app.kubernetes.io/component: broker
+spec:
+  selector:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/component: broker
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+    - name: management
+      port: 15672
+      targetPort: management

@@ -1,0 +1,64 @@
+# Same image as subscription-api, different container command — "not 1
+# Laravel service = 1 Pod" (see docs/adr/0003-kubernetes-foundation.md).
+#
+# `subscription-events:consume` drains at most one message per
+# invocation (a `basic_get`, not a blocking `basic_consume` loop), so
+# the loop lives in the container command. replicas: 1 for now — the
+# Inbox already makes concurrent delivery of the *same* message safe,
+# but running multiple replicas against a `basic_get`-per-call queue
+# just wastes cycles polling an empty queue; a real `basic_consume`
+# loop is the eventual fix, not this milestone's concern.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subscription-consumer
+  labels:
+    app.kubernetes.io/component: consumer
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: subscription
+      app.kubernetes.io/component: consumer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: subscription
+        app.kubernetes.io/component: consumer
+    spec:
+      serviceAccountName: subscription
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: subscription-consumer
+          image: subscription-service:local
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "trap 'exit 0' TERM INT; while true; do php artisan subscription-events:consume; sleep 1 & wait $!; done"]
+          envFrom:
+            - configMapRef:
+                name: subscription-config
+            - secretRef:
+                name: subscription-secret
+            - secretRef:
+                name: rabbitmq-secret
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

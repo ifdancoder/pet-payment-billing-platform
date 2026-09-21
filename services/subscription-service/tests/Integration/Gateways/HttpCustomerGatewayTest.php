@@ -9,9 +9,11 @@ test('find returns customer data when the customer exists', function () {
     $id = CustomerId::generate();
     Http::fake([
         "https://customers.internal/api/v1/customers/{$id->toString()}" => Http::response([
-            'id' => $id->toString(),
-            'email' => 'jane@example.com',
-            'name' => 'Jane Doe',
+            'data' => [
+                'id' => $id->toString(),
+                'email' => 'jane@example.com',
+                'name' => 'Jane Doe',
+            ],
         ], 200),
     ]);
 
