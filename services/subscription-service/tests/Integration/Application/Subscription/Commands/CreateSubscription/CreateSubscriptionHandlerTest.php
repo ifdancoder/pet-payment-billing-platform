@@ -20,16 +20,18 @@ test('handle persists a new pending subscription when the customer and price bot
     $productId = '11111111-1111-4111-8111-111111111111';
 
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane'], 200),
+        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
-            'id' => $priceId->toString(),
-            'product_id' => $productId,
-            'amount_minor_units' => 1999,
-            'currency' => 'USD',
-            'type' => 'recurring',
-            'billing_interval' => 'month',
-            'billing_interval_count' => 1,
-            'status' => 'active',
+            'data' => [
+                'id' => $priceId->toString(),
+                'product_id' => $productId,
+                'amount_minor_units' => 1999,
+                'currency' => 'USD',
+                'type' => 'recurring',
+                'billing_interval' => 'month',
+                'billing_interval_count' => 1,
+                'status' => 'active',
+            ],
         ], 200),
     ]);
 
@@ -65,7 +67,7 @@ test('handle throws PriceNotFound when the price does not exist for the merchant
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane'], 200),
+        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response(['message' => 'not found'], 404),
     ]);
 
@@ -81,16 +83,18 @@ test('handle throws PriceIsNotRecurring when the price is a one-time price', fun
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane'], 200),
+        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
-            'id' => $priceId->toString(),
-            'product_id' => '11111111-1111-4111-8111-111111111111',
-            'amount_minor_units' => 4999,
-            'currency' => 'USD',
-            'type' => 'one_time',
-            'billing_interval' => null,
-            'billing_interval_count' => null,
-            'status' => 'active',
+            'data' => [
+                'id' => $priceId->toString(),
+                'product_id' => '11111111-1111-4111-8111-111111111111',
+                'amount_minor_units' => 4999,
+                'currency' => 'USD',
+                'type' => 'one_time',
+                'billing_interval' => null,
+                'billing_interval_count' => null,
+                'status' => 'active',
+            ],
         ], 200),
     ]);
 
@@ -106,16 +110,18 @@ test('handle throws PriceIsNotActive when the price is inactive', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane'], 200),
+        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
-            'id' => $priceId->toString(),
-            'product_id' => '11111111-1111-4111-8111-111111111111',
-            'amount_minor_units' => 1999,
-            'currency' => 'USD',
-            'type' => 'recurring',
-            'billing_interval' => 'month',
-            'billing_interval_count' => 1,
-            'status' => 'inactive',
+            'data' => [
+                'id' => $priceId->toString(),
+                'product_id' => '11111111-1111-4111-8111-111111111111',
+                'amount_minor_units' => 1999,
+                'currency' => 'USD',
+                'type' => 'recurring',
+                'billing_interval' => 'month',
+                'billing_interval_count' => 1,
+                'status' => 'inactive',
+            ],
         ], 200),
     ]);
 
@@ -131,16 +137,18 @@ test('handle records a SubscriptionCreated integration event in the outbox', fun
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane'], 200),
+        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
-            'id' => $priceId->toString(),
-            'product_id' => '11111111-1111-4111-8111-111111111111',
-            'amount_minor_units' => 1999,
-            'currency' => 'USD',
-            'type' => 'recurring',
-            'billing_interval' => 'month',
-            'billing_interval_count' => 1,
-            'status' => 'active',
+            'data' => [
+                'id' => $priceId->toString(),
+                'product_id' => '11111111-1111-4111-8111-111111111111',
+                'amount_minor_units' => 1999,
+                'currency' => 'USD',
+                'type' => 'recurring',
+                'billing_interval' => 'month',
+                'billing_interval_count' => 1,
+                'status' => 'active',
+            ],
         ], 200),
     ]);
 

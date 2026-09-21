@@ -6,6 +6,10 @@ namespace: pet-payment-billing-platform
 resources:
   - ../../base
   - ../../base/postgres
+  - ../../base/rabbitmq
   - ../../base/customer
+  - ../../base/catalog
+  - ../../base/subscription
+  - ../../base/billing
   - ../../base/gateway
   - ../../platform/ingress

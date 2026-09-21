@@ -5,3 +5,6 @@
 -- empty data directory, so an existing cluster won't pick up additions
 -- without a volume reset.
 CREATE DATABASE customer;
+CREATE DATABASE catalog;
+CREATE DATABASE subscription;
+CREATE DATABASE billing;

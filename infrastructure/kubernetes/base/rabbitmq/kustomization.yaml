@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: rabbitmq
+      app.kubernetes.io/part-of: billing-platform
+    includeSelectors: true
+
+resources:
+  - secret.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+
+# Generated from the same files docker-compose's rabbitmq mounts
+# (infrastructure/rabbitmq/) — one config source of truth for both
+# environments, same reasoning as the gateway's nginx config.
+configMapGenerator:
+  - name: rabbitmq-conf
+    files:
+      - rabbitmq.conf=../../../rabbitmq/rabbitmq.conf
+      - definitions.json=../../../rabbitmq/definitions.json
