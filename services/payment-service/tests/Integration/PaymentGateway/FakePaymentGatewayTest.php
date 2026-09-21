@@ -28,3 +28,27 @@ test('charge returns the same provider reference for a retried attempt id', func
 
     expect($first->providerReference)->toBe($second->providerReference);
 });
+
+test('charge declines a request for the reserved decline-trigger amount, regardless of currency', function () {
+    $gateway = new FakePaymentGateway;
+
+    $result = $gateway->charge(new ChargeRequest(
+        PaymentAttemptId::generate(),
+        Money::of(FakePaymentGateway::DECLINE_TRIGGER_AMOUNT_MINOR_UNITS, Currency::EUR),
+    ));
+
+    expect($result->status)->toBe(ChargeStatus::Failed)
+        ->and($result->failureCode)->toBe('card_declined')
+        ->and($result->providerReference)->toBeNull();
+});
+
+test('charge succeeds for an amount merely close to the decline-trigger amount', function () {
+    $gateway = new FakePaymentGateway;
+
+    $result = $gateway->charge(new ChargeRequest(
+        PaymentAttemptId::generate(),
+        Money::of(FakePaymentGateway::DECLINE_TRIGGER_AMOUNT_MINOR_UNITS - 1, Currency::USD),
+    ));
+
+    expect($result->status)->toBe(ChargeStatus::Succeeded);
+});

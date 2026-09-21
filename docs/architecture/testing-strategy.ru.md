@@ -41,7 +41,7 @@
 | --- | --- |
 | Component | Не построено. Будет жить по сервисам, например `services/subscription-service/tests/Component/`. |
 | Contract | Не построено. Один producer-тест на событие из [каталога событий](event-catalog.ru.md), один consumer-тест на каждый сервис, который его читает. |
-| E2E (`tests/e2e/`) | **Первый сценарий готов: `successful-subscription`.** Все семь сервисов, реальный Postgres, реальный RabbitMQ, нигде никаких трюков с прямой публикацией — Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, полностью пройдено через реальный HTTP. См. его собственный [README](../../tests/e2e/successful-subscription/README.ru.md). |
+| E2E (`tests/e2e/`) | **Готовы два сценария: `successful-subscription`, `failed-payment`.** Оба используют все семь сервисов, реальный Postgres, реальный RabbitMQ, нигде никаких трюков с прямой публикацией. `successful-subscription`: Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, полностью пройдено через реальный HTTP. `failed-payment`: та же цепочка, но сумма Price — зарезервированное decline-триггер значение `FakePaymentGateway`, так что списание гарантированно отклоняется — доказывает, что Invoice остаётся Open, Payment становится Failed с настоящим кодом отказа, а Subscription остаётся Pending, а не PastDue. См. собственные README: [successful-subscription](../../tests/e2e/successful-subscription/README.ru.md), [failed-payment](../../tests/e2e/failed-payment/README.ru.md). |
 | Resilience (`tests/resilience/`) | **Готовы все четыре изначально запланированных сценария.** `duplicate-delivery`: один и тот же `event_id`, опубликованный дважды; доказывает, что Inbox у Billing реально останавливает второй от создания дублирующего Invoice — проверено вживую, что `billing-consumer` реально обработал обе доставки (у RabbitMQ нет понятия «уже видел это»), а не что гонка просто не дала второй доставке прийти. `outbox-recovery`: тест сам останавливает `billing-outbox` (через `docker compose stop`), создаёт Invoice, пока он не работает, затем доказывает, что пропущенная строка доходит до wire, как только он снова запущен. `rabbitmq-outage`: тест сам останавливает брокер; доказывает, что создание Subscription вообще не затрагивается (HTTP create-флоу никогда не резолвит `AMQPChannel`), затем доказывает, что и outbox relay, и консьюмер сами восстанавливают свои соединения, как только RabbitMQ вернулся — проверено вживую через настоящие ошибки `Connection refused` в логах обоих worker-ов, пока он был недоступен. `consumer-crash`: по-настоящему убивает `billing-consumer`, точно по времени благодаря небольшому, аддитивному, выключенному по умолчанию delay-хуку в `ConsumeBillingEventsCommand`, чтобы попасть точно между коммитом в БД и AMQP-ack, так что RabbitMQ реально передоставляет сообщение, а не симулирует дубликат — доказывает, что собственный guard Inbox у перезапущенного консьюмера останавливает создание второго Invoice. См. собственные README: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.ru.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.ru.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.ru.md), [consumer-crash](../../tests/resilience/consumer-crash/README.ru.md). |
 | `kind`-based platform smoke tests | Не построено. Отдельно от всего вышеперечисленного — см. ADR 0004, «Docker Compose для бизнес-тестов, Kubernetes — для платформенных». |
 
@@ -258,13 +258,47 @@ message(s)."` (достижимо только *после* успешного a
 времени, чем он вообще существовал, подтверждая настоящий
 kill-and-restart, а не no-op.
 
+`failed-payment` закрыл пробел «Fake providers», который отмечала
+предыдущая версия этого документа: `ChargeRequest` несёт только id
+попытки и сумму, никакого понятия карты/токена, которое тест мог бы
+выставить в «всегда отклонять», а добавление такого поля означало бы
+протащить концепцию «как это должно провалиться» через Subscription и
+Billing тоже, просто чтобы она дошла до шлюза тремя хопами ниже.
+Вместо этого `FakePaymentGateway` получил один детерминированный
+триггер, уже доступный на каждом слое между E2E-тестом и шлюзом без
+какой-либо новой прокладки: саму сумму. Списание ровно на `66660000`
+minor units (любая валюта) —
+`DECLINE_TRIGGER_AMOUNT_MINOR_UNITS`, намеренно безошибочное, чтобы ни
+одна реальная цена никогда случайно на неё не попала — всегда
+отклоняется с `card_declined`; всё остальное по-прежнему всегда
+успешно. Это и есть всё изменение; ничего за пределами самого
+`FakePaymentGateway` двигать не понадобилось. Сам сценарий, построенный
+на этом, в остальном — чистая композиция хопов, уже доказанных по
+отдельности в `tests/integration/` (`subscription-to-billing`,
+`billing-to-payment`, собственный guard-condition тест
+`billing-to-subscription`) — то, что может добавить только полный
+E2E-прогон, это подтверждение, что настоящий, произведённый шлюзом
+decline оставляет Invoice Open, Payment Failed, а Subscription Pending
+(никогда не PastDue, поскольку он так и не дошёл до Active), с тем же
+задокументированным исключением
+«`sleep()` вместо `eventually()`», что использовали
+`payment-to-notification` и `consumer-crash`, чтобы доказать, что эти
+три факта — отсутствия, а не «ещё не произошло». Проверено вживую:
+`billing-consumer` обработал ровно 2 сообщения (`subscription.created.v1`,
+`payment.failed.v1`), `payment-outbox` опубликовал ровно 1
+(`payment.failed.v1`), `subscription-consumer` обработал ровно 1
+(`invoice.payment_failed.v1`), а `notification-ingest-consumer`
+обработал **0** — прямое подтверждение, что он ничего не увидел, а не
+просто что ничего не появилось через HTTP.
+
 Что дальше, и ничто из этого не блокирует то, что уже есть:
 
-- `tests/e2e/failed-payment/` и `tests/e2e/overdue-subscription/` —
-  обоим сначала нужно детерминированное *управление* исходом
-  fake-провайдера платежей со стороны теста (см. «Fake providers»
-  ниже); пока не строятся не потому, что fake-провайдера нет, а
-  потому, что его пока нельзя попросить провалиться намеренно.
+- `tests/e2e/overdue-subscription/` — нужен платёж, проваливающийся у
+  *уже Active* подписки (переход в PastDue, на который завязан guard
+  `HandleInvoicePaymentFailedHandler`, а не случай
+  «Pending остаётся Pending», уже покрытый `failed-payment`), а значит
+  — сначала засеять настоящий успешный billing-цикл, прежде чем снова
+  задействовать трюк с decline-суммой.
 - Уровни Component и Contract — всё ещё вообще не начаты; см. их
   собственные строки в таблице статуса выше.
 - Миграция двух оставшихся немигрированных локальных копий
@@ -284,20 +318,21 @@ kill-and-restart, а не no-op.
 
 ## Fake providers
 
-Уже безопасно для happy path, менее полно для failure-путей.
+Безопасно и для happy path, и (для платежей) для failure-пути.
 `IPaymentGatewayPort` и `IEmailSenderPort` оба безусловно забиндены на
 свои реализации `Fake*` в собственном `ServiceProvider` каждого
 сервиса — не зависят от окружения, нигде ещё не заменены на настоящего
 провайдера — так что ни один E2E-тест сегодня не может случайно
 попасть на живой платёжный процессинг или отправить настоящий email:
-для этого просто нет пути в коде. При этом `FakePaymentGateway::charge()`
-и `FakeEmailSender::send()` оба всегда безусловно возвращают успех —
-ровно то, что нужно `successful-subscription`, и ничего больше.
+для этого просто нет пути в коде.
 
-Чего реально не хватает — это *детерминированного управления* исходом
-со стороны теста, нужного для `tests/e2e/failed-payment/` и любого
-resilience-сценария, где платёж должен провалиться намеренно
-(известный token/card → decline или timeout, выбираемый для конкретного
-запроса), а не всегда успешно проходить. Пока этого нет, строить можно
-только happy-path E2E-сценарий; failure-сценариям сначала нужен этот
-кусок.
+`FakePaymentGateway::charge()` возвращает успех для любой суммы, кроме
+одной: `FakePaymentGateway::DECLINE_TRIGGER_AMOUNT_MINOR_UNITS`
+(`66660000` minor units, любая валюта) всегда отклоняется с
+`card_declined`. Именно этот единственный детерминированный триггер, а
+не поле карты/токена, и задействует со стороны теста
+`tests/e2e/failed-payment/` — см. собственный README этого сценария и
+«Следующий срез» выше, почему триггером служит сумма, а не новое поле,
+протащенное через три сервиса. `FakeEmailSender::send()` по-прежнему
+всегда безусловно возвращает успех — пока ни одному тесту не нужно,
+чтобы он провалился, и ничто сейчас этого не требует.
