@@ -33,7 +33,7 @@
 | `billing-to-payment` | **Готово.** Billing консьюмит напрямую опубликованный `subscription.created.v1` → Invoice Open → реальный Outbox → реальный RabbitMQ → реальный `invoice-created:consume` → Payment succeeded. См. его собственный [README](../../tests/integration/billing-to-payment/README.ru.md). |
 | `payment-to-billing` | **Готово.** Напрямую опубликованный `subscription.created.v1` сеет Invoice, дальше *реальная* цепочка отрабатывает до конца (настоящий `billing-outbox`, настоящий `payment-consumer`, настоящий `payment-outbox`) до настоящего `payment.succeeded.v1` → Billing помечает Invoice как Paid и republish-ит `invoice.paid.v1` (проверено прямо на wire, не только через HTTP). См. его собственный [README](../../tests/integration/payment-to-billing/README.ru.md). |
 | `billing-to-subscription` | **Готово.** Два теста: напрямую опубликованный `invoice.paid.v1` активирует реальную, созданную через HTTP Pending-подписку; напрямую опубликованный `invoice.payment_failed.v1` помечает её PastDue, но только когда она реально уже Active (проверяет собственное guard-условие `HandleInvoicePaymentFailedHandler`, а не только сам переход). См. его собственный [README](../../tests/integration/billing-to-subscription/README.ru.md). |
-| `payment-to-notification` | Не построено как отдельный изолированный срез, но сама граница уже реально проверяется E2E-сценарием `successful-subscription` ниже (Notification консьюмит `payment.succeeded.v1` независимо от собственного консьюминга того же события Billing). Отдельный 2-сервисный срез всё равно стоило бы иметь по той же причине, что у каждой другой границы он есть — быстрее и локальнее падение — просто не срочно. |
+| `payment-to-notification` | **Готово.** Два теста: happy path (напрямую опубликованный `payment.succeeded.v1` в итоге доставляет email-receipt со статусом Sent), и негативный случай, доказывающий собственный guard `PaymentSucceededConsumer` — неизвестный `customer_id` не записывает ни запись в Inbox, ни Notification, так что повторная доставка может просто повторить поиск позже. См. его собственный [README](../../tests/integration/payment-to-notification/README.ru.md). |
 
 ### Всё остальное в пирамиде
 
@@ -150,12 +150,25 @@ compose-стека (в отличие от Kubernetes, где отдельный
 существует именно для того, чтобы это исключить) — в собственном
 README `successful-subscription`.
 
-Что дальше, и ничто из этого не блокирует то, что уже есть:
+`payment-to-notification` закрыл последний срез границы событий, и
+добавил то, что не понадобилось ни одному из первых четырёх:
+негативный тест. Собственный guard `PaymentSucceededConsumer` —
+неизвестный customer означает, что ни Inbox, ни Notification не
+записываются, так что повторная доставка может просто повторить поиск
+позже — это утверждение о том, что что-то *не* происходит, а
+`eventually()` рассчитан на ожидание, пока условие не станет истинным,
+а не на доказательство, что оно остаётся ложным. Его второй тест вместо
+этого даёт неправильному поведению реальное окно (фиксированный
+`sleep(3)`, несколько настоящих итераций цикла worker-а), прежде чем
+проверить, что список notifications всё ещё пуст. Это не тот
+анти-паттерн «`sleep()` вместо `eventually()`», от которого предостерегает
+ADR 0004 — это единственный честный способ проверить отсутствие; polling
+означал бы только «ещё не произошло», а не «не происходит».
 
-- Отдельный service integration срез `payment-to-notification` — сама
-  граница уже проверяется `successful-subscription`, но
-  сфокусированный 2-сервисный тест всё равно быстрее локализовал бы
-  падение именно там.
+Когда каждая граница событий в основной цепочке платформы теперь
+покрыта своим собственным service integration срезом, что дальше, и
+ничто из этого не блокирует то, что уже есть:
+
 - `tests/e2e/failed-payment/` и `tests/e2e/overdue-subscription/` —
   обоим сначала нужно детерминированное *управление* исходом
   fake-провайдера платежей со стороны теста (см. «Fake providers»
@@ -166,7 +179,7 @@ README `successful-subscription`.
   переиспользовать `docker-compose.yaml` какого-нибудь service
   integration среза как стартовый стек — так же, как
   `successful-subscription` переиспользовал стеки всех четырёх service
-  integration срезов.
+  integration срезов, существовавших на тот момент.
 - Уровни Component и Contract — всё ещё вообще не начаты; см. их
   собственные строки в таблице статуса выше.
 

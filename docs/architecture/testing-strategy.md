@@ -31,7 +31,7 @@ this file as slices get added, the same way
 | `billing-to-payment` | **Done.** Billing consumes a directly-published `subscription.created.v1` → Invoice Open → real Outbox → real RabbitMQ → real `invoice-created:consume` → Payment succeeded. See its own [README](../../tests/integration/billing-to-payment/README.md). |
 | `payment-to-billing` | **Done.** A directly-published `subscription.created.v1` seeds an Invoice, then the *real* chain runs the rest of the way (real `billing-outbox`, real `payment-consumer`, real `payment-outbox`) to a real `payment.succeeded.v1` → Billing marks the Invoice Paid and republishes `invoice.paid.v1` (verified on the wire, not just via HTTP). See its own [README](../../tests/integration/payment-to-billing/README.md). |
 | `billing-to-subscription` | **Done.** Two tests: a directly-published `invoice.paid.v1` activates a real, HTTP-created Pending subscription; a directly-published `invoice.payment_failed.v1` marks it PastDue, but only once it's genuinely Active first (exercises `HandleInvoicePaymentFailedHandler`'s own guard, not just the transition). See its own [README](../../tests/integration/billing-to-subscription/README.md). |
-| `payment-to-notification` | Not built as its own isolated slice, but the boundary itself is now exercised for real by the `successful-subscription` E2E scenario below (Notification consuming `payment.succeeded.v1` independently of Billing's own consumption of it). A dedicated 2-service slice would still be worth having for the same reason every other boundary has one — faster, more localized failures — just not urgent. |
+| `payment-to-notification` | **Done.** Two tests: the happy path (a directly-published `payment.succeeded.v1` eventually delivers a Sent email receipt), and a negative case proving `PaymentSucceededConsumer`'s own guard — an unknown `customer_id` records neither an Inbox entry nor a Notification, so a redelivery can simply retry the lookup later. See its own [README](../../tests/integration/payment-to-notification/README.md). |
 
 ### Everything else in the pyramid
 
@@ -142,12 +142,23 @@ that's the right call for a disposable, single-replica-per-service
 compose stack (as opposed to Kubernetes, where a separate migrate Job
 exists specifically to rule this out).
 
-What's next, none of it blocking what exists today:
+`payment-to-notification` closed the last event-boundary slice, and
+added something none of the first four needed: a negative test.
+`PaymentSucceededConsumer`'s own guard — an unknown customer means
+neither the Inbox nor a Notification gets recorded, so redelivery can
+just retry the lookup later — is a claim about something *not*
+happening, and `eventually()` is built to wait for a condition to
+become true, not to prove one stays false. Its second test instead
+gives the wrong behavior a real window (a fixed `sleep(3)`, several
+real worker loop iterations) before asserting the notification list is
+still empty. That's not the `sleep()`-over-`eventually()` anti-pattern
+ADR 0004 warns against — it's the only honest way to test an absence;
+polling would just mean "hasn't happened *yet*," not "doesn't happen."
 
-- A dedicated `payment-to-notification` service integration slice —
-  the boundary itself is already exercised by `successful-subscription`,
-  but a focused 2-service test would still localize a break there
-  faster.
+With every event boundary in the platform's core chain now covered by
+its own service integration slice, what's next, none of it blocking
+what exists today:
+
 - `tests/e2e/failed-payment/` and `tests/e2e/overdue-subscription/` —
   both need deterministic *control* over the fake payment provider's
   outcome from the test side first (see "Fake providers" below); not
@@ -157,7 +168,7 @@ What's next, none of it blocking what exists today:
   outage, Outbox recovery. Each of these can reuse a service
   integration slice's own `docker-compose.yaml` as its starting stack,
   the same way `successful-subscription` reused all four service
-  integration slices' stacks.
+  integration slices' stacks that existed at the time.
 - Component and Contract layers — still not started at all; see their
   own rows in the status table above.
 

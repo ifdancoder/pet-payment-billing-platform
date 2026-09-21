@@ -1,0 +1,33 @@
+{
+    "name": "billing-platform/test-payment-to-notification",
+    "description": "Service integration test: Payment Service -> RabbitMQ -> Notification Service. Publishes payment.succeeded.v1 directly (standing in for Payment's own Outbox, already covered by tests/integration/billing-to-payment/) and talks to Notification's real ingest/delivery flow plus customer-service over HTTP.",
+    "type": "project",
+    "repositories": [
+        {"type": "path", "url": "../../support"}
+    ],
+    "require": {
+        "php": "^8.3",
+        "billing-platform/test-support": "@dev",
+        "guzzlehttp/guzzle": "^7.9",
+        "ramsey/uuid": "^4.7"
+    },
+    "require-dev": {
+        "pestphp/pest": "^5.2"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "pest"
+    }
+}
