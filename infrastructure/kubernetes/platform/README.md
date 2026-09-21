@@ -15,6 +15,7 @@ README's "Status" section (Phase 0).
 | --- | --- | --- |
 | `ingress/` | Ingress resource for the API gateway (ingress-nginx) | Ready, controller installed separately |
 | `rabbitmq/` | RabbitMQ cluster + topology (Cluster/Topology Operators) | Placeholder, see `rabbitmq/cluster.yaml` |
+| `autoscaling/` | HorizontalPodAutoscalers (CPU) for API Deployments | Defined, needs metrics-server |
 | `keda/` | Event-driven autoscaling for queue consumers | Not installed, see `keda/README.md` |
 | `external-secrets/` | Secret sync from an external store | Not installed, see `external-secrets/README.md` |
 | `observability/` | OpenTelemetry Collector, Prometheus, Grafana, Tempo, Loki | Ready |
