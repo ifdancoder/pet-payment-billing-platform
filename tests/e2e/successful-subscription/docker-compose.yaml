@@ -1,0 +1,241 @@
+name: billing-platform-e2e-successful-subscription
+
+# The first full end-to-end scenario: all seven services, real
+# Postgres, real RabbitMQ, no direct-publish shortcuts anywhere — every
+# event in this chain is produced by the actual service whose job that
+# is, unlike every tests/integration/*/ slice this composes (each of
+# which deliberately skips 4-5 services and fakes one upstream event to
+# stay a focused 2-3-service test). See
+# docs/architecture/testing-strategy.md, "Docker Compose for business
+# tests, Kubernetes for platform tests."
+#
+# Each app service runs its migration inline (`migrate --force` before
+# `frankenphp`) rather than as a separate Job — see
+# tests/integration/subscription-to-billing/docker-compose.yaml for why
+# that's fine here but not in Kubernetes.
+
+x-app-env: &app_env
+  APP_ENV: production
+  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_DEBUG: "false"
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USERNAME: billing
+  DB_PASSWORD: billing
+  SESSION_DRIVER: array
+  CACHE_STORE: array
+  QUEUE_CONNECTION: sync
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_USER: billing
+  RABBITMQ_DEFAULT_PASS: billing
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: billing
+      POSTGRES_DB: postgres
+    volumes:
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: billing
+      RABBITMQ_DEFAULT_PASS: billing
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  identity-api:
+    build: ../../../services/identity-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: identity
+    ports:
+      - "18000:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  customer-api:
+    build: ../../../services/customer-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: customer
+    ports:
+      - "18001:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  catalog-api:
+    build: ../../../services/catalog-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: catalog
+    ports:
+      - "18002:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  subscription-api:
+    build: ../../../services/subscription-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: subscription
+      CUSTOMER_SERVICE_URL: http://customer-api:8080
+      CATALOG_SERVICE_URL: http://catalog-api:8080
+    ports:
+      - "18003:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      customer-api: {condition: service_started}
+      catalog-api: {condition: service_started}
+
+  subscription-outbox:
+    build: ../../../services/subscription-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: subscription
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  subscription-consumer:
+    build: ../../../services/subscription-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan subscription-events:consume; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: subscription
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  billing-api:
+    build: ../../../services/billing-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    ports:
+      - "18004:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  billing-outbox:
+    build: ../../../services/billing-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  billing-consumer:
+    build: ../../../services/billing-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan billing-events:consume; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: billing
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  payment-api:
+    build: ../../../services/payment-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: payment
+    ports:
+      - "18005:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  payment-outbox:
+    build: ../../../services/payment-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: payment
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  payment-consumer:
+    build: ../../../services/payment-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan invoice-created:consume; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: payment
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  notification-api:
+    build: ../../../services/notification-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment:
+      <<: *app_env
+      DB_DATABASE: notification
+      CUSTOMER_SERVICE_URL: http://customer-api:8080
+    ports:
+      - "18006:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  # Consumes payment.succeeded.v1 and creates a Pending Notification —
+  # named "ingest" (not "consumer") to distinguish it from
+  # notification-delivery-worker below, which is a *different* consumer
+  # of the Notification it creates, not of a RabbitMQ event. Matches
+  # infrastructure/kubernetes/base/notification/workloads.yaml's naming.
+  notification-ingest-consumer:
+    build: ../../../services/notification-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan payment-succeeded:consume; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: notification
+      CUSTOMER_SERVICE_URL: http://customer-api:8080
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+
+  notification-delivery-worker:
+    build: ../../../services/notification-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan notifications:deliver; sleep 1 & wait $$!; done"
+    environment:
+      <<: *app_env
+      DB_DATABASE: notification
+    depends_on:
+      postgres: {condition: service_healthy}
+
+# An explicit subnet, not Docker's auto-assigned pool — see
+# tests/integration/subscription-to-billing/docker-compose.yaml for
+# why. A different /24 than every tests/integration/*/ stack's, so all
+# can run at once.
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.35.0.0/24

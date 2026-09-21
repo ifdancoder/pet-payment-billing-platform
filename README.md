@@ -332,11 +332,13 @@ order:
    RabbitMQ chain itself was
    ([ADR 0004](docs/adr/0004-testing-strategy.md) +
    [testing strategy](docs/architecture/testing-strategy.md)). Four
-   service integration slices done so far (real Postgres, real
-   RabbitMQ, no mocking): `subscription-to-billing`,
-   `billing-to-payment`, `payment-to-billing` and
-   `billing-to-subscription`, in
-   [`tests/integration/`](tests/integration/) — every slice the first
-   `tests/e2e/` scenario needs now exists.
+   service integration slices done (real Postgres, real RabbitMQ, no
+   mocking): `subscription-to-billing`, `billing-to-payment`,
+   `payment-to-billing` and `billing-to-subscription`, in
+   [`tests/integration/`](tests/integration/). Plus the first full E2E
+   scenario, [`successful-subscription`](tests/e2e/successful-subscription/):
+   all seven services, real infra, no shortcuts — Merchant → Customer →
+   Product/Price → Subscription → Invoice → Payment → Subscription
+   Active → Notification, walked entirely through real HTTP.
 9. Security hardening.
 10. Load / failure testing.
