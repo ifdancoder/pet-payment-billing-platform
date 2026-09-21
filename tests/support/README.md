@@ -24,6 +24,13 @@ any service's own `vendor/`. See
   which needs to publish the *same* `event_id` twice to simulate a real
   at-least-once redelivery, not two independent events that happen to
   look alike.
+- **`DockerCompose`** — a thin `docker compose stop/start/kill` wrapper
+  for tests that control a service's own container mid-scenario
+  (stopping a worker to prove it recovers, or killing one at a precise
+  moment). `kill(service, signal)` was added for
+  [`tests/resilience/consumer-crash/`](../resilience/consumer-crash/),
+  the first test needing a real `SIGKILL` rather than a graceful
+  stop/start.
 
 ## Using it in a Pest project
 
@@ -52,3 +59,13 @@ it — see the extraction rule in
 [`docs/architecture/testing-strategy.md`](../../docs/architecture/testing-strategy.md).
 The first two slices still have their own local copies; migrating them
 to this package is a follow-up, not done yet.
+
+`DockerCompose` followed the same discipline: copied into
+[`outbox-recovery/`](../resilience/outbox-recovery/), then
+[`rabbitmq-outage/`](../resilience/rabbitmq-outage/), and only moved
+here once a third test
+([`consumer-crash/`](../resilience/consumer-crash/)) needed it — which
+is also where it gained `kill()`, since neither earlier copy needed
+anything beyond `stop()`/`start()`. Those first two copies still have
+their own local versions; migrating them is the same kind of follow-up
+as `eventually()`'s.

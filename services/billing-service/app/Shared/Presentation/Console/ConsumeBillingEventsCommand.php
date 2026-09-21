@@ -58,6 +58,26 @@ final class ConsumeBillingEventsCommand extends Command
             default => throw new RuntimeException("Unroutable message with routing key \"{$message->getRoutingKey()}\" on queue \"".self::QUEUE.'".'),
         };
 
+        // Deliberately logged before ack, not after: the only externally
+        // observable signal that the business transaction has committed
+        // but the message hasn't been acknowledged yet. Useful for
+        // diagnosing a stuck ack in production; also the only thing a
+        // test can watch for to kill this process at exactly that point
+        // and prove Inbox/RabbitMQ redelivery actually recovers from a
+        // real crash there, not just a manually duplicated event — see
+        // tests/resilience/consumer-crash/.
+        $this->info("Processed event {$headers['event_id']}, acking.");
+
+        // Unset (0) in every real environment — this widens the window
+        // above just enough for an external test to reliably observe
+        // the log line and kill this process before the ack below,
+        // instead of racing a gap that's normally microseconds wide.
+        // tests/resilience/consumer-crash/ is the only place that sets
+        // CONSUMER_CRASH_TEST_DELAY_MS.
+        if ($delayMs = (int) env('CONSUMER_CRASH_TEST_DELAY_MS', 0)) {
+            usleep($delayMs * 1000);
+        }
+
         $message->ack();
 
         $this->info('Consumed 1 message(s).');

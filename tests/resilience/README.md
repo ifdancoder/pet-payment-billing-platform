@@ -22,5 +22,12 @@ happy path works. See
   affected at all (the HTTP create flow never resolves `AMQPChannel`),
   then proves both the outbox relay and the consumer recover their own
   connections on their own once RabbitMQ is back.
+- [`consumer-crash/`](consumer-crash/) — done, see its own README. The
+  fourth and last planned scenario. Kills `billing-consumer` for real,
+  timed (via a small, additive, off-by-default delay hook) to land
+  between its DB commit and its AMQP ack, so RabbitMQ genuinely
+  redelivers the message; proves the restarted consumer's Inbox guard
+  stops the redelivery from creating a duplicate Invoice — not a
+  simulated duplicate, an actual crash-and-recover.
 
-Not built yet: `consumer-crash/`.
+All four originally planned resilience scenarios are done.

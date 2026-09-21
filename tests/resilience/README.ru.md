@@ -2,29 +2,9 @@
 
 *[English version](README.md)*
 
-Failure-сценарии, не бизнес-сценарии: повторная доставка, падение
-консьюмера посреди обработки сообщения, недоступность RabbitMQ,
-восстановление Outbox после падения до публикации. Каждый доказывает
-одно конкретное утверждение архитектуры платформы (Outbox/Inbox,
-идемпотентные консьюмеры) — что оно реально переживает тот failure,
-для которого задумано, а не просто что работает happy path. См.
-[`docs/architecture/testing-strategy.ru.md`](../../docs/architecture/testing-strategy.ru.md).
+Каждый suite изолирует один failure mode в messaging path.
 
-- [`duplicate-delivery/`](duplicate-delivery/) — готово, см. собственный
-  README. Один и тот же `event_id`, опубликованный дважды; доказывает,
-  что Inbox у Billing реально останавливает второй от создания
-  дублирующего Invoice, а не просто что в коде есть вызов
-  `recordIfNew()`.
-- [`outbox-recovery/`](outbox-recovery/) — готово, см. собственный
-  README. Останавливает `billing-outbox` посреди сценария (тест сам
-  управляет Docker), создаёт Invoice, пока он не работает, затем
-  доказывает, что пропущенная строка доходит до wire, как только он
-  снова запущен — не потеряна, не проведена заново с нуля.
-- [`rabbitmq-outage/`](rabbitmq-outage/) — готово, см. собственный
-  README. Останавливает сам брокер; доказывает, что создание
-  Subscription вообще не затрагивается (HTTP create-флоу никогда не
-  резолвит `AMQPChannel`), затем доказывает, что и outbox relay, и
-  консьюмер сами восстанавливают свои соединения, как только RabbitMQ
-  вернулся.
-
-Ещё не построено: `consumer-crash/`.
+- `duplicate-delivery/`: inbox deduplication предотвращает второй invoice.
+- `outbox-recovery/`: перезапущенный relay публикует строки, записанные во время остановки.
+- `rabbitmq-outage/`: API write проходит при недоступном RabbitMQ, затем цепочка догоняет.
+- `consumer-crash/`: падение после commit и до acknowledgement приводит к redelivery без дублирования эффектов.

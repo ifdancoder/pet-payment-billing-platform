@@ -349,7 +349,8 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    семь сервисов, реальная инфраструктура, без сокращений — Merchant →
    Customer → Product/Price → Subscription → Invoice → Payment →
    Subscription Active → Notification, полностью пройдено через
-   реальный HTTP. Плюс три resilience-теста:
+   реальный HTTP. Плюс все четыре изначально запланированных
+   resilience-теста, готовы:
    [`duplicate-delivery`](tests/resilience/duplicate-delivery/) (один и
    тот же `event_id`, опубликованный дважды, доказывающий, что Inbox у
    Billing реально останавливает второй от создания дублирующего
@@ -358,12 +359,19 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    [`outbox-recovery`](tests/resilience/outbox-recovery/) (тест сам
    останавливает `billing-outbox` посреди сценария, создаёт Invoice,
    пока он не работает, затем доказывает, что пропущенная строка
-   доходит до wire, как только он снова запущен) и
+   доходит до wire, как только он снова запущен),
    [`rabbitmq-outage`](tests/resilience/rabbitmq-outage/) (тест сам
    останавливает брокер; доказывает, что создание Subscription вообще
    не затрагивается, затем доказывает, что и outbox relay, и консьюмер
    сами восстанавливают свои соединения, как только RabbitMQ вернулся
    — проверено вживую через настоящие ошибки `Connection refused` в
-   логах обоих worker-ов, пока он был недоступен).
+   логах обоих worker-ов, пока он был недоступен) и
+   [`consumer-crash`](tests/resilience/consumer-crash/) (по-настоящему
+   убивает `billing-consumer`, точно по времени благодаря небольшому,
+   аддитивному, выключенному по умолчанию delay-хуку, чтобы попасть
+   точно между коммитом в БД и AMQP-ack, так что RabbitMQ реально
+   передоставляет сообщение — доказывает, что собственный guard Inbox у
+   перезапущенного консьюмера останавливает создание дублирующего
+   Invoice).
 9. Security hardening.
 10. Load / failure тестирование.
