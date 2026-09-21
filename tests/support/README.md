@@ -1,9 +1,9 @@
 # Shared test support
 
 A small Composer library (`billing-platform/test-support`), pulled
-into `tests/integration/*/` and `tests/e2e/*/` Pest projects via a
-`path` repository — not a service, not shared with any service's own
-`vendor/`. See
+into `tests/integration/*/`, `tests/e2e/*/` and `tests/resilience/*/`
+Pest projects via a `path` repository — not a service, not shared with
+any service's own `vendor/`. See
 [`docs/architecture/testing-strategy.md`](../../docs/architecture/testing-strategy.md).
 
 ## What's in it
@@ -19,6 +19,11 @@ into `tests/integration/*/` and `tests/e2e/*/` Pest projects via a
   a real race — a topic exchange drops a message published before any
   queue is bound to its routing key), or bind a private, throwaway
   queue to assert some other service actually republished something.
+  `publish()` takes an optional explicit `eventId` — added for
+  [`tests/resilience/duplicate-delivery/`](../resilience/duplicate-delivery/),
+  which needs to publish the *same* `event_id` twice to simulate a real
+  at-least-once redelivery, not two independent events that happen to
+  look alike.
 
 ## Using it in a Pest project
 

@@ -340,6 +340,12 @@ order:
    scenario, [`successful-subscription`](tests/e2e/successful-subscription/):
    all seven services, real infra, no shortcuts — Merchant → Customer →
    Product/Price → Subscription → Invoice → Payment → Subscription
-   Active → Notification, walked entirely through real HTTP.
+   Active → Notification, walked entirely through real HTTP. Plus the
+   first resilience test,
+   [`duplicate-delivery`](tests/resilience/duplicate-delivery/): the
+   same `event_id` published twice, proving Billing's Inbox actually
+   stops the second one from creating a duplicate Invoice — verified
+   live that the consumer genuinely processed both deliveries, not that
+   a race just meant the second one never arrived.
 9. Security hardening.
 10. Load / failure testing.

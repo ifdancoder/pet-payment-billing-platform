@@ -3,9 +3,9 @@
 *[English version](README.md)*
 
 Небольшая Composer-библиотека (`billing-platform/test-support`),
-подключаемая в Pest-проекты `tests/integration/*/` и `tests/e2e/*/`
-через `path`-репозиторий — не сервис, не шарится ни с чьим `vendor/`.
-См.
+подключаемая в Pest-проекты `tests/integration/*/`, `tests/e2e/*/` и
+`tests/resilience/*/` через `path`-репозиторий — не сервис, не
+шарится ни с чьим `vendor/`. См.
 [`docs/architecture/testing-strategy.ru.md`](../../docs/architecture/testing-strategy.ru.md).
 
 ## Что внутри
@@ -22,7 +22,12 @@
   exchange теряет сообщение, опубликованное до того, как хоть одна
   очередь забиндена на его routing key), либо забиндить приватную
   одноразовую очередь, чтобы проверить, что другой сервис реально
-  что-то republish-нул.
+  что-то republish-нул. `publish()` принимает опциональный явный
+  `eventId` — добавлен ради
+  [`tests/resilience/duplicate-delivery/`](../resilience/duplicate-delivery/),
+  которому нужно опубликовать *один и тот же* `event_id` дважды, чтобы
+  симулировать настоящую at-least-once передоставку, а не два
+  независимых события, которые просто похожи друг на друга.
 
 ## Использование в Pest-проекте
 
