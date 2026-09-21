@@ -40,7 +40,7 @@ this file as slices get added, the same way
 | Component | Not built. Would live per-service, e.g. `services/subscription-service/tests/Component/`. |
 | Contract | Not built. One producer-side test per event in the [event catalog](event-catalog.md), one consumer-side test per service that consumes it. |
 | E2E (`tests/e2e/`) | **First scenario done: `successful-subscription`.** All seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts — Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. See its own [README](../../tests/e2e/successful-subscription/README.md). |
-| Resilience (`tests/resilience/`) | **Two scenarios done.** `duplicate-delivery`: the same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. `outbox-recovery`: the test stops `billing-outbox` itself (via `docker compose stop`), creates an Invoice while it's down, then proves the missed row reaches the wire once it's running again — see their own READMEs, [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.md). |
+| Resilience (`tests/resilience/`) | **Three scenarios done.** `duplicate-delivery`: the same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. `outbox-recovery`: the test stops `billing-outbox` itself (via `docker compose stop`), creates an Invoice while it's down, then proves the missed row reaches the wire once it's running again. `rabbitmq-outage`: the test stops the broker itself; proves creating a Subscription isn't affected at all (the HTTP create flow never resolves `AMQPChannel`), then proves both the outbox relay and the consumer recover their own connections once RabbitMQ is back — verified live via genuine `Connection refused` errors in both workers' own logs while it was down. See their own READMEs: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.md). |
 | `kind`-based platform smoke tests | Not built. Separate from all of the above — see ADR 0004, "Docker Compose for business tests, Kubernetes for platform tests." |
 
 ## Building the next slice
@@ -188,6 +188,24 @@ compose ps` showed the container `Up` for less time than it had existed
 exactly one successful publish once it came back, for the exact row it
 had missed.
 
+`rabbitmq-outage` did exactly what its own predecessor predicted —
+reused `outbox-recovery`'s `DockerCompose` helper as a second copy
+(stopping `rabbitmq` itself this time, not one consumer of it) — but
+asks a sharper question than "does the relay catch up": does creating
+a Subscription get affected *at all* by the broker being completely
+unreachable. The answer rests on an architectural fact, not just a
+retry loop: `subscription-api`'s create flow never resolves
+`AMQPChannel` in the first place (it's a lazy Laravel singleton only
+`PublishOutboxMessagesCommand` and the `*-events:consume` commands ever
+ask for), so there's no code path from that HTTP request to RabbitMQ to
+fail on. Verified live, not just read in the code: the write returned
+`201 Pending` while `rabbitmq` was confirmed stopped, and — the part
+that actually proves this wasn't a lucky timing window — both
+`subscription-outbox` and `billing-consumer` logged several genuine
+`Connection refused` errors from their own independent retry loops
+while the broker was down, each recovering on its very next iteration
+once it came back.
+
 What's next, none of it blocking what exists today:
 
 - `tests/e2e/failed-payment/` and `tests/e2e/overdue-subscription/` —
@@ -195,13 +213,12 @@ What's next, none of it blocking what exists today:
   outcome from the test side first (see "Fake providers" below); not
   buildable yet, not because a fake provider doesn't exist, but because
   it can't currently be told to fail on purpose.
-- `tests/resilience/rabbitmq-outage/` and `tests/resilience/consumer-crash/`
-  — the remaining two failure modes. `rabbitmq-outage` can likely reuse
-  `outbox-recovery`'s `DockerCompose` helper directly (stop `rabbitmq`
-  itself instead of one consumer of it); `consumer-crash` needs the
-  harder problem of stopping a worker at a precise point mid-transaction
-  rather than between its polling loop's iterations, which neither of
-  the first two resilience tests needed to solve.
+- `tests/resilience/consumer-crash/` — the one remaining failure mode,
+  and a harder problem than the first three: stopping a worker at a
+  precise point mid-transaction (after its DB commit, before its AMQP
+  ack) rather than between polling loop iterations, which none of
+  `duplicate-delivery`, `outbox-recovery` or `rabbitmq-outage` needed to
+  solve — `docker compose stop` alone isn't precise enough on its own.
 - Component and Contract layers — still not started at all; see their
   own rows in the status table above.
 

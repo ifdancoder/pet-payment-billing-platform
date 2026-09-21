@@ -340,16 +340,22 @@ order:
    scenario, [`successful-subscription`](tests/e2e/successful-subscription/):
    all seven services, real infra, no shortcuts — Merchant → Customer →
    Product/Price → Subscription → Invoice → Payment → Subscription
-   Active → Notification, walked entirely through real HTTP. Plus two
+   Active → Notification, walked entirely through real HTTP. Plus three
    resilience tests:
    [`duplicate-delivery`](tests/resilience/duplicate-delivery/) (the
    same `event_id` published twice, proving Billing's Inbox actually
    stops the second one from creating a duplicate Invoice — verified
    live that the consumer genuinely processed both deliveries, not that
-   a race just meant the second one never arrived) and
+   a race just meant the second one never arrived),
    [`outbox-recovery`](tests/resilience/outbox-recovery/) (the test
    stops `billing-outbox` itself mid-scenario, creates an Invoice while
    it's down, then proves the missed row reaches the wire once it's
-   running again).
+   running again) and
+   [`rabbitmq-outage`](tests/resilience/rabbitmq-outage/) (the test
+   stops the broker itself; proves creating a Subscription isn't
+   affected at all, then proves both the outbox relay and the consumer
+   recover their own connections once RabbitMQ is back — verified live
+   via genuine `Connection refused` errors in both workers' own logs
+   while it was down).
 9. Security hardening.
 10. Load / failure testing.
