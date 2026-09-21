@@ -42,7 +42,7 @@
 | Component | Не построено. Будет жить по сервисам, например `services/subscription-service/tests/Component/`. |
 | Contract | Не построено. Один producer-тест на событие из [каталога событий](event-catalog.ru.md), один consumer-тест на каждый сервис, который его читает. |
 | E2E (`tests/e2e/`) | **Первый сценарий готов: `successful-subscription`.** Все семь сервисов, реальный Postgres, реальный RabbitMQ, нигде никаких трюков с прямой публикацией — Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, полностью пройдено через реальный HTTP. См. его собственный [README](../../tests/e2e/successful-subscription/README.ru.md). |
-| Resilience (`tests/resilience/`) | **Готово три сценария.** `duplicate-delivery`: один и тот же `event_id`, опубликованный дважды; доказывает, что Inbox у Billing реально останавливает второй от создания дублирующего Invoice — проверено вживую, что `billing-consumer` реально обработал обе доставки (у RabbitMQ нет понятия «уже видел это»), а не что гонка просто не дала второй доставке прийти. `outbox-recovery`: тест сам останавливает `billing-outbox` (через `docker compose stop`), создаёт Invoice, пока он не работает, затем доказывает, что пропущенная строка доходит до wire, как только он снова запущен. `rabbitmq-outage`: тест сам останавливает брокер; доказывает, что создание Subscription вообще не затрагивается (HTTP create-флоу никогда не резолвит `AMQPChannel`), затем доказывает, что и outbox relay, и консьюмер сами восстанавливают свои соединения, как только RabbitMQ вернулся — проверено вживую через настоящие ошибки `Connection refused` в логах обоих worker-ов, пока он был недоступен. См. собственные README: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.ru.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.ru.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.ru.md). |
+| Resilience (`tests/resilience/`) | **Готовы все четыре изначально запланированных сценария.** `duplicate-delivery`: один и тот же `event_id`, опубликованный дважды; доказывает, что Inbox у Billing реально останавливает второй от создания дублирующего Invoice — проверено вживую, что `billing-consumer` реально обработал обе доставки (у RabbitMQ нет понятия «уже видел это»), а не что гонка просто не дала второй доставке прийти. `outbox-recovery`: тест сам останавливает `billing-outbox` (через `docker compose stop`), создаёт Invoice, пока он не работает, затем доказывает, что пропущенная строка доходит до wire, как только он снова запущен. `rabbitmq-outage`: тест сам останавливает брокер; доказывает, что создание Subscription вообще не затрагивается (HTTP create-флоу никогда не резолвит `AMQPChannel`), затем доказывает, что и outbox relay, и консьюмер сами восстанавливают свои соединения, как только RabbitMQ вернулся — проверено вживую через настоящие ошибки `Connection refused` в логах обоих worker-ов, пока он был недоступен. `consumer-crash`: по-настоящему убивает `billing-consumer`, точно по времени благодаря небольшому, аддитивному, выключенному по умолчанию delay-хуку в `ConsumeBillingEventsCommand`, чтобы попасть точно между коммитом в БД и AMQP-ack, так что RabbitMQ реально передоставляет сообщение, а не симулирует дубликат — доказывает, что собственный guard Inbox у перезапущенного консьюмера останавливает создание второго Invoice. См. собственные README: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.ru.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.ru.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.ru.md), [consumer-crash](../../tests/resilience/consumer-crash/README.ru.md). |
 | `kind`-based platform smoke tests | Не построено. Отдельно от всего вышеперечисленного — см. ADR 0004, «Docker Compose для бизнес-тестов, Kubernetes — для платформенных». |
 
 ## Следующий срез
@@ -221,6 +221,43 @@ compose stop/start`, пока локальная для этого теста �
 брокер был недоступен, каждый восстановился на своей самой первой
 следующей итерации, как только он вернулся.
 
+`consumer-crash` закрыл последний из четырёх изначально запланированных
+resilience-сценариев, и оказался самым сложным: в отличие от
+`duplicate-delivery`, `outbox-recovery` и `rabbitmq-outage`, ему нужно
+было остановить worker в точный момент *посреди транзакции* — после
+коммита в БД, до AMQP-ack — а не между итерациями цикла опроса, где
+одного `docker compose stop` самого по себе недостаточно точно. Это
+окно обычно составляет микросекунды — слишком узкое для любого внешнего
+black-box теста (следить за логом, потом убить), чтобы надёжно туда
+попасть. Вместо того чтобы смириться с нестабильным тестом, этот срез
+внёс небольшое, осознанное, обоснованное изменение прямо в
+production-код — первый (и пока единственный) resilience-тест, который
+на это пошёл: `ConsumeBillingEventsCommand` теперь логирует
+`"Processed event {id}, acking."` прямо перед своим ack (само по себе
+полезно для диагностики зависшего ack в production, не только как
+тестовый хук), и читает переменную окружения,
+`CONSUMER_CRASH_TEST_DELAY_MS`, прямо перед этим ack — не задана (`0`,
+no-op) в любом реальном окружении и в любом другом compose-стеке этого
+репозитория, задаётся только собственным `docker-compose.yaml` этого
+теста (в `5000`), расширяя окно с микросекунд до секунд специально для
+того, чтобы внешний тест мог надёжно увидеть строку лога и убить
+контейнер до ack, а не после него. Оба изменения аддитивны и выключены
+по умолчанию; полный набор тестов сервиса и Pint остались зелёными с
+ними. Здесь же `DockerCompose` (скопированный для `outbox-recovery`,
+затем для `rabbitmq-outage`) переехал в
+[`tests/support/`](../../tests/support/) на третьем использовании — та
+же дисциплина «копируем сначала, делимся на третьем использовании»,
+что и у `eventually()` и `AmqpTestClient` раньше — получив метод
+`kill(service, signal)`, который двум копиям `stop`/`start` до него не
+был нужен. Проверено вживую: `"Processed event <id>, acking."` появилось
+в логах `billing-consumer` **дважды** для одного события, которое
+опубликовал этот тест — один раз для убитой попытки, один раз для
+передоставленной, которая реально завершилась — при этом `"Consumed 1
+message(s)."` (достижимо только *после* успешного ack) появилось ровно
+**один раз**; `docker compose ps` показал контейнер `Up` меньше
+времени, чем он вообще существовал, подтверждая настоящий
+kill-and-restart, а не no-op.
+
 Что дальше, и ничто из этого не блокирует то, что уже есть:
 
 - `tests/e2e/failed-payment/` и `tests/e2e/overdue-subscription/` —
@@ -228,15 +265,13 @@ compose stop/start`, пока локальная для этого теста �
   fake-провайдера платежей со стороны теста (см. «Fake providers»
   ниже); пока не строятся не потому, что fake-провайдера нет, а
   потому, что его пока нельзя попросить провалиться намеренно.
-- `tests/resilience/consumer-crash/` — единственный оставшийся
-  failure-режим, и он сложнее первых трёх: нужно остановить worker в
-  точный момент посреди транзакции (после коммита в БД, до AMQP ack),
-  а не между итерациями цикла опроса, чего не требовалось решать ни
-  `duplicate-delivery`, ни `outbox-recovery`, ни `rabbitmq-outage` —
-  одного `docker compose stop` для этого самого по себе недостаточно
-  точно.
 - Уровни Component и Contract — всё ещё вообще не начаты; см. их
   собственные строки в таблице статуса выше.
+- Миграция двух оставшихся немигрированных локальных копий
+  `eventually()` (`subscription-to-billing`, `billing-to-payment`) и
+  двух копий `DockerCompose` (`outbox-recovery`, `rabbitmq-outage`) на
+  общий пакет `tests/support/` — последующая уборка, ничего не
+  блокирует.
 
 ## Асинхронные проверки
 
