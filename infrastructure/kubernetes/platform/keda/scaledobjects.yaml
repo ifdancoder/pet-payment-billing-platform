@@ -1,0 +1,69 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: rabbitmq-secret
+      key: RABBITMQ_URI
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: subscription-consumer
+spec:
+  scaleTargetRef: {name: subscription-consumer}
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  pollingInterval: 10
+  cooldownPeriod: 60
+  triggers:
+    - type: rabbitmq
+      metadata: {protocol: amqp, mode: QueueLength, queueName: subscription.events.v1, value: "100"}
+      authenticationRef: {name: rabbitmq}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: billing-consumer
+spec:
+  scaleTargetRef: {name: billing-consumer}
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  pollingInterval: 10
+  cooldownPeriod: 60
+  triggers:
+    - type: rabbitmq
+      metadata: {protocol: amqp, mode: QueueLength, queueName: billing.events.v1, value: "100"}
+      authenticationRef: {name: rabbitmq}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: payment-consumer
+spec:
+  scaleTargetRef: {name: payment-consumer}
+  minReplicaCount: 1
+  maxReplicaCount: 20
+  pollingInterval: 10
+  cooldownPeriod: 60
+  triggers:
+    - type: rabbitmq
+      metadata: {protocol: amqp, mode: QueueLength, queueName: payment.invoice-created, value: "100"}
+      authenticationRef: {name: rabbitmq}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: notification-ingest-consumer
+spec:
+  scaleTargetRef: {name: notification-ingest-consumer}
+  minReplicaCount: 1
+  maxReplicaCount: 30
+  pollingInterval: 5
+  cooldownPeriod: 60
+  triggers:
+    - type: rabbitmq
+      metadata: {protocol: amqp, mode: QueueLength, queueName: notification.payment-succeeded, value: "100"}
+      authenticationRef: {name: rabbitmq}
