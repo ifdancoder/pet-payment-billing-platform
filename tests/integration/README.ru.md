@@ -12,3 +12,6 @@
   собственный README.
 - [`billing-to-payment/`](billing-to-payment/) — готово, см. собственный
   README.
+- [`payment-to-billing/`](payment-to-billing/) — готово, см. собственный
+  README. Первый срез, использующий [`../support/`](../support/) вместо
+  локальной копии `eventually()`.
