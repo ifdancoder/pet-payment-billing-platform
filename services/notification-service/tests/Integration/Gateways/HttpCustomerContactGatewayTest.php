@@ -9,9 +9,11 @@ test('find returns customer contact details when the customer exists', function 
     $id = (string) Str::uuid();
     Http::fake([
         "https://customers.internal/api/v1/customers/{$id}" => Http::response([
-            'id' => $id,
-            'email' => 'jane@example.com',
-            'name' => 'Jane Doe',
+            'data' => [
+                'id' => $id,
+                'email' => 'jane@example.com',
+                'name' => 'Jane Doe',
+            ],
         ], 200),
     ]);
 

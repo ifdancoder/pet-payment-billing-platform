@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: identity-migrate
+  labels:
+    app.kubernetes.io/component: migrate
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: identity
+        app.kubernetes.io/component: migrate
+    spec:
+      serviceAccountName: identity
+      restartPolicy: Never
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000}
+      containers:
+        - name: migrate
+          image: identity-service:local
+          imagePullPolicy: IfNotPresent
+          command: ["php", "artisan", "migrate", "--force"]
+          envFrom:
+            - configMapRef: {name: identity-config}
+            - secretRef: {name: identity-secret}
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: postgres-secret, key: POSTGRES_PASSWORD}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}

@@ -11,5 +11,24 @@ resources:
   - ../../base/catalog
   - ../../base/subscription
   - ../../base/billing
+  - ../../base/identity
+  - ../../base/payment
+  - ../../base/notification
+  - ../../base/availability
   - ../../base/gateway
   - ../../platform/ingress
+
+# NetworkPolicy (base/networking) and HorizontalPodAutoscaler
+# (platform/autoscaling) are deliberately not applied here: kind's
+# default CNI (kindnet) doesn't enforce NetworkPolicy at all, so a
+# default-deny policy would sit inert and unverifiable in this
+# environment, and there's no metrics-server here for the HPA's CPU
+# target to read — same reasoning that already keeps platform/keda
+# optional (see its README). Apply either manually once the target
+# environment actually supports them.
+
+patches:
+  - target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/component=api
+    path: api-topology-spread.yaml

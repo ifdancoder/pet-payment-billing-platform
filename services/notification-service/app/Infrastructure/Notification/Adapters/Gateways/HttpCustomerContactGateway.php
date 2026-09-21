@@ -20,7 +20,7 @@ final class HttpCustomerContactGateway implements ICustomerContactGatewayPort
 
         $response->throw();
 
-        $body = $response->json();
+        $body = $response->json('data');
 
         return new CustomerContact($body['id'], $body['email'], $body['name']);
     }
