@@ -10,3 +10,5 @@ for the full pyramid and current status of every slice.
 
 - [`subscription-to-billing/`](subscription-to-billing/) — done, see
   its own README.
+- [`billing-to-payment/`](billing-to-payment/) — done, see its own
+  README.
