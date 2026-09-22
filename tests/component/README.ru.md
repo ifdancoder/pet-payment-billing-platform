@@ -2,29 +2,9 @@
 
 *[English version](README.md)*
 
-Один реальный сервис, как собственный живой процесс — настоящий
-HTTP-сервер, настоящий Postgres, настоящий RabbitMQ — с stub-сервером,
-заменяющим всё, с чем он общается по HTTP, вместо настоящих
-зависимых сервисов. Не [`tests/integration/`](../integration/) (2-3
-*настоящих* сервиса) и не in-process уровни Application/Feature внутри
-собственного `tests/` каждого сервиса (нет живого процесса, нет
-настоящего RabbitMQ). См.
-[`docs/architecture/testing-strategy.ru.md`](../../docs/architecture/testing-strategy.ru.md)
-для полной пирамиды и текущего статуса каждого уровня.
+Component suite запускает один сервис как реальный процесс с PostgreSQL и RabbitMQ. Его синхронные HTTP dependencies заменяет WireMock.
 
-Каждый сервис, которому это нужно, получает здесь собственный каталог,
-собственный отдельный стек Docker Compose и Pest-проект — та же форма,
-что и у [`tests/integration/`](../integration/),
-[`tests/e2e/`](../e2e/) и [`tests/resilience/`](../resilience/),
-поскольку Component нужен реально поднятый HTTP-сервер и реальный
-брокер, которые in-process прогон Laravel-тестов (Feature-тесты) дать
-не может.
+- `subscription-service/`: Subscription API, outbox и consumer со stub-ами Customer/Catalog.
+- `notification-service/`: Notification consumer и delivery worker со stub-ом Customer.
 
-- [`subscription-service/`](subscription-service/) — готово, см.
-  собственный README. Первый Component-тест: WireMock-stub заменяет
-  customer-service и catalog-service, две собственные синхронные
-  HTTP-зависимости subscription-service.
-
-Для остальных шести сервисов ещё не построено — см. «Следующий срез» в
-документе стратегии тестирования, каким из них он реально пригодился
-бы.
+Границы Feature, Component и service integration tests описаны в [стратегии тестирования](../../docs/architecture/testing-strategy.ru.md).

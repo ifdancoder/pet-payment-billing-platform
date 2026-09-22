@@ -383,12 +383,16 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    [каталога событий](docs/architecture/event-catalog.ru.md) — имеет
    собственный тест, доказывающий, что он переносится ровно в тот
    wire-формат, что задокументирован в каталоге, с новым `event_id`
-   каждый раз. Плюс первый срез уровня Component,
-   [`subscription-service`](tests/component/subscription-service/):
-   один реальный сервис как собственный живой процесс — настоящий
-   HTTP-сервер, настоящий Postgres, настоящий RabbitMQ — с
-   WireMock-stub, заменяющим его две синхронные HTTP-зависимости
-   (customer-service, catalog-service) вместо настоящих сервисов, весь
-   сьют проходит меньше чем за две секунды.
+   каждый раз. Плюс два среза Component — каждый один реальный сервис
+   как собственный живой процесс, настоящий HTTP-сервер, настоящий
+   Postgres, настоящий RabbitMQ, с WireMock-stub, заменяющим его
+   синхронные HTTP-зависимости вместо настоящих сервисов:
+   [`subscription-service`](tests/component/subscription-service/)
+   (стабит customer-service и catalog-service, весь сьют проходит
+   меньше чем за две секунды) и
+   [`notification-service`](tests/component/notification-service/)
+   (стабит только customer-service; ничего не публикует, так что этот
+   тест проверяет только consume-сторону RabbitMQ и его delivery
+   worker).
 9. Security hardening.
 10. Load / failure тестирование.

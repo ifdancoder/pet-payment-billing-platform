@@ -39,7 +39,7 @@
 
 | Уровень | Статус |
 | --- | --- |
-| Component | **Первый срез готов: `subscription-service`.** Один реальный сервис, собственный живой HTTP-сервер, реальный Postgres, реальный RabbitMQ, и WireMock-stub, заменяющий его две синхронные HTTP-зависимости (customer-service, catalog-service). Живёт в `tests/component/<service>/`, не по сервисам — более раннее предположение, что он будет жить внутри собственного `tests/Component/` каждого сервиса, оказалось неверным, как только это реально построили: Component нужен реально поднятый HTTP-сервер и реальный брокер, которые in-process прогон Laravel-тестов дать не может, так что нужна та же форма отдельного Docker Compose + Pest-проекта, что у Service integration/E2E/Resilience. См. его собственный [README](../../tests/component/subscription-service/README.ru.md). |
+| Component | **Готовы два среза: `subscription-service`, `notification-service`.** Каждый — один реальный сервис, собственный живой HTTP-сервер, реальный Postgres, реальный RabbitMQ, и WireMock-stub, заменяющий его синхронные HTTP-зависимости вместо настоящих сервисов — `subscription-service` стабит customer-service и catalog-service; `notification-service` стабит только customer-service и, в отличие от `subscription-service`, ничего не публикует, так что его срез проверяет только consume-сторону RabbitMQ и его delivery worker. Живёт в `tests/component/<service>/`, не по сервисам — более раннее предположение, что он будет жить внутри собственного `tests/Component/` каждого сервиса, оказалось неверным, как только это реально построили: Component нужен реально поднятый HTTP-сервер и реальный брокер, которые in-process прогон Laravel-тестов дать не может, так что нужна та же форма отдельного Docker Compose + Pest-проекта, что у Service integration/E2E/Resilience. См. собственные README: [subscription-service](../../tests/component/subscription-service/README.ru.md), [notification-service](../../tests/component/notification-service/README.ru.md). |
 | Contract | **Producer-сторона готова: все 16 событий из [каталога событий](event-catalog.ru.md).** Один тест на класс `IntegrationEvent`, в собственном `tests/Unit/Application/*/IntegrationEvents/` каждого сервиса (без нового top-level каталога — Contract не нужна ни БД, ни RabbitMQ, ни другие сервисы, так что он ровно вписывается в уже существующие per-service Unit-сьюты, как и предсказывал ADR 0004). Каждый проверяет, что `fromDomainEvent()` (или, для `InvoicePaymentFailedIntegrationEvent`, `of()` — единственного события, построенного прямо из входов handler-а, а не из доменного события) переносит каждое поле в точный wire-формат, задокументированный в каталоге, и что два события, построенные из одного и того же входа, всё равно получают разные `event_id`. Consumer-сторона отдельно не построена: собственный Integration-тест каждого `Consume*Command` уже задаёт тот же вопрос через вручную построенный wire-format payload (например, `aSubscriptionCreatedPayload()` в `SubscriptionCreatedConsumerTest`) — он также затрагивает настоящую БД, поэтому категоризирован как Integration, а не Contract, но по сути уже покрывает тот же вопрос. |
 | E2E (`tests/e2e/`) | **Готовы два сценария: `successful-subscription`, `failed-payment`.** Оба используют все семь сервисов, реальный Postgres, реальный RabbitMQ, нигде никаких трюков с прямой публикацией. `successful-subscription`: Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, полностью пройдено через реальный HTTP. `failed-payment`: та же цепочка, но сумма Price — зарезервированное decline-триггер значение `FakePaymentGateway`, так что списание гарантированно отклоняется — доказывает, что Invoice остаётся Open, Payment становится Failed с настоящим кодом отказа, а Subscription остаётся Pending, а не PastDue. См. собственные README: [successful-subscription](../../tests/e2e/successful-subscription/README.ru.md), [failed-payment](../../tests/e2e/failed-payment/README.ru.md). |
 | Resilience (`tests/resilience/`) | **Готовы все четыре изначально запланированных сценария.** `duplicate-delivery`: один и тот же `event_id`, опубликованный дважды; доказывает, что Inbox у Billing реально останавливает второй от создания дублирующего Invoice — проверено вживую, что `billing-consumer` реально обработал обе доставки (у RabbitMQ нет понятия «уже видел это»), а не что гонка просто не дала второй доставке прийти. `outbox-recovery`: тест сам останавливает `billing-outbox` (через `docker compose stop`), создаёт Invoice, пока он не работает, затем доказывает, что пропущенная строка доходит до wire, как только он снова запущен. `rabbitmq-outage`: тест сам останавливает брокер; доказывает, что создание Subscription вообще не затрагивается (HTTP create-флоу никогда не резолвит `AMQPChannel`), затем доказывает, что и outbox relay, и консьюмер сами восстанавливают свои соединения, как только RabbitMQ вернулся — проверено вживую через настоящие ошибки `Connection refused` в логах обоих worker-ов, пока он был недоступен. `consumer-crash`: по-настоящему убивает `billing-consumer`, точно по времени благодаря небольшому, аддитивному, выключенному по умолчанию delay-хуку в `ConsumeBillingEventsCommand`, чтобы попасть точно между коммитом в БД и AMQP-ack, так что RabbitMQ реально передоставляет сообщение, а не симулирует дубликат — доказывает, что собственный guard Inbox у перезапущенного консьюмера останавливает создание второго Invoice. См. собственные README: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.ru.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.ru.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.ru.md), [consumer-crash](../../tests/resilience/consumer-crash/README.ru.md). |
@@ -381,16 +381,47 @@ in-process fake, а весь сьют из трёх тестов прошёл м
 Component по сравнению с Service integration, за счёт необходимости
 всего в одном контейнере сервиса вместо двух и более.
 
+Проверка каждого остального сервиса по той же планке — есть ли у него
+синхронная исходящая HTTP-зависимость, или guard-условие, медленное
+устраивать против настоящей зависимости — нашла ровно ещё одного
+кандидата: `notification-service`, чей `HttpCustomerContactGateway`
+ищет email/name по `customer_id` точно так же, как два gateway
+`subscription-service` ищут customer и price. У `identity-service`,
+`customer-service`, `catalog-service`, `billing-service` и
+`payment-service` таких нет — нечего стабить, так что Component-тест
+для любого из них оказался бы просто более медленным и дорогим Service
+integration тестом под другим именем, а не по-настоящему другим
+вопросом. `tests/component/notification-service/` переиспользовал
+ровно ту же форму, что и `subscription-service` — тот же образ
+WireMock, тот же стиль маппингов с `--global-response-templating`, тот
+же трюк с sentinel-id для guard-а неизвестного customer — но оказался
+у́же в одном реальном смысле: `notification-service` ничего не
+публикует (см. [каталог событий](event-catalog.ru.md)), так что вообще
+нет Outbox/publish-стороны для проверки, только путь RabbitMQ consume
+(`payment.succeeded.v1`, опубликованный напрямую, заменяющий
+payment-service) и delivery worker (`notifications:deliver`,
+использующий `FakeEmailSender`, in-process fake, не требующий
+собственного stub-а). То, что этот worker реально проверяется, — то,
+чего не делают сами по себе ни
+[`tests/integration/payment-to-notification/`](../../tests/integration/payment-to-notification/),
+ни unit-тест самого consumer-а. Проверено вживую: собственные логи
+`notification-ingest-consumer` показали ровно 2 строки `Consumed 1`
+(по одной на тест), а `notification-delivery-worker` показал ровно
+одну `Delivered 1 notification(s).` — только notification из
+happy-path теста, подтверждая, что guard неизвестного customer реально
+остановил создание второй, а не просто что ничего не появилось через
+HTTP.
+
 Что дальше, и ничто из этого не блокирует то, что уже есть:
 
 - `tests/e2e/overdue-subscription/` — заблокирован фичей
   recurring-billing, описанной выше; вне рамок этого тестового захода,
   пока эта фича не появится.
-- Component-тесты для остальных шести сервисов — построен только
-  `subscription-service`; стоит проверить, реально ли другому сервису
-  пригодится такой тест (есть ли у него исходящие HTTP-зависимости или
-  guard-условия, стоящие изоляции, как у `subscription-service`), прежде
-  чем строить его умозрительно.
+- Component-тесты для остальных пяти сервисов — ни у одного из них нет
+  исходящей HTTP-зависимости или guard-условия, которому пригодилась бы
+  изоляция так же, как `subscription-service` и `notification-service`,
+  так что построение такого теста для любого из них было бы
+  умозрительным, а не ответом на по-настоящему другой вопрос.
 
 ## Асинхронные проверки
 
