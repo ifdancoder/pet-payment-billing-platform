@@ -14,7 +14,7 @@ this file as slices get added, the same way
 | Application | a Handler, against fakes | no | no | no | `services/*/tests/Integration/Application/` |
 | Integration | one adapter | yes | sometimes | no | `services/*/tests/Integration/{Gateways,Messaging,Persistence,Transaction}/` |
 | (Laravel Feature) | one service's own HTTP/console entry point, in-process | yes (sqlite) | no (`Http::fake()`) | faked | `services/*/tests/Feature/` |
-| Component | one whole service, live process | yes | yes | stub server | not built yet |
+| Component | one whole service, live process | yes | yes | stub server | `tests/component/<service>/` |
 | Contract | one event's schema, producer side | no | no | no | `services/*/tests/Unit/Application/*/IntegrationEvents/` |
 | Service integration | 2-3 real services + broker | yes | yes | yes (2-3) | `tests/integration/<slice>/` |
 | E2E | a full business flow | yes | yes | yes (all) | `tests/e2e/<scenario>/` |
@@ -37,7 +37,7 @@ this file as slices get added, the same way
 
 | Layer | Status |
 | --- | --- |
-| Component | Not built. Would live per-service, e.g. `services/subscription-service/tests/Component/`. |
+| Component | **First slice done: `subscription-service`.** One real service, its own live HTTP server, real Postgres, real RabbitMQ, and a WireMock stub standing in for its two synchronous HTTP dependencies (customer-service, catalog-service). Lives in `tests/component/<service>/`, not per-service — the earlier guess that it would live inside each service's own `tests/Component/` turned out wrong once actually built: Component needs a real booted HTTP server and a real broker, which an in-process Laravel test run can't provide, so it needs the same standalone Docker Compose + Pest project shape as Service integration/E2E/Resilience. See its own [README](../../tests/component/subscription-service/README.md). |
 | Contract | **Producer side done: all 16 events in the [event catalog](event-catalog.md).** One test per `IntegrationEvent` class, under each service's own `tests/Unit/Application/*/IntegrationEvents/` (no new top-level directory — Contract needs no DB, no RabbitMQ, no other services, so it fits the existing per-service Unit suites exactly as ADR 0004 predicted). Each asserts `fromDomainEvent()` (or, for `InvoicePaymentFailedIntegrationEvent`, `of()` — the one event built directly from a handler's inputs rather than a domain event) maps every field into the exact wire shape documented in the catalog, and that two events built from the same input still get distinct `event_id`s. Consumer side not separately built: every `Consume*Command`'s own Integration test already exercises this from a hand-built wire-format payload (e.g. `SubscriptionCreatedConsumerTest`'s `aSubscriptionCreatedPayload()`) — it also touches a real DB, so it's categorized as Integration, not Contract, but it's already covering the same question. |
 | E2E (`tests/e2e/`) | **Two scenarios done: `successful-subscription`, `failed-payment`.** Both use all seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts. `successful-subscription`: Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. `failed-payment`: same chain, but the Price's amount is `FakePaymentGateway`'s reserved decline-trigger value, so the charge is guaranteed to decline — proves the Invoice stays Open, the Payment ends up Failed with a real failure code, and the Subscription stays Pending rather than PastDue. See their own READMEs: [successful-subscription](../../tests/e2e/successful-subscription/README.md), [failed-payment](../../tests/e2e/failed-payment/README.md). |
 | Resilience (`tests/resilience/`) | **All four originally planned scenarios done.** `duplicate-delivery`: the same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. `outbox-recovery`: the test stops `billing-outbox` itself (via `docker compose stop`), creates an Invoice while it's down, then proves the missed row reaches the wire once it's running again. `rabbitmq-outage`: the test stops the broker itself; proves creating a Subscription isn't affected at all (the HTTP create flow never resolves `AMQPChannel`), then proves both the outbox relay and the consumer recover their own connections once RabbitMQ is back — verified live via genuine `Connection refused` errors in both workers' own logs while it was down. `consumer-crash`: kills `billing-consumer` for real, timed via a small, additive, off-by-default delay hook in `ConsumeBillingEventsCommand` to land precisely between its DB commit and its AMQP ack, so RabbitMQ genuinely redelivers the message rather than simulating a duplicate — proves the restarted consumer's own Inbox guard stops it from creating a second Invoice. See their own READMEs: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.md), [consumer-crash](../../tests/resilience/consumer-crash/README.md). |
@@ -320,13 +320,50 @@ cleanup follow-up: every consumer of either helper now shares the one
 implementation, with no behavior change (verified live per slice; see
 "Asynchronous assertions" below).
 
+`tests/component/subscription-service/` opened the Component layer,
+and corrected a guess this doc made before any Component test existed:
+"would live per-service, e.g. `services/subscription-service/tests/Component/`."
+It can't — a Component test needs a real, booted HTTP server (not
+Laravel's in-process test kernel, which is what every `tests/Feature/`
+test actually exercises) and a real broker, so it needs the exact same
+standalone Docker Compose + Pest project shape Service integration,
+E2E and Resilience already use, just with one service's container
+instead of two or more. `subscription-service` was the obvious first
+candidate: it's the only service in the platform's core chain with
+*synchronous* outbound HTTP dependencies (customer-service,
+catalog-service, both called before `CreateSubscriptionHandler` ever
+opens a transaction) alongside the usual Outbox-publish and
+RabbitMQ-consume paths every service has — richer than any other
+single service to test in isolation. The stub standing in for those
+two dependencies is [WireMock](https://wiremock.org/), not a
+hand-rolled script: both real gateways
+(`HttpCustomerGateway`/`HttpCatalogGateway`) do nothing but translate a
+plain lookup-by-id into a DTO, so WireMock's declarative JSON mappings
+express the fixture directly, and `--global-response-templating` lets
+one mapping answer *any* requested id by echoing it back
+(`{{request.path.[3]}}`) rather than the test needing to know every id
+up front — confirmed by curling the running container directly before
+trusting it in a test. It also made one guard condition trivial that
+would have been awkward against a real customer-service: an unknown
+customer is just a second, higher-priority stub mapping for one fixed
+sentinel id, not state that has to exist and then not exist somewhere
+else. Verified live: `GET /__admin/requests` on the WireMock container
+showed genuine HTTP requests from `subscription-api`'s own container
+(`User-Agent: GuzzleHttp/8`), not an in-process fake, and the whole
+three-test suite ran in under two seconds — the cost saving ADR 0004
+predicted Component would have over Service integration, from needing
+only one service's container instead of two-plus.
+
 What's next, none of it blocking what exists today:
 
 - `tests/e2e/overdue-subscription/` — blocked on the recurring-billing
   feature described above; out of scope for this testing effort until
   that feature exists.
-- Component layer — still not started at all; see its own row in the
-  status table above.
+- Component tests for the other six services — `subscription-service`
+  is the only one built; whether another service actually benefits
+  from one (has outbound HTTP dependencies or guard conditions worth
+  isolating, the way `subscription-service` did) is worth checking
+  before building one speculatively.
 
 ## Asynchronous assertions
 

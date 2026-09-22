@@ -1,0 +1,24 @@
+{
+  "priority": 5,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/v1/merchants/.*/prices/.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": {"Content-Type": "application/json"},
+    "jsonBody": {
+      "data": {
+        "id": "{{request.path.[5]}}",
+        "product_id": "11111111-1111-1111-1111-111111111111",
+        "amount_minor_units": 2500,
+        "currency": "USD",
+        "type": "recurring",
+        "billing_interval": "month",
+        "billing_interval_count": 1,
+        "status": "active"
+      }
+    },
+    "transformers": ["response-template"]
+  }
+}
