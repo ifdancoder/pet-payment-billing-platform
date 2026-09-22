@@ -15,7 +15,7 @@ this file as slices get added, the same way
 | Integration | one adapter | yes | sometimes | no | `services/*/tests/Integration/{Gateways,Messaging,Persistence,Transaction}/` |
 | (Laravel Feature) | one service's own HTTP/console entry point, in-process | yes (sqlite) | no (`Http::fake()`) | faked | `services/*/tests/Feature/` |
 | Component | one whole service, live process | yes | yes | stub server | not built yet |
-| Contract | one event's schema | no | no | no | not built yet |
+| Contract | one event's schema, producer side | no | no | no | `services/*/tests/Unit/Application/*/IntegrationEvents/` |
 | Service integration | 2-3 real services + broker | yes | yes | yes (2-3) | `tests/integration/<slice>/` |
 | E2E | a full business flow | yes | yes | yes (all) | `tests/e2e/<scenario>/` |
 | Resilience | one failure mode | yes | yes | yes | `tests/resilience/<scenario>/` |
@@ -38,7 +38,7 @@ this file as slices get added, the same way
 | Layer | Status |
 | --- | --- |
 | Component | Not built. Would live per-service, e.g. `services/subscription-service/tests/Component/`. |
-| Contract | Not built. One producer-side test per event in the [event catalog](event-catalog.md), one consumer-side test per service that consumes it. |
+| Contract | **Producer side done: all 16 events in the [event catalog](event-catalog.md).** One test per `IntegrationEvent` class, under each service's own `tests/Unit/Application/*/IntegrationEvents/` (no new top-level directory — Contract needs no DB, no RabbitMQ, no other services, so it fits the existing per-service Unit suites exactly as ADR 0004 predicted). Each asserts `fromDomainEvent()` (or, for `InvoicePaymentFailedIntegrationEvent`, `of()` — the one event built directly from a handler's inputs rather than a domain event) maps every field into the exact wire shape documented in the catalog, and that two events built from the same input still get distinct `event_id`s. Consumer side not separately built: every `Consume*Command`'s own Integration test already exercises this from a hand-built wire-format payload (e.g. `SubscriptionCreatedConsumerTest`'s `aSubscriptionCreatedPayload()`) — it also touches a real DB, so it's categorized as Integration, not Contract, but it's already covering the same question. |
 | E2E (`tests/e2e/`) | **Two scenarios done: `successful-subscription`, `failed-payment`.** Both use all seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts. `successful-subscription`: Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. `failed-payment`: same chain, but the Price's amount is `FakePaymentGateway`'s reserved decline-trigger value, so the charge is guaranteed to decline — proves the Invoice stays Open, the Payment ends up Failed with a real failure code, and the Subscription stays Pending rather than PastDue. See their own READMEs: [successful-subscription](../../tests/e2e/successful-subscription/README.md), [failed-payment](../../tests/e2e/failed-payment/README.md). |
 | Resilience (`tests/resilience/`) | **All four originally planned scenarios done.** `duplicate-delivery`: the same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. `outbox-recovery`: the test stops `billing-outbox` itself (via `docker compose stop`), creates an Invoice while it's down, then proves the missed row reaches the wire once it's running again. `rabbitmq-outage`: the test stops the broker itself; proves creating a Subscription isn't affected at all (the HTTP create flow never resolves `AMQPChannel`), then proves both the outbox relay and the consumer recover their own connections once RabbitMQ is back — verified live via genuine `Connection refused` errors in both workers' own logs while it was down. `consumer-crash`: kills `billing-consumer` for real, timed via a small, additive, off-by-default delay hook in `ConsumeBillingEventsCommand` to land precisely between its DB commit and its AMQP ack, so RabbitMQ genuinely redelivers the message rather than simulating a duplicate — proves the restarted consumer's own Inbox guard stops it from creating a second Invoice. See their own READMEs: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.md), [consumer-crash](../../tests/resilience/consumer-crash/README.md). |
 | `kind`-based platform smoke tests | Not built. Separate from all of the above — see ADR 0004, "Docker Compose for business tests, Kubernetes for platform tests." |
@@ -269,16 +269,56 @@ three are absences, not "not yet". Verified live:
 consumed **0** — direct confirmation it never saw anything, not just
 that nothing showed up over HTTP.
 
+`tests/e2e/overdue-subscription/` turned out to need a real production
+feature this platform doesn't have yet — a scheduled job that creates
+the *next* billing cycle's Invoice for an Active subscription past its
+period end. `CreateInvoiceHandler` only ever fires once, on
+`subscription.created.v1`; there's no renewal mechanism to seed a
+second cycle through, so the scenario can't be built as a test alone.
+Building one is real domain/application work, not testing
+infrastructure, so it was deliberately deferred rather than folded into
+this effort — the Active → PastDue transition it would have exercised
+is already fully covered anyway, by
+`tests/integration/billing-to-subscription/`'s own second test (drives
+a subscription to Active via a direct-published `invoice.paid.v1`, then
+fails it).
+
+With the E2E and Resilience branches both at a natural pause, the
+Contract layer's producer side closed the gap ADR 0004 called out from
+the start: every `IntegrationEvent` class across the platform — all 16
+events in the [event catalog](event-catalog.md), not just the 6 in the
+platform's wired core chain — now has its own test asserting
+`fromDomainEvent()` maps every field into exactly the wire shape the
+catalog documents, and that two events built from the same input still
+get distinct `event_id`s (redelivery/retry must never silently
+collapse two attempts into one). Ten of the sixteen were new
+this slice (the four subscription-service events, four
+billing-service, two payment-service); catalog-service and
+customer-service already had the other six, unknowingly following the
+exact same shape — proof the pattern was sound before it had a name.
+`InvoicePaymentFailedIntegrationEvent` needed a slightly different
+test: it's the one event with no domain event to translate from (the
+Invoice itself doesn't change state on a failed payment), built
+directly via `of()` from the relay handler's own inputs instead of
+`fromDomainEvent()`. No new top-level directory was needed — per ADR
+0004's own layer table, Contract needs no DB, no RabbitMQ, no other
+services, so it fits directly into each service's existing
+`tests/Unit/Application/*/IntegrationEvents/`, the same place
+catalog-service and customer-service were already putting it.
+Consumer-side contract coverage wasn't separately built: every
+`Consume*Command`'s own Integration test already asks the same
+question from a hand-built wire-format payload (e.g.
+`SubscriptionCreatedConsumerTest`'s `aSubscriptionCreatedPayload()`) —
+it also touches a real repository, so it's categorized as Integration
+rather than Contract, but nothing was actually missing there.
+
 What's next, none of it blocking what exists today:
 
-- `tests/e2e/overdue-subscription/` — needs a *previously Active*
-  subscription's payment to fail (the PastDue transition
-  `HandleInvoicePaymentFailedHandler` guards on, not the
-  Pending-stays-Pending case `failed-payment` already covers), which
-  means seeding a real successful billing cycle first before triggering
-  the decline-amount trick a second time.
-- Component and Contract layers — still not started at all; see their
-  own rows in the status table above.
+- `tests/e2e/overdue-subscription/` — blocked on the recurring-billing
+  feature described above; out of scope for this testing effort until
+  that feature exists.
+- Component layer — still not started at all; see its own row in the
+  status table above.
 - Migrating `eventually()`'s two remaining un-migrated local copies
   (`subscription-to-billing`, `billing-to-payment`) and
   `DockerCompose`'s two (`outbox-recovery`, `rabbitmq-outage`) onto the

@@ -367,6 +367,11 @@ order:
    off-by-default delay hook to land precisely between its DB commit
    and its AMQP ack, so RabbitMQ genuinely redelivers the message —
    proves the restarted consumer's own Inbox guard stops it from
-   creating a duplicate Invoice).
+   creating a duplicate Invoice). Plus the Contract layer's producer
+   side, done: every `IntegrationEvent` class across all seven
+   services — all 16 events in the
+   [event catalog](docs/architecture/event-catalog.md) — has its own
+   test proving it maps onto exactly the wire shape the catalog
+   documents, with a fresh `event_id` every time.
 9. Security hardening.
 10. Load / failure testing.
