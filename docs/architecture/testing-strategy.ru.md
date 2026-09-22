@@ -16,7 +16,7 @@
 | Application | Handler, против fakes | нет | нет | нет | `services/*/tests/Integration/Application/` |
 | Integration | один адаптер | да | иногда | нет | `services/*/tests/Integration/{Gateways,Messaging,Persistence,Transaction}/` |
 | (Laravel Feature) | собственная HTTP/console-точка входа сервиса, in-process | да (sqlite) | нет (`Http::fake()`) | faked | `services/*/tests/Feature/` |
-| Component | целый сервис, живой процесс | да | да | stub-сервер | не построено |
+| Component | целый сервис, живой процесс | да | да | stub-сервер | `tests/component/<service>/` |
 | Contract | схему одного события, producer-сторона | нет | нет | нет | `services/*/tests/Unit/Application/*/IntegrationEvents/` |
 | Service integration | 2-3 реальных сервиса + брокер | да | да | да (2-3) | `tests/integration/<slice>/` |
 | E2E | полный бизнес-флоу | да | да | да (все) | `tests/e2e/<scenario>/` |
@@ -39,7 +39,7 @@
 
 | Уровень | Статус |
 | --- | --- |
-| Component | Не построено. Будет жить по сервисам, например `services/subscription-service/tests/Component/`. |
+| Component | **Первый срез готов: `subscription-service`.** Один реальный сервис, собственный живой HTTP-сервер, реальный Postgres, реальный RabbitMQ, и WireMock-stub, заменяющий его две синхронные HTTP-зависимости (customer-service, catalog-service). Живёт в `tests/component/<service>/`, не по сервисам — более раннее предположение, что он будет жить внутри собственного `tests/Component/` каждого сервиса, оказалось неверным, как только это реально построили: Component нужен реально поднятый HTTP-сервер и реальный брокер, которые in-process прогон Laravel-тестов дать не может, так что нужна та же форма отдельного Docker Compose + Pest-проекта, что у Service integration/E2E/Resilience. См. его собственный [README](../../tests/component/subscription-service/README.ru.md). |
 | Contract | **Producer-сторона готова: все 16 событий из [каталога событий](event-catalog.ru.md).** Один тест на класс `IntegrationEvent`, в собственном `tests/Unit/Application/*/IntegrationEvents/` каждого сервиса (без нового top-level каталога — Contract не нужна ни БД, ни RabbitMQ, ни другие сервисы, так что он ровно вписывается в уже существующие per-service Unit-сьюты, как и предсказывал ADR 0004). Каждый проверяет, что `fromDomainEvent()` (или, для `InvoicePaymentFailedIntegrationEvent`, `of()` — единственного события, построенного прямо из входов handler-а, а не из доменного события) переносит каждое поле в точный wire-формат, задокументированный в каталоге, и что два события, построенные из одного и того же входа, всё равно получают разные `event_id`. Consumer-сторона отдельно не построена: собственный Integration-тест каждого `Consume*Command` уже задаёт тот же вопрос через вручную построенный wire-format payload (например, `aSubscriptionCreatedPayload()` в `SubscriptionCreatedConsumerTest`) — он также затрагивает настоящую БД, поэтому категоризирован как Integration, а не Contract, но по сути уже покрывает тот же вопрос. |
 | E2E (`tests/e2e/`) | **Готовы два сценария: `successful-subscription`, `failed-payment`.** Оба используют все семь сервисов, реальный Postgres, реальный RabbitMQ, нигде никаких трюков с прямой публикацией. `successful-subscription`: Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, полностью пройдено через реальный HTTP. `failed-payment`: та же цепочка, но сумма Price — зарезервированное decline-триггер значение `FakePaymentGateway`, так что списание гарантированно отклоняется — доказывает, что Invoice остаётся Open, Payment становится Failed с настоящим кодом отказа, а Subscription остаётся Pending, а не PastDue. См. собственные README: [successful-subscription](../../tests/e2e/successful-subscription/README.ru.md), [failed-payment](../../tests/e2e/failed-payment/README.ru.md). |
 | Resilience (`tests/resilience/`) | **Готовы все четыре изначально запланированных сценария.** `duplicate-delivery`: один и тот же `event_id`, опубликованный дважды; доказывает, что Inbox у Billing реально останавливает второй от создания дублирующего Invoice — проверено вживую, что `billing-consumer` реально обработал обе доставки (у RabbitMQ нет понятия «уже видел это»), а не что гонка просто не дала второй доставке прийти. `outbox-recovery`: тест сам останавливает `billing-outbox` (через `docker compose stop`), создаёт Invoice, пока он не работает, затем доказывает, что пропущенная строка доходит до wire, как только он снова запущен. `rabbitmq-outage`: тест сам останавливает брокер; доказывает, что создание Subscription вообще не затрагивается (HTTP create-флоу никогда не резолвит `AMQPChannel`), затем доказывает, что и outbox relay, и консьюмер сами восстанавливают свои соединения, как только RabbitMQ вернулся — проверено вживую через настоящие ошибки `Connection refused` в логах обоих worker-ов, пока он был недоступен. `consumer-crash`: по-настоящему убивает `billing-consumer`, точно по времени благодаря небольшому, аддитивному, выключенному по умолчанию delay-хуку в `ConsumeBillingEventsCommand`, чтобы попасть точно между коммитом в БД и AMQP-ack, так что RabbitMQ реально передоставляет сообщение, а не симулирует дубликат — доказывает, что собственный guard Inbox у перезапущенного консьюмера останавливает создание второго Invoice. См. собственные README: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.ru.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.ru.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.ru.md), [consumer-crash](../../tests/resilience/consumer-crash/README.ru.md). |
@@ -344,13 +344,53 @@ wire-format payload (например, `aSubscriptionCreatedPayload()` в
 поведения (проверено вживую по каждому срезу; см. «Асинхронные
 проверки» ниже).
 
+`tests/component/subscription-service/` открыл уровень Component и
+исправил предположение, которое этот документ делал до того, как
+существовал хоть один Component-тест: «будет жить по сервисам,
+например `services/subscription-service/tests/Component/`». Так не
+получится — Component-тесту нужен реально поднятый HTTP-сервер (не
+in-process тестовое ядро Laravel, которое на самом деле и гоняет любой
+тест `tests/Feature/`) и реальный брокер, так что нужна ровно та же
+форма отдельного Docker Compose + Pest-проекта, что уже используют
+Service integration, E2E и Resilience — просто с контейнером одного
+сервиса вместо двух и более. `subscription-service` был очевидным
+первым кандидатом: это единственный сервис в основной цепочке
+платформы с *синхронными* исходящими HTTP-зависимостями
+(customer-service, catalog-service, оба вызываются до того, как
+`CreateSubscriptionHandler` вообще открывает транзакцию) вдобавок к
+обычным путям Outbox-publish и RabbitMQ-consume, которые есть у любого
+сервиса — богаче любого другого отдельного сервиса для тестирования в
+изоляции. Stub, заменяющий эти две зависимости, — это
+[WireMock](https://wiremock.org/), а не самописный скрипт: оба
+настоящих gateway (`HttpCustomerGateway`/`HttpCatalogGateway`) не
+делают ничего, кроме перевода простого lookup-по-id в DTO, так что
+декларативные JSON-маппинги WireMock выражают фикстуру напрямую, а
+`--global-response-templating` позволяет одному маппингу отвечать на
+*любой* запрошенный id, эхом возвращая его (`{{request.path.[3]}}`),
+вместо того чтобы тесту заранее знать каждый id — подтверждено прямым
+curl-ом запущенного контейнера, прежде чем довериться этому в тесте.
+Это же сделало тривиальным одно guard-условие, которое было бы
+неудобно устроить против настоящего customer-service: неизвестный
+customer — это просто второй, более приоритетный stub-маппинг для
+одного фиксированного sentinel-id, а не состояние, которое нужно где-то
+создать, а потом отсутствовать. Проверено вживую: `GET /__admin/requests`
+на контейнере WireMock показал настоящие HTTP-запросы от собственного
+контейнера `subscription-api` (`User-Agent: GuzzleHttp/8`), а не
+in-process fake, а весь сьют из трёх тестов прошёл меньше чем за две
+секунды — та самая экономия, которую ADR 0004 предсказывал для
+Component по сравнению с Service integration, за счёт необходимости
+всего в одном контейнере сервиса вместо двух и более.
+
 Что дальше, и ничто из этого не блокирует то, что уже есть:
 
 - `tests/e2e/overdue-subscription/` — заблокирован фичей
   recurring-billing, описанной выше; вне рамок этого тестового захода,
   пока эта фича не появится.
-- Уровень Component — всё ещё вообще не начат; см. его собственную
-  строку в таблице статуса выше.
+- Component-тесты для остальных шести сервисов — построен только
+  `subscription-service`; стоит проверить, реально ли другому сервису
+  пригодится такой тест (есть ли у него исходящие HTTP-зависимости или
+  guard-условия, стоящие изоляции, как у `subscription-service`), прежде
+  чем строить его умозрительно.
 
 ## Асинхронные проверки
 

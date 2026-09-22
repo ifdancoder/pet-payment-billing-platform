@@ -372,6 +372,13 @@ order:
    services — all 16 events in the
    [event catalog](docs/architecture/event-catalog.md) — has its own
    test proving it maps onto exactly the wire shape the catalog
-   documents, with a fresh `event_id` every time.
+   documents, with a fresh `event_id` every time. Plus the Component
+   layer's first slice,
+   [`subscription-service`](tests/component/subscription-service/):
+   one real service as its own live process — real HTTP server, real
+   Postgres, real RabbitMQ — with a WireMock stub standing in for its
+   two synchronous HTTP dependencies (customer-service,
+   catalog-service) instead of the real services, running the whole
+   suite in under two seconds.
 9. Security hardening.
 10. Load / failure testing.
