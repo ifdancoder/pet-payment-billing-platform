@@ -41,7 +41,7 @@ this file as slices get added, the same way
 | Contract | **Producer side done: all 16 events in the [event catalog](event-catalog.md).** One test per `IntegrationEvent` class, under each service's own `tests/Unit/Application/*/IntegrationEvents/` (no new top-level directory — Contract needs no DB, no RabbitMQ, no other services, so it fits the existing per-service Unit suites exactly as ADR 0004 predicted). Each asserts `fromDomainEvent()` (or, for `InvoicePaymentFailedIntegrationEvent`, `of()` — the one event built directly from a handler's inputs rather than a domain event) maps every field into the exact wire shape documented in the catalog, and that two events built from the same input still get distinct `event_id`s. Consumer side not separately built: every `Consume*Command`'s own Integration test already exercises this from a hand-built wire-format payload (e.g. `SubscriptionCreatedConsumerTest`'s `aSubscriptionCreatedPayload()`) — it also touches a real DB, so it's categorized as Integration, not Contract, but it's already covering the same question. |
 | E2E (`tests/e2e/`) | **Two scenarios done: `successful-subscription`, `failed-payment`.** Both use all seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts. `successful-subscription`: Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. `failed-payment`: same chain, but the Price's amount is `FakePaymentGateway`'s reserved decline-trigger value, so the charge is guaranteed to decline — proves the Invoice stays Open, the Payment ends up Failed with a real failure code, and the Subscription stays Pending rather than PastDue. See their own READMEs: [successful-subscription](../../tests/e2e/successful-subscription/README.md), [failed-payment](../../tests/e2e/failed-payment/README.md). |
 | Resilience (`tests/resilience/`) | **All four originally planned scenarios done.** `duplicate-delivery`: the same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. `outbox-recovery`: the test stops `billing-outbox` itself (via `docker compose stop`), creates an Invoice while it's down, then proves the missed row reaches the wire once it's running again. `rabbitmq-outage`: the test stops the broker itself; proves creating a Subscription isn't affected at all (the HTTP create flow never resolves `AMQPChannel`), then proves both the outbox relay and the consumer recover their own connections once RabbitMQ is back — verified live via genuine `Connection refused` errors in both workers' own logs while it was down. `consumer-crash`: kills `billing-consumer` for real, timed via a small, additive, off-by-default delay hook in `ConsumeBillingEventsCommand` to land precisely between its DB commit and its AMQP ack, so RabbitMQ genuinely redelivers the message rather than simulating a duplicate — proves the restarted consumer's own Inbox guard stops it from creating a second Invoice. See their own READMEs: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.md), [consumer-crash](../../tests/resilience/consumer-crash/README.md). |
-| `kind`-based platform smoke tests | Not built. Separate from all of the above — see ADR 0004, "Docker Compose for business tests, Kubernetes for platform tests." |
+| `kind`-based platform smoke tests | **Built: three tests against the live local cluster.** Ingress routing reaches all seven backends and rejects an unknown path through the gateway's explicit fallback; a real rolling restart of `billing-api` stays available while both pods are replaced; one successful-subscription business canary reaches Active and produces its receipt through the real Ingress, Services/DNS, Postgres and RabbitMQ. The rollout test found a genuine endpoint-removal/SIGTERM race and drove the five-second API `preStop` drain patch. See its own [README](../../tests/kind/README.md). |
 
 ## Building the next slice
 
@@ -384,6 +384,24 @@ one `Delivered 1 notification(s).` — only the happy-path test's
 notification, confirming the unknown-customer guard really did stop a
 second one from ever being created, not just that none showed up over
 HTTP.
+
+`tests/kind/` closes the separate Kubernetes platform-smoke track ADR
+0004 kept outside the business-test pyramid. It deliberately reuses the
+already-running local cluster rather than hiding provisioning inside
+Pest, then asks three bounded questions: do all seven public route
+families traverse the real ingress-nginx/gateway table, does a real
+two-replica `billing-api` rolling restart serve every request while its
+pods are replaced, and can one successful-subscription canary still
+cross the whole deployed system. The first live rollout run found a
+real bug: despite `maxUnavailable: 0` and a matching PDB, SIGTERM could
+reach a pod before Service endpoint removal had propagated, and a
+request routed into that window timed out. A five-second `preStop`
+drain on every API deployment closed the race; the full three-test suite
+then passed in under 18 seconds, and the rollout test passed
+independently again immediately afterward. See
+[`tests/kind/README.md`](../../tests/kind/README.md) for prerequisites,
+scope, and the exact reason NetworkPolicy/autoscaling are not claimed by
+the local kind suite.
 
 What's next, none of it blocking what exists today:
 

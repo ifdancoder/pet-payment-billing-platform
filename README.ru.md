@@ -74,9 +74,11 @@ pet-payment-billing-platform/
 │   └── adr/
 ├── scripts/
 ├── tests/
+│   ├── component/
 │   ├── integration/
 │   ├── e2e/
-│   └── resilience/
+│   ├── resilience/
+│   └── kind/
 ├── docker-compose.yaml
 └── Makefile
 ```
@@ -128,10 +130,15 @@ RabbitMQ.
 
 - `integration/` — 2-3 реальных сервиса через реальный RabbitMQ,
   каждый — свой Docker Compose стек + самостоятельный Pest-проект.
+- `component/` — один реальный сервис с WireMock вместо его исходящих
+  HTTP-зависимостей.
 - `e2e/` — полные бизнес-флоу через все сервисы, fake-провайдеры
   платежей/email.
 - `resilience/` — failure-сценарии (повторная доставка, падение
   консьюмера, недоступность брокера), не бизнес-сценарии.
+- `kind/` — platform smoke tests против живого Kubernetes deployment:
+  маршрутизация Ingress, rolling update без простоя и один
+  бизнес-canary.
 
 ## Принципы
 
@@ -393,6 +400,12 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    [`notification-service`](tests/component/notification-service/)
    (стабит только customer-service; ничего не публикует, так что этот
    тест проверяет только consume-сторону RabbitMQ и его delivery
-   worker).
+   worker). Отдельный platform-smoke сьют
+   [`tests/kind/`](tests/kind/) тоже готов: все семь маршрутов Ingress,
+   живой rolling restart `billing-api` без простоя и один canary
+   successful-subscription через развёрнутый кластер. Его rollout-тест
+   нашёл настоящий баг и привёл к исправлению гонки SIGTERM/Service
+   endpoint: каждый API pod теперь получает пятисекундное окно
+   `preStop` для отвода трафика перед завершением.
 9. Security hardening.
 10. Load / failure тестирование.
