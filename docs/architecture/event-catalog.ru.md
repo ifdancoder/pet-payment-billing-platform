@@ -17,14 +17,15 @@
 | Событие | Producer | Consumer(ы) |
 | --- | --- | --- |
 | `subscription.created.v1` | subscription-service | billing-service (`SubscriptionCreatedConsumer` → создаёт `Invoice`) |
-| `invoice.created.v1` | billing-service | payment-service (`InvoiceCreatedConsumer` → создаёт и обрабатывает `Payment`) |
+| `subscription.renewal_due.v1` | subscription-service | billing-service (`SubscriptionRenewalDueConsumer` → создаёт `Invoice` следующего billing-цикла) |
+| `invoice.created.v1` | billing-service | payment-service (`InvoiceCreatedConsumer` → создаёт и обрабатывает `Payment`; `billing_reason` отличает `subscription_create` от `subscription_cycle`) |
 | `payment.succeeded.v1` | payment-service | notification-service (`PaymentSucceededConsumer` → отправляет email-receipt); billing-service (`PaymentSucceededConsumer` → помечает `Invoice` как Paid, публикует `invoice.paid.v1`) |
 | `payment.failed.v1` | payment-service | billing-service (`PaymentFailedConsumer` → сам `Invoice` не меняется, остаётся Open в ожидании следующей попытки, но это republish-ит `invoice.payment_failed.v1`) |
 | `invoice.paid.v1` | billing-service | subscription-service (`InvoicePaidConsumer` → активирует `Subscription`, идемпотентно при каждом продлении, поскольку обычно уже Active ко второму платежу) |
 | `invoice.payment_failed.v1` | billing-service | subscription-service (`InvoicePaymentFailedConsumer` → помечает `Subscription` как PastDue, но только если была Active — самый первый неудачный платёж Pending-подписки остаётся Pending, не PastDue) |
 
-Это замыкает основную цепочку событий платформы end-to-end:
-Subscription → Billing → Payment → (Billing, Subscription,
+Это замыкает и начальную, и recurring цепочки событий платформы
+end-to-end: Subscription → Billing → Payment → (Billing, Subscription,
 Notification).
 
 `payment.succeeded.v1` / `payment.failed.v1` никогда не несут

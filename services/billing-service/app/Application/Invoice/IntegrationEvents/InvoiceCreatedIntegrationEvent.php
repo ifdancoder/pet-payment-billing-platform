@@ -22,6 +22,7 @@ final class InvoiceCreatedIntegrationEvent implements IntegrationEvent
         private readonly string $subscriptionId,
         private readonly int $amountMinorUnits,
         private readonly string $currency,
+        private readonly string $billingReason,
         private readonly DateTimeImmutable $occurredAt,
     ) {}
 
@@ -35,6 +36,7 @@ final class InvoiceCreatedIntegrationEvent implements IntegrationEvent
             $event->subscriptionId->toString(),
             $event->total->amountMinorUnits(),
             $event->total->currency()->value,
+            $event->renewal ? 'subscription_cycle' : 'subscription_create',
             $event->occurredAt,
         );
     }
@@ -76,6 +78,7 @@ final class InvoiceCreatedIntegrationEvent implements IntegrationEvent
             'subscription_id' => $this->subscriptionId,
             'amount_minor_units' => $this->amountMinorUnits,
             'currency' => $this->currency,
+            'billing_reason' => $this->billingReason,
         ];
     }
 }

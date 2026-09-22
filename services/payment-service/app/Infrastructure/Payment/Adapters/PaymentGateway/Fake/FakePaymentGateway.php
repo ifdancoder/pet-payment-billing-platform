@@ -15,11 +15,11 @@ use App\Application\Payment\Ports\Outbound\IPaymentGatewayPort;
 final class FakePaymentGateway implements IPaymentGatewayPort
 {
     /**
-     * ChargeRequest carries only an attempt id and an amount — there's
-     * no card/token field to simulate a decline with, and adding one
+     * The payment flow has no card/token field to simulate a decline
+     * with, and adding one
      * would mean threading a "how should this fail" concept through
      * Subscription and Billing too, just to reach a test-only gateway.
-     * The amount itself is already the one signal that travels
+     * The amount is already a signal that travels
      * unmodified from an E2E test's own `POST .../prices` call all the
      * way down to here, so it doubles as the trigger: a charge for
      * exactly this amount, in any currency, always declines. Chosen to
@@ -28,9 +28,18 @@ final class FakePaymentGateway implements IPaymentGatewayPort
      */
     public const int DECLINE_TRIGGER_AMOUNT_MINOR_UNITS = 66660000;
 
+    /**
+     * Succeeds for the first subscription Invoice, then declines its
+     * renewal Invoices. This lets a full E2E scenario prove Active ->
+     * PastDue without changing price snapshots or reaching into a DB.
+     */
+    public const int DECLINE_RENEWAL_TRIGGER_AMOUNT_MINOR_UNITS = 77770000;
+
     public function charge(ChargeRequest $request): ChargeResult
     {
-        if ($request->money->amountMinorUnits() === self::DECLINE_TRIGGER_AMOUNT_MINOR_UNITS) {
+        if ($request->money->amountMinorUnits() === self::DECLINE_TRIGGER_AMOUNT_MINOR_UNITS
+            || ($request->money->amountMinorUnits() === self::DECLINE_RENEWAL_TRIGGER_AMOUNT_MINOR_UNITS
+                && $request->billingReason === 'subscription_cycle')) {
             return ChargeResult::failed('card_declined');
         }
 

@@ -44,6 +44,7 @@ final class PaymentMapper
             $attempts,
             $model->paid_at?->toDateTimeImmutable(),
             $model->failed_at?->toDateTimeImmutable(),
+            $model->billing_reason,
         );
     }
 
@@ -57,6 +58,7 @@ final class PaymentMapper
         $model->customer_id = $payment->customerId()->toString();
         $model->amount_minor_units = $payment->money()->amountMinorUnits();
         $model->currency = $payment->money()->currency()->value;
+        $model->billing_reason = $payment->billingReason();
         $model->status = $payment->status()->value;
         $model->paid_at = $payment->paidAt();
         $model->failed_at = $payment->failedAt();

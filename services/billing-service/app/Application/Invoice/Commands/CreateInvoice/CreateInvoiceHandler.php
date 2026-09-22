@@ -74,6 +74,7 @@ final class CreateInvoiceHandler
                 $subscriptionId,
                 BillingPeriod::of($periodStart, $periodEnd),
                 [$line],
+                $command->renewal,
             );
 
             try {

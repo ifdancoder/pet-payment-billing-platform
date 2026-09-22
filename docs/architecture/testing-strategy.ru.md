@@ -40,8 +40,8 @@
 | Уровень | Статус |
 | --- | --- |
 | Component | **Готовы два среза: `subscription-service`, `notification-service`.** Каждый — один реальный сервис, собственный живой HTTP-сервер, реальный Postgres, реальный RabbitMQ, и WireMock-stub, заменяющий его синхронные HTTP-зависимости вместо настоящих сервисов — `subscription-service` стабит customer-service и catalog-service; `notification-service` стабит только customer-service и, в отличие от `subscription-service`, ничего не публикует, так что его срез проверяет только consume-сторону RabbitMQ и его delivery worker. Живёт в `tests/component/<service>/`, не по сервисам — более раннее предположение, что он будет жить внутри собственного `tests/Component/` каждого сервиса, оказалось неверным, как только это реально построили: Component нужен реально поднятый HTTP-сервер и реальный брокер, которые in-process прогон Laravel-тестов дать не может, так что нужна та же форма отдельного Docker Compose + Pest-проекта, что у Service integration/E2E/Resilience. См. собственные README: [subscription-service](../../tests/component/subscription-service/README.ru.md), [notification-service](../../tests/component/notification-service/README.ru.md). |
-| Contract | **Producer-сторона готова: все 16 событий из [каталога событий](event-catalog.ru.md).** Один тест на класс `IntegrationEvent`, в собственном `tests/Unit/Application/*/IntegrationEvents/` каждого сервиса (без нового top-level каталога — Contract не нужна ни БД, ни RabbitMQ, ни другие сервисы, так что он ровно вписывается в уже существующие per-service Unit-сьюты, как и предсказывал ADR 0004). Каждый проверяет, что `fromDomainEvent()` (или, для `InvoicePaymentFailedIntegrationEvent`, `of()` — единственного события, построенного прямо из входов handler-а, а не из доменного события) переносит каждое поле в точный wire-формат, задокументированный в каталоге, и что два события, построенные из одного и того же входа, всё равно получают разные `event_id`. Consumer-сторона отдельно не построена: собственный Integration-тест каждого `Consume*Command` уже задаёт тот же вопрос через вручную построенный wire-format payload (например, `aSubscriptionCreatedPayload()` в `SubscriptionCreatedConsumerTest`) — он также затрагивает настоящую БД, поэтому категоризирован как Integration, а не Contract, но по сути уже покрывает тот же вопрос. |
-| E2E (`tests/e2e/`) | **Готовы два сценария: `successful-subscription`, `failed-payment`.** Оба используют все семь сервисов, реальный Postgres, реальный RabbitMQ, нигде никаких трюков с прямой публикацией. `successful-subscription`: Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, полностью пройдено через реальный HTTP. `failed-payment`: та же цепочка, но сумма Price — зарезервированное decline-триггер значение `FakePaymentGateway`, так что списание гарантированно отклоняется — доказывает, что Invoice остаётся Open, Payment становится Failed с настоящим кодом отказа, а Subscription остаётся Pending, а не PastDue. См. собственные README: [successful-subscription](../../tests/e2e/successful-subscription/README.ru.md), [failed-payment](../../tests/e2e/failed-payment/README.ru.md). |
+| Contract | **Producer-сторона готова: все 17 событий из [каталога событий](event-catalog.ru.md).** Один тест на класс `IntegrationEvent` проверяет точный задокументированный wire-формат и новый `event_id`; consumer-side покрытие остаётся в Integration-тестах каждого `Consume*Command`. |
+| E2E (`tests/e2e/`) | **Готовы все три запланированных сценария: `successful-subscription`, `failed-payment`, `overdue-subscription`.** Все используют семь реальных сервисов, Postgres и RabbitMQ без прямой публикации. Первый доказывает golden path до Active + receipt; второй — что самый первый decline оставляет Pending, а не PastDue; третий сначала доходит до Active через успешный начальный платёж, вызывает production scheduler продления для следующего цикла, затем доказывает, что decline renewal оставляет второй Invoice Open и переводит Subscription в PastDue. См. собственные README: [successful-subscription](../../tests/e2e/successful-subscription/README.ru.md), [failed-payment](../../tests/e2e/failed-payment/README.ru.md), [overdue-subscription](../../tests/e2e/overdue-subscription/README.ru.md). |
 | Resilience (`tests/resilience/`) | **Готовы все четыре изначально запланированных сценария.** `duplicate-delivery`: один и тот же `event_id`, опубликованный дважды; доказывает, что Inbox у Billing реально останавливает второй от создания дублирующего Invoice — проверено вживую, что `billing-consumer` реально обработал обе доставки (у RabbitMQ нет понятия «уже видел это»), а не что гонка просто не дала второй доставке прийти. `outbox-recovery`: тест сам останавливает `billing-outbox` (через `docker compose stop`), создаёт Invoice, пока он не работает, затем доказывает, что пропущенная строка доходит до wire, как только он снова запущен. `rabbitmq-outage`: тест сам останавливает брокер; доказывает, что создание Subscription вообще не затрагивается (HTTP create-флоу никогда не резолвит `AMQPChannel`), затем доказывает, что и outbox relay, и консьюмер сами восстанавливают свои соединения, как только RabbitMQ вернулся — проверено вживую через настоящие ошибки `Connection refused` в логах обоих worker-ов, пока он был недоступен. `consumer-crash`: по-настоящему убивает `billing-consumer`, точно по времени благодаря небольшому, аддитивному, выключенному по умолчанию delay-хуку в `ConsumeBillingEventsCommand`, чтобы попасть точно между коммитом в БД и AMQP-ack, так что RabbitMQ реально передоставляет сообщение, а не симулирует дубликат — доказывает, что собственный guard Inbox у перезапущенного консьюмера останавливает создание второго Invoice. См. собственные README: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.ru.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.ru.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.ru.md), [consumer-crash](../../tests/resilience/consumer-crash/README.ru.md). |
 | `kind`-based platform smoke tests | **Построено: три теста против живого local-кластера.** Ingress-маршрутизация достигает всех семи backend-ов и отклоняет неизвестный путь через явный fallback gateway; настоящий rolling restart `billing-api` остаётся доступным, пока заменяются оба pod-а; один бизнес-canary successful-subscription доходит до Active и создаёт receipt через настоящие Ingress, Services/DNS, Postgres и RabbitMQ. Rollout-тест нашёл настоящую гонку между удалением endpoint и SIGTERM и привёл к пятисекундному API `preStop` drain patch. См. собственный [README](../../tests/kind/README.ru.md). |
 
@@ -291,31 +291,36 @@ decline оставляет Invoice Open, Payment Failed, а Subscription Pending
 обработал **0** — прямое подтверждение, что он ничего не увидел, а не
 просто что ничего не появилось через HTTP.
 
-`tests/e2e/overdue-subscription/` оказался завязан на настоящую
-production-фичу, которой у платформы пока нет — scheduled job, который
-создаёт Invoice *следующего* billing-цикла для Active-подписки,
-прошедшей конец своего периода. `CreateInvoiceHandler` срабатывает
-только один раз, на `subscription.created.v1`; механизма засеять
-второй цикл нет, так что сценарий нельзя построить одним лишь тестом.
-Построить такую фичу — это настоящая работа над domain/application
-кодом, а не тестовой инфраструктурой, поэтому она осознанно отложена, а
-не втиснута в этот заход — переход Active → PastDue, который она бы
-проверяла, и так уже полностью покрыт вторым тестом
-`tests/integration/billing-to-subscription/` (доводит подписку до
-Active через напрямую опубликованный `invoice.paid.v1`, затем проваливает
-её).
+`tests/e2e/overdue-subscription/` затем закрыл feature gap, который сам
+изначально обнаружил. Subscription теперь владеет сохранёнными границами
+текущего периода и guard-ом `renewal_pending`; транзакционная команда
+`subscriptions:renew` блокирует ограниченный batch Active-подписок с
+истёкшим периодом, продвигает один период и пишет
+`subscription.renewal_due.v1` в Outbox. Billing превращает его в Invoice
+следующего цикла, а Kubernetes запускает команду каждую минуту из CronJob
+с `concurrencyPolicy: Forbid`. `invoice.created.v1` получил полезное и
+в production различие `billing_reason`
+(`subscription_create`/`subscription_cycle`), доходящее до Payment;
+fake-провайдер резервирует вторую сумму, которая успешна сначала и
+отклоняет только renewals. Благодаря этому E2E честно доказывает:
+начальный платёж успешен → Active → scheduler ставит следующий цикл →
+renewal-платёж падает → второй Invoice остаётся Open → Subscription
+становится PastDue. Финальный прогон на пересобранных образах: 176
+assertions за 12,27 секунды; второй вызов scheduler далеко в будущем
+поставил ноль задач, доказывая, что
+PastDue не может открыть третий цикл.
 
 Пока ветки E2E и Resilience обе на естественной паузе, producer-сторона
 уровня Contract закрыла пробел, который ADR 0004 отмечал с самого
-начала: каждый класс `IntegrationEvent` платформы — все 16 событий из
+начала: каждый класс `IntegrationEvent` платформы — все 17 событий из
 [каталога событий](event-catalog.ru.md), а не только 6 из основной
 проводной цепочки платформы — теперь имеет собственный тест,
 проверяющий, что `fromDomainEvent()` переносит каждое поле ровно в тот
 wire-формат, что задокументирован в каталоге, и что два события,
 построенные из одного и того же входа, всё равно получают разные
 `event_id` (redelivery/retry никогда не должен незаметно схлопнуть две
-попытки в одну). Десять из шестнадцати были новыми в этом срезе
-(четыре события subscription-service, четыре billing-service, два
+попытки в одну). Одиннадцать из семнадцати были новыми в этих срезах
+(пять событий subscription-service, четыре billing-service, два
 payment-service); у catalog-service и customer-service остальные шесть
 уже были, сами того не зная следуя той же самой форме — доказательство,
 что паттерн был здравым ещё до того, как получил имя.
@@ -432,9 +437,6 @@ ingress-nginx/gateway, обслуживает ли настоящий двухр
 
 Что дальше, и ничто из этого не блокирует то, что уже есть:
 
-- `tests/e2e/overdue-subscription/` — заблокирован фичей
-  recurring-billing, описанной выше; вне рамок этого тестового захода,
-  пока эта фича не появится.
 - Component-тесты для остальных пяти сервисов — ни у одного из них нет
   исходящей HTTP-зависимости или guard-условия, которому пригодилась бы
   изоляция так же, как `subscription-service` и `notification-service`,
@@ -461,13 +463,13 @@ ingress-nginx/gateway, обслуживает ли настоящий двухр
 попасть на живой платёжный процессинг или отправить настоящий email:
 для этого просто нет пути в коде.
 
-`FakePaymentGateway::charge()` возвращает успех для любой суммы, кроме
-одной: `FakePaymentGateway::DECLINE_TRIGGER_AMOUNT_MINOR_UNITS`
-(`66660000` minor units, любая валюта) всегда отклоняется с
-`card_declined`. Именно этот единственный детерминированный триггер, а
-не поле карты/токена, и задействует со стороны теста
-`tests/e2e/failed-payment/` — см. собственный README этого сценария и
-«Следующий срез» выше, почему триггером служит сумма, а не новое поле,
-протащенное через три сервиса. `FakeEmailSender::send()` по-прежнему
-всегда безусловно возвращает успех — пока ни одному тесту не нужно,
-чтобы он провалился, и ничто сейчас этого не требует.
+У `FakePaymentGateway::charge()` есть два детерминированных триггера по
+сумме. `DECLINE_TRIGGER_AMOUNT_MINOR_UNITS` (`66660000`, любая валюта)
+всегда отклоняется с `card_declined`;
+`DECLINE_RENEWAL_TRIGGER_AMOUNT_MINOR_UNITS` (`77770000`) успешен для
+`subscription_create` и отклоняется только для `subscription_cycle`.
+Первый задействует `tests/e2e/failed-payment/`, второй позволяет
+`tests/e2e/overdue-subscription/` сначала активировать подписку, а затем
+провалить её renewal без test-only API. `FakeEmailSender::send()`
+по-прежнему всегда безусловно возвращает успех — пока ни одному тесту не
+нужно, чтобы он провалился, и ничто сейчас этого не требует.

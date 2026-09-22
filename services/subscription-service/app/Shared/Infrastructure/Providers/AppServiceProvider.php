@@ -13,6 +13,7 @@ use App\Shared\Infrastructure\Persistence\Eloquent\Outbox\EloquentOutbox;
 use App\Shared\Infrastructure\Transaction\LaravelTransactionManager;
 use App\Shared\Presentation\Console\ConsumeSubscriptionEventsCommand;
 use App\Shared\Presentation\Console\PublishOutboxMessagesCommand;
+use App\Shared\Presentation\Console\RenewSubscriptionsCommand;
 use Illuminate\Support\ServiceProvider;
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
@@ -60,6 +61,7 @@ class AppServiceProvider extends ServiceProvider
             $this->commands([
                 PublishOutboxMessagesCommand::class,
                 ConsumeSubscriptionEventsCommand::class,
+                RenewSubscriptionsCommand::class,
             ]);
         }
     }

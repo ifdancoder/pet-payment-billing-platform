@@ -46,7 +46,20 @@ final class DockerCompose
         $this->run("kill -s {$signal} {$service}");
     }
 
-    private function run(string $args): void
+    /**
+     * Runs an operational command in an already-running service without
+     * going around its container boundary (used by scheduler smoke tests).
+     *
+     * @param  list<string>  $command
+     */
+    public function exec(string $service, array $command): string
+    {
+        $args = 'exec -T '.escapeshellarg($service).' '.implode(' ', array_map(escapeshellarg(...), $command));
+
+        return $this->run($args);
+    }
+
+    private function run(string $args): string
     {
         $command = 'cd '.escapeshellarg($this->projectRoot).' && docker compose '.$args.' 2>&1';
 
@@ -57,5 +70,7 @@ final class DockerCompose
                 "`docker compose {$args}` failed (exit {$exitCode}):\n".implode("\n", $output)
             );
         }
+
+        return implode("\n", $output);
     }
 }

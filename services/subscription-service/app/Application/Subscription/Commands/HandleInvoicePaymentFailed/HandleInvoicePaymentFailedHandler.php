@@ -7,7 +7,6 @@ use App\Application\Subscription\Ports\Outbound\ISubscriptionRepositoryPort;
 use App\Domain\Subscription\Events\SubscriptionMarkedPastDue;
 use App\Domain\Subscription\Subscription;
 use App\Domain\Subscription\ValueObjects\SubscriptionId;
-use App\Domain\Subscription\ValueObjects\SubscriptionStatus;
 use App\Shared\Application\Ports\Outbound\IInboxPort;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
@@ -49,9 +48,7 @@ final class HandleInvoicePaymentFailedHandler
                 MerchantId::fromString($command->merchantId),
             );
 
-            if ($subscription->status() === SubscriptionStatus::Active) {
-                $subscription->markPastDue();
-            }
+            $subscription->invoicePaymentFailed();
 
             $this->repository->save($subscription);
             $this->recordIntegrationEvents($subscription);

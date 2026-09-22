@@ -34,6 +34,7 @@ final class InvoiceCreatedConsumer
             $payload['customer_id'],
             $payload['amount_minor_units'],
             $payload['currency'],
+            $payload['billing_reason'] ?? 'subscription_create',
         ));
 
         // null means this exact event was already processed — nothing

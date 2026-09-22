@@ -16,5 +16,6 @@ final readonly class ChargeRequest
          */
         public PaymentAttemptId $attemptId,
         public Money $money,
+        public string $billingReason = 'subscription_create',
     ) {}
 }

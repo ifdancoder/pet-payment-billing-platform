@@ -1,0 +1,33 @@
+{
+    "name": "billing-platform/e2e-overdue-subscription",
+    "description": "End-to-end test: an initially paid Active subscription reaches its next billing cycle, that renewal charge fails, and the subscription becomes PastDue through the real event chain.",
+    "type": "project",
+    "repositories": [
+        {"type": "path", "url": "../../support"}
+    ],
+    "require": {
+        "php": "^8.3",
+        "billing-platform/test-support": "@dev",
+        "guzzlehttp/guzzle": "^7.9",
+        "ramsey/uuid": "^4.7"
+    },
+    "require-dev": {
+        "pestphp/pest": "^5.2"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "pest"
+    }
+}

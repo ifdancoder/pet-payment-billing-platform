@@ -35,6 +35,7 @@ final class Payment
         private readonly MerchantId $merchantId,
         private readonly CustomerId $customerId,
         private readonly Money $money,
+        private readonly string $billingReason,
         private PaymentStatus $status,
         array $attempts,
         private ?DateTimeImmutable $paidAt = null,
@@ -43,9 +44,9 @@ final class Payment
         $this->attempts = $attempts;
     }
 
-    public static function create(PaymentId $id, InvoiceId $invoiceId, MerchantId $merchantId, CustomerId $customerId, Money $money): self
+    public static function create(PaymentId $id, InvoiceId $invoiceId, MerchantId $merchantId, CustomerId $customerId, Money $money, string $billingReason = 'subscription_create'): self
     {
-        $payment = new self($id, $invoiceId, $merchantId, $customerId, $money, PaymentStatus::Pending, []);
+        $payment = new self($id, $invoiceId, $merchantId, $customerId, $money, $billingReason, PaymentStatus::Pending, []);
         $payment->recordEvent(new PaymentCreated($id, $invoiceId, $merchantId, $customerId, $money));
 
         return $payment;
@@ -67,8 +68,9 @@ final class Payment
         array $attempts,
         ?DateTimeImmutable $paidAt,
         ?DateTimeImmutable $failedAt,
+        string $billingReason = 'subscription_create',
     ): self {
-        return new self($id, $invoiceId, $merchantId, $customerId, $money, $status, $attempts, $paidAt, $failedAt);
+        return new self($id, $invoiceId, $merchantId, $customerId, $money, $billingReason, $status, $attempts, $paidAt, $failedAt);
     }
 
     public function id(): PaymentId
@@ -99,6 +101,11 @@ final class Payment
     public function status(): PaymentStatus
     {
         return $this->status;
+    }
+
+    public function billingReason(): string
+    {
+        return $this->billingReason;
     }
 
     /**

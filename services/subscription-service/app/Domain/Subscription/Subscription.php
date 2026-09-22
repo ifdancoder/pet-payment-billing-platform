@@ -6,12 +6,14 @@ use App\Domain\Subscription\Events\SubscriptionActivated;
 use App\Domain\Subscription\Events\SubscriptionCanceled;
 use App\Domain\Subscription\Events\SubscriptionCreated;
 use App\Domain\Subscription\Events\SubscriptionMarkedPastDue;
+use App\Domain\Subscription\Events\SubscriptionRenewalDue;
 use App\Domain\Subscription\Exceptions\InvalidSubscriptionTransition;
 use App\Domain\Subscription\ValueObjects\CustomerId;
 use App\Domain\Subscription\ValueObjects\PriceSnapshot;
 use App\Domain\Subscription\ValueObjects\SubscriptionId;
 use App\Domain\Subscription\ValueObjects\SubscriptionStatus;
 use App\Shared\Domain\ValueObjects\MerchantId;
+use DateTimeImmutable;
 
 final class Subscription
 {
@@ -24,12 +26,30 @@ final class Subscription
         private readonly CustomerId $customerId,
         private readonly PriceSnapshot $priceSnapshot,
         private SubscriptionStatus $status,
+        private DateTimeImmutable $currentPeriodStart,
+        private DateTimeImmutable $currentPeriodEnd,
+        private bool $renewalPending,
     ) {}
 
-    public static function create(SubscriptionId $id, MerchantId $merchantId, CustomerId $customerId, PriceSnapshot $priceSnapshot): self
-    {
-        $subscription = new self($id, $merchantId, $customerId, $priceSnapshot, SubscriptionStatus::Pending);
-        $subscription->recordEvent(new SubscriptionCreated($id, $merchantId, $customerId, $priceSnapshot));
+    public static function create(
+        SubscriptionId $id,
+        MerchantId $merchantId,
+        CustomerId $customerId,
+        PriceSnapshot $priceSnapshot,
+        ?DateTimeImmutable $periodStart = null,
+    ): self {
+        $periodStart ??= new DateTimeImmutable;
+        $subscription = new self(
+            $id,
+            $merchantId,
+            $customerId,
+            $priceSnapshot,
+            SubscriptionStatus::Pending,
+            $periodStart,
+            self::nextPeriodEnd($periodStart, $priceSnapshot),
+            true,
+        );
+        $subscription->recordEvent(new SubscriptionCreated($id, $merchantId, $customerId, $priceSnapshot, $periodStart));
 
         return $subscription;
     }
@@ -44,8 +64,22 @@ final class Subscription
         CustomerId $customerId,
         PriceSnapshot $priceSnapshot,
         SubscriptionStatus $status,
+        ?DateTimeImmutable $currentPeriodStart = null,
+        ?DateTimeImmutable $currentPeriodEnd = null,
+        ?bool $renewalPending = null,
     ): self {
-        return new self($id, $merchantId, $customerId, $priceSnapshot, $status);
+        $currentPeriodStart ??= new DateTimeImmutable;
+
+        return new self(
+            $id,
+            $merchantId,
+            $customerId,
+            $priceSnapshot,
+            $status,
+            $currentPeriodStart,
+            $currentPeriodEnd ?? self::nextPeriodEnd($currentPeriodStart, $priceSnapshot),
+            $renewalPending ?? $status === SubscriptionStatus::Pending,
+        );
     }
 
     public function id(): SubscriptionId
@@ -71,6 +105,75 @@ final class Subscription
     public function status(): SubscriptionStatus
     {
         return $this->status;
+    }
+
+    public function currentPeriodStart(): DateTimeImmutable
+    {
+        return $this->currentPeriodStart;
+    }
+
+    public function currentPeriodEnd(): DateTimeImmutable
+    {
+        return $this->currentPeriodEnd;
+    }
+
+    public function renewalPending(): bool
+    {
+        return $this->renewalPending;
+    }
+
+    /**
+     * Applies the successful result of either the initial Invoice or a
+     * renewal Invoice. The latter normally keeps Active -> Active, but
+     * still has to release the pending-cycle guard.
+     */
+    public function invoicePaid(): void
+    {
+        $this->activate();
+        $this->renewalPending = false;
+    }
+
+    /**
+     * A failed first payment leaves Pending where it is; a failed
+     * renewal moves Active to PastDue. Either way, the billing attempt
+     * represented by renewalPending has reached an outcome.
+     */
+    public function invoicePaymentFailed(): void
+    {
+        if ($this->status === SubscriptionStatus::Active) {
+            $this->markPastDue();
+        }
+
+        $this->renewalPending = false;
+    }
+
+    /**
+     * Advances exactly one billing period and records the request that
+     * Billing should invoice it. The pending guard prevents a second
+     * scheduler run from creating another cycle before this one has a
+     * payment outcome.
+     */
+    public function renew(DateTimeImmutable $asOf): void
+    {
+        if ($this->status !== SubscriptionStatus::Active
+            || $this->renewalPending
+            || $this->currentPeriodEnd > $asOf) {
+            return;
+        }
+
+        $periodStart = $this->currentPeriodEnd;
+        $periodEnd = self::nextPeriodEnd($periodStart, $this->priceSnapshot);
+
+        $this->currentPeriodStart = $periodStart;
+        $this->currentPeriodEnd = $periodEnd;
+        $this->renewalPending = true;
+        $this->recordEvent(new SubscriptionRenewalDue(
+            $this->id,
+            $this->merchantId,
+            $this->customerId,
+            $this->priceSnapshot,
+            $periodStart,
+        ));
     }
 
     /**
@@ -146,5 +249,13 @@ final class Subscription
     private function recordEvent(object $event): void
     {
         $this->recordedEvents[] = $event;
+    }
+
+    private static function nextPeriodEnd(DateTimeImmutable $start, PriceSnapshot $snapshot): DateTimeImmutable
+    {
+        $period = $snapshot->billingPeriod();
+        $count = $period->count();
+
+        return $start->modify("+{$count} {$period->interval()->label()}");
     }
 }

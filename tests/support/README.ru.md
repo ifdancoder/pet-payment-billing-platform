@@ -35,7 +35,11 @@
   `kill(service, signal)` добавлен для
   [`tests/resilience/consumer-crash/`](../resilience/consumer-crash/) —
   первого теста, которому понадобился настоящий `SIGKILL`, а не
-  graceful stop/start.
+  graceful stop/start. `exec(service, command)` запускает операционную
+  CLI-команду внутри уже работающего контейнера сервиса; E2E
+  overdue-subscription использует его, чтобы вызвать ту же renewal-
+  команду, которую запускает Kubernetes CronJob, с будущим временем
+  `--as-of`.
 
 ## Использование в Pest-проекте
 

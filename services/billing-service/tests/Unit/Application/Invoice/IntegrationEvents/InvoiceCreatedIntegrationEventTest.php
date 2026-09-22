@@ -41,7 +41,24 @@ test('fromDomainEvent maps every field and generates a fresh event id', function
             'subscription_id' => $subscriptionId->toString(),
             'amount_minor_units' => 1999,
             'currency' => 'USD',
+            'billing_reason' => 'subscription_create',
         ]);
+});
+
+test('fromDomainEvent marks renewal invoices as subscription cycles', function () {
+    $event = new InvoiceCreated(
+        InvoiceId::generate(),
+        MerchantId::generate(),
+        CustomerId::generate(),
+        SubscriptionId::generate(),
+        BillingPeriod::of(new DateTimeImmutable('2026-10-01T00:00:00+00:00'), new DateTimeImmutable('2026-11-01T00:00:00+00:00')),
+        Money::of(1999, Currency::USD),
+        Money::of(1999, Currency::USD),
+        true,
+    );
+
+    expect(InvoiceCreatedIntegrationEvent::fromDomainEvent($event)->payload()['billing_reason'])
+        ->toBe('subscription_cycle');
 });
 
 test('two integration events built from the same domain event get different event ids', function () {

@@ -19,15 +19,12 @@ fake-провайдерами платежей/email вместо настоящ
   провайдера, а Subscription — так и не дошедший до Active — остаётся
   Pending, а не PastDue.
 
-Ещё не построено: `overdue-subscription` — заблокирован настоящей
-production-фичей, которой у платформы нет, а не тестовой
-инфраструктурой: нет scheduled job, создающего Invoice *второго*
-billing-цикла для Active-подписки, так что нет способа дойти до
-состояния «была Active, теперь просрочена», чтобы его протестировать.
-Переход в PastDue, который она бы проверяла, и так уже полностью
-покрыт вторым тестом
-[`tests/integration/billing-to-subscription/`](../integration/billing-to-subscription/).
-См. «Следующий срез» в документе стратегии тестирования.
+- [`overdue-subscription/`](overdue-subscription/) — готово вместе с
+  production-фичей recurring billing, которая была ему нужна. Начальный
+  Invoice по-настоящему оплачивается, Subscription становится Active;
+  затем scheduler создаёт Invoice следующего цикла, его renewal-only
+  fake-списание отклоняется, и настоящая цепочка Payment → Billing →
+  Subscription переводит её в PastDue. См. собственный README.
 
 Не путать с отдельными `kind`-based Kubernetes platform smoke tests
 (инфраструктурные вопросы: роутит ли Ingress, остаётся ли доступным

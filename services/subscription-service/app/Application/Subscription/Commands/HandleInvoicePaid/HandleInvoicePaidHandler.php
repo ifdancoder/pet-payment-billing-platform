@@ -50,7 +50,7 @@ final class HandleInvoicePaidHandler
             );
 
             if ($subscription->status() !== SubscriptionStatus::Canceled) {
-                $subscription->activate();
+                $subscription->invoicePaid();
             }
 
             $this->repository->save($subscription);

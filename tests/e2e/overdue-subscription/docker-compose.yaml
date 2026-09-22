@@ -1,0 +1,7 @@
+name: billing-platform-e2e-overdue-subscription
+
+# Reuses the exact seven-service topology of successful-subscription;
+# this scenario differs only in its data and in invoking the production
+# renewal scheduler command after the first cycle is paid.
+include:
+  - path: ../successful-subscription/docker-compose.yaml

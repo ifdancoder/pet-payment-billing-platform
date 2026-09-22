@@ -56,6 +56,7 @@ final class Invoice
         SubscriptionId $subscriptionId,
         BillingPeriod $period,
         array $lines,
+        bool $renewal = false,
     ): self {
         if ($lines === []) {
             throw InvalidInvoice::mustHaveAtLeastOneLine();
@@ -69,7 +70,7 @@ final class Invoice
         $total = $subtotal;
 
         $invoice = new self($id, $merchantId, $customerId, $subscriptionId, $period, $lines, $subtotal, $total, InvoiceStatus::Open);
-        $invoice->recordEvent(new InvoiceCreated($id, $merchantId, $customerId, $subscriptionId, $period, $subtotal, $total));
+        $invoice->recordEvent(new InvoiceCreated($id, $merchantId, $customerId, $subscriptionId, $period, $subtotal, $total, $renewal));
 
         return $invoice;
     }

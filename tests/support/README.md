@@ -30,7 +30,10 @@ any service's own `vendor/`. See
   moment). `kill(service, signal)` was added for
   [`tests/resilience/consumer-crash/`](../resilience/consumer-crash/),
   the first test needing a real `SIGKILL` rather than a graceful
-  stop/start.
+  stop/start. `exec(service, command)` runs an operational CLI command
+  inside an already-running service container; the overdue-subscription
+  E2E uses it to trigger the same renewal command Kubernetes runs from
+  its CronJob, with a future `--as-of` clock.
 
 ## Using it in a Pest project
 

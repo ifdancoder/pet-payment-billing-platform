@@ -38,8 +38,8 @@ this file as slices get added, the same way
 | Layer | Status |
 | --- | --- |
 | Component | **Two slices done: `subscription-service`, `notification-service`.** Each is one real service, its own live HTTP server, real Postgres, real RabbitMQ, and a WireMock stub standing in for its synchronous HTTP dependencies rather than the real services — `subscription-service` stubs customer-service and catalog-service; `notification-service` stubs customer-service alone and, unlike `subscription-service`, publishes nothing, so its slice only exercises the RabbitMQ consume side and its delivery worker. Lives in `tests/component/<service>/`, not per-service — the earlier guess that it would live inside each service's own `tests/Component/` turned out wrong once actually built: Component needs a real booted HTTP server and a real broker, which an in-process Laravel test run can't provide, so it needs the same standalone Docker Compose + Pest project shape as Service integration/E2E/Resilience. See their own READMEs: [subscription-service](../../tests/component/subscription-service/README.md), [notification-service](../../tests/component/notification-service/README.md). |
-| Contract | **Producer side done: all 16 events in the [event catalog](event-catalog.md).** One test per `IntegrationEvent` class, under each service's own `tests/Unit/Application/*/IntegrationEvents/` (no new top-level directory — Contract needs no DB, no RabbitMQ, no other services, so it fits the existing per-service Unit suites exactly as ADR 0004 predicted). Each asserts `fromDomainEvent()` (or, for `InvoicePaymentFailedIntegrationEvent`, `of()` — the one event built directly from a handler's inputs rather than a domain event) maps every field into the exact wire shape documented in the catalog, and that two events built from the same input still get distinct `event_id`s. Consumer side not separately built: every `Consume*Command`'s own Integration test already exercises this from a hand-built wire-format payload (e.g. `SubscriptionCreatedConsumerTest`'s `aSubscriptionCreatedPayload()`) — it also touches a real DB, so it's categorized as Integration, not Contract, but it's already covering the same question. |
-| E2E (`tests/e2e/`) | **Two scenarios done: `successful-subscription`, `failed-payment`.** Both use all seven services, real Postgres, real RabbitMQ, no direct-publish shortcuts. `successful-subscription`: Merchant → Customer → Product/Price → Subscription → Invoice → Payment → Subscription Active → Notification, walked entirely through real HTTP. `failed-payment`: same chain, but the Price's amount is `FakePaymentGateway`'s reserved decline-trigger value, so the charge is guaranteed to decline — proves the Invoice stays Open, the Payment ends up Failed with a real failure code, and the Subscription stays Pending rather than PastDue. See their own READMEs: [successful-subscription](../../tests/e2e/successful-subscription/README.md), [failed-payment](../../tests/e2e/failed-payment/README.md). |
+| Contract | **Producer side done: all 17 events in the [event catalog](event-catalog.md).** One test per `IntegrationEvent` class asserts its exact documented wire shape and a fresh `event_id`; consumer-side coverage remains in each `Consume*Command` Integration test. |
+| E2E (`tests/e2e/`) | **All three planned scenarios done: `successful-subscription`, `failed-payment`, `overdue-subscription`.** All use seven real services, Postgres and RabbitMQ with no direct-publish shortcuts. The first proves the golden path to Active + receipt; the second proves a first-ever decline leaves Pending rather than PastDue; the third first reaches Active through a successful initial payment, invokes the production renewal scheduler for the next cycle, then proves a declined renewal leaves its second Invoice Open and moves the Subscription to PastDue. See their own READMEs: [successful-subscription](../../tests/e2e/successful-subscription/README.md), [failed-payment](../../tests/e2e/failed-payment/README.md), [overdue-subscription](../../tests/e2e/overdue-subscription/README.md). |
 | Resilience (`tests/resilience/`) | **All four originally planned scenarios done.** `duplicate-delivery`: the same `event_id` published twice; proves Billing's Inbox actually stops the second one from creating a duplicate Invoice — verified live that `billing-consumer` genuinely processed both deliveries (RabbitMQ has no concept of "already seen this"), not that a race meant the second one never arrived. `outbox-recovery`: the test stops `billing-outbox` itself (via `docker compose stop`), creates an Invoice while it's down, then proves the missed row reaches the wire once it's running again. `rabbitmq-outage`: the test stops the broker itself; proves creating a Subscription isn't affected at all (the HTTP create flow never resolves `AMQPChannel`), then proves both the outbox relay and the consumer recover their own connections once RabbitMQ is back — verified live via genuine `Connection refused` errors in both workers' own logs while it was down. `consumer-crash`: kills `billing-consumer` for real, timed via a small, additive, off-by-default delay hook in `ConsumeBillingEventsCommand` to land precisely between its DB commit and its AMQP ack, so RabbitMQ genuinely redelivers the message rather than simulating a duplicate — proves the restarted consumer's own Inbox guard stops it from creating a second Invoice. See their own READMEs: [duplicate-delivery](../../tests/resilience/duplicate-delivery/README.md), [outbox-recovery](../../tests/resilience/outbox-recovery/README.md), [rabbitmq-outage](../../tests/resilience/rabbitmq-outage/README.md), [consumer-crash](../../tests/resilience/consumer-crash/README.md). |
 | `kind`-based platform smoke tests | **Built: three tests against the live local cluster.** Ingress routing reaches all seven backends and rejects an unknown path through the gateway's explicit fallback; a real rolling restart of `billing-api` stays available while both pods are replaced; one successful-subscription business canary reaches Active and produces its receipt through the real Ingress, Services/DNS, Postgres and RabbitMQ. The rollout test found a genuine endpoint-removal/SIGTERM race and drove the five-second API `preStop` drain patch. See its own [README](../../tests/kind/README.md). |
 
@@ -269,30 +269,35 @@ three are absences, not "not yet". Verified live:
 consumed **0** — direct confirmation it never saw anything, not just
 that nothing showed up over HTTP.
 
-`tests/e2e/overdue-subscription/` turned out to need a real production
-feature this platform doesn't have yet — a scheduled job that creates
-the *next* billing cycle's Invoice for an Active subscription past its
-period end. `CreateInvoiceHandler` only ever fires once, on
-`subscription.created.v1`; there's no renewal mechanism to seed a
-second cycle through, so the scenario can't be built as a test alone.
-Building one is real domain/application work, not testing
-infrastructure, so it was deliberately deferred rather than folded into
-this effort — the Active → PastDue transition it would have exercised
-is already fully covered anyway, by
-`tests/integration/billing-to-subscription/`'s own second test (drives
-a subscription to Active via a direct-published `invoice.paid.v1`, then
-fails it).
+`tests/e2e/overdue-subscription/` then closed the feature gap it had
+originally exposed. Subscription now owns persisted current-period
+boundaries and a `renewal_pending` guard; the transactional
+`subscriptions:renew` command locks a bounded batch of due Active
+subscriptions, advances one period, and writes
+`subscription.renewal_due.v1` to its Outbox. Billing consumes that into
+the next cycle's Invoice, and Kubernetes runs the command every minute
+from a `concurrencyPolicy: Forbid` CronJob. `invoice.created.v1` gained
+the production-useful `billing_reason` distinction
+(`subscription_create`/`subscription_cycle`), carried into Payment; the
+fake provider reserves one second amount which succeeds initially and
+declines only renewals. That lets the E2E prove the honest sequence:
+initial payment succeeds → Active → scheduler queues the next cycle →
+renewal payment fails → second Invoice stays Open → Subscription becomes
+PastDue. Its final rebuilt-image run passed live with 176 assertions in
+12.27 seconds, then a second scheduler call far in the future queued
+zero work, proving
+PastDue cannot open a third cycle.
 
 With the E2E and Resilience branches both at a natural pause, the
 Contract layer's producer side closed the gap ADR 0004 called out from
-the start: every `IntegrationEvent` class across the platform — all 16
+the start: every `IntegrationEvent` class across the platform — all 17
 events in the [event catalog](event-catalog.md), not just the 6 in the
 platform's wired core chain — now has its own test asserting
 `fromDomainEvent()` maps every field into exactly the wire shape the
 catalog documents, and that two events built from the same input still
 get distinct `event_id`s (redelivery/retry must never silently
-collapse two attempts into one). Ten of the sixteen were new
-this slice (the four subscription-service events, four
+collapse two attempts into one). Eleven of the seventeen were new
+across these slices (the five subscription-service events, four
 billing-service, two payment-service); catalog-service and
 customer-service already had the other six, unknowingly following the
 exact same shape — proof the pattern was sound before it had a name.
@@ -405,9 +410,6 @@ the local kind suite.
 
 What's next, none of it blocking what exists today:
 
-- `tests/e2e/overdue-subscription/` — blocked on the recurring-billing
-  feature described above; out of scope for this testing effort until
-  that feature exists.
 - Component tests for the remaining five services — none of them has
   an outbound HTTP dependency or a guard condition that would benefit
   from isolation the way `subscription-service` and
@@ -434,13 +436,12 @@ provider anywhere yet — so no E2E test can accidentally hit a live
 payment processor or send a real email today; there's no code path to
 one.
 
-`FakePaymentGateway::charge()` returns success for every amount except
-one: `FakePaymentGateway::DECLINE_TRIGGER_AMOUNT_MINOR_UNITS`
-(`66660000` minor units, any currency) always declines with
-`card_declined`. That single deterministic trigger, not a card/token
-field, is what `tests/e2e/failed-payment/` drives from the test side —
-see that scenario's own README and "Building the next slice" above for
-why the amount, not a new field threaded through three services, is
-the trigger. `FakeEmailSender::send()` still always returns success
-unconditionally; no test yet needs it to fail, and nothing currently
-asks it to.
+`FakePaymentGateway::charge()` has two deterministic amount triggers.
+`DECLINE_TRIGGER_AMOUNT_MINOR_UNITS` (`66660000`, any currency) always
+declines with `card_declined`; `DECLINE_RENEWAL_TRIGGER_AMOUNT_MINOR_UNITS`
+(`77770000`) succeeds for `subscription_create` and declines only for
+`subscription_cycle`. The first drives `tests/e2e/failed-payment/`; the
+second lets `tests/e2e/overdue-subscription/` activate a subscription
+before failing its renewal without introducing a test-only API.
+`FakeEmailSender::send()` still always returns success unconditionally;
+no test yet needs it to fail, and nothing currently asks it to.

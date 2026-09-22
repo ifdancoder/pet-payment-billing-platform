@@ -350,7 +350,7 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    платформы (реальный Postgres, реальный RabbitMQ, без моков):
    `subscription-to-billing`, `billing-to-payment`, `payment-to-billing`,
    `billing-to-subscription` и `payment-to-notification`, в
-   [`tests/integration/`](tests/integration/). Плюс два полных
+   [`tests/integration/`](tests/integration/). Плюс три полных
    E2E-сценария:
    [`successful-subscription`](tests/e2e/successful-subscription/) (все
    семь сервисов, реальная инфраструктура, без сокращений — Merchant →
@@ -386,7 +386,7 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    передоставляет сообщение — доказывает, что собственный guard Inbox у
    перезапущенного консьюмера останавливает создание дублирующего
    Invoice). Плюс producer-сторона уровня Contract, готова: каждый
-   класс `IntegrationEvent` во всех семи сервисах — все 16 событий из
+   класс `IntegrationEvent` во всех семи сервисах — все 17 событий из
    [каталога событий](docs/architecture/event-catalog.ru.md) — имеет
    собственный тест, доказывающий, что он переносится ровно в тот
    wire-формат, что задокументирован в каталоге, с новым `event_id`
@@ -407,5 +407,11 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    нашёл настоящий баг и привёл к исправлению гонки SIGTERM/Service
    endpoint: каждый API pod теперь получает пятисекундное окно
    `preStop` для отвода трафика перед завершением.
+   Третий и последний запланированный E2E-сценарий,
+   [`overdue-subscription`](tests/e2e/overdue-subscription/), тоже
+   готов: recurring billing хранит границы циклов, запускается из
+   Kubernetes CronJob, создаёт следующий Invoice через
+   `subscription.renewal_due.v1`, а неудачный renewal переводит
+   изначально Active-подписку в PastDue.
 9. Security hardening.
 10. Load / failure тестирование.

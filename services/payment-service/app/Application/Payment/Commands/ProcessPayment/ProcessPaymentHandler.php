@@ -54,7 +54,7 @@ final class ProcessPaymentHandler
             $this->repository->save($payment);
         });
 
-        $result = $this->gateway->charge(new ChargeRequest($attemptId, $payment->money()));
+        $result = $this->gateway->charge(new ChargeRequest($attemptId, $payment->money(), $payment->billingReason()));
 
         $this->transaction->run(function () use ($payment, $attemptId, $result): void {
             match ($result->status) {

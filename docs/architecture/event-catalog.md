@@ -18,14 +18,16 @@ platform's complete async vertical slices today.
 | Event | Producer | Consumer(s) |
 | --- | --- | --- |
 | `subscription.created.v1` | subscription-service | billing-service (`SubscriptionCreatedConsumer` → creates an `Invoice`) |
-| `invoice.created.v1` | billing-service | payment-service (`InvoiceCreatedConsumer` → creates + processes a `Payment`) |
+| `subscription.renewal_due.v1` | subscription-service | billing-service (`SubscriptionRenewalDueConsumer` → creates the next billing cycle's `Invoice`) |
+| `invoice.created.v1` | billing-service | payment-service (`InvoiceCreatedConsumer` → creates + processes a `Payment`; `billing_reason` distinguishes `subscription_create` from `subscription_cycle`) |
 | `payment.succeeded.v1` | payment-service | notification-service (`PaymentSucceededConsumer` → sends an email receipt); billing-service (`PaymentSucceededConsumer` → marks the `Invoice` Paid, publishes `invoice.paid.v1`) |
 | `payment.failed.v1` | payment-service | billing-service (`PaymentFailedConsumer` → the `Invoice` itself doesn't change, it stays Open awaiting another attempt, but this republishes `invoice.payment_failed.v1`) |
 | `invoice.paid.v1` | billing-service | subscription-service (`InvoicePaidConsumer` → activates the `Subscription`, idempotent on every renewal since it's normally already Active by the second payment) |
 | `invoice.payment_failed.v1` | billing-service | subscription-service (`InvoicePaymentFailedConsumer` → marks the `Subscription` PastDue, but only when it was Active — a Pending subscription's first-ever failed payment stays Pending, not PastDue) |
 
-This closes the platform's core event chain end to end: Subscription →
-Billing → Payment → (Billing, Subscription, Notification).
+This closes both the initial and recurring platform event chains end to
+end: Subscription → Billing → Payment → (Billing, Subscription,
+Notification).
 
 `payment.succeeded.v1` / `payment.failed.v1` never carry
 `subscription_id` — Payment doesn't model subscriptions at all, only

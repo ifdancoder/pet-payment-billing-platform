@@ -54,6 +54,7 @@ final class CreatePaymentHandler
                 MerchantId::fromString($command->merchantId),
                 CustomerId::fromString($command->customerId),
                 Money::of($command->amountMinorUnits, Currency::from($command->currency)),
+                $command->billingReason,
             );
 
             try {

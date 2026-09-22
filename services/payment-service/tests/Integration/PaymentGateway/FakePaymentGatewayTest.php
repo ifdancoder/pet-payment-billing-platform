@@ -52,3 +52,15 @@ test('charge succeeds for an amount merely close to the decline-trigger amount',
 
     expect($result->status)->toBe(ChargeStatus::Succeeded);
 });
+
+test('the renewal trigger succeeds on subscription creation and declines the next cycle', function () {
+    $gateway = new FakePaymentGateway;
+    $money = Money::of(FakePaymentGateway::DECLINE_RENEWAL_TRIGGER_AMOUNT_MINOR_UNITS, Currency::USD);
+
+    $initial = $gateway->charge(new ChargeRequest(PaymentAttemptId::generate(), $money, 'subscription_create'));
+    $renewal = $gateway->charge(new ChargeRequest(PaymentAttemptId::generate(), $money, 'subscription_cycle'));
+
+    expect($initial->status)->toBe(ChargeStatus::Succeeded)
+        ->and($renewal->status)->toBe(ChargeStatus::Failed)
+        ->and($renewal->failureCode)->toBe('card_declined');
+});

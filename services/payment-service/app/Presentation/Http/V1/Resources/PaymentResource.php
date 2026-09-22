@@ -26,6 +26,7 @@ final class PaymentResource extends JsonResource
             'customer_id' => $this->payment->customerId()->toString(),
             'amount_minor_units' => $this->payment->money()->amountMinorUnits(),
             'currency' => $this->payment->money()->currency()->value,
+            'billing_reason' => $this->payment->billingReason(),
             'status' => $this->payment->status()->label(),
             'paid_at' => $this->payment->paidAt()?->format(DATE_ATOM),
             'failed_at' => $this->payment->failedAt()?->format(DATE_ATOM),
