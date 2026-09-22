@@ -41,14 +41,7 @@ final class Invoice
         private ?DateTimeImmutable $voidedAt = null,
     ) {}
 
-    /**
-     * Builds a complete, immediately-payable Invoice from its lines. There
-     * is no Draft status: an Invoice is only ever created once every line
-     * is already known (from a subscription.created.v1 / renewal event),
-     * so it starts out Open.
-     *
-     * @param  InvoiceLine[]  $lines
-     */
+    /** @param InvoiceLine[] $lines */
     public static function create(
         InvoiceId $id,
         MerchantId $merchantId,
@@ -56,6 +49,7 @@ final class Invoice
         SubscriptionId $subscriptionId,
         BillingPeriod $period,
         array $lines,
+        bool $renewal = false,
     ): self {
         if ($lines === []) {
             throw InvalidInvoice::mustHaveAtLeastOneLine();
@@ -69,17 +63,12 @@ final class Invoice
         $total = $subtotal;
 
         $invoice = new self($id, $merchantId, $customerId, $subscriptionId, $period, $lines, $subtotal, $total, InvoiceStatus::Open);
-        $invoice->recordEvent(new InvoiceCreated($id, $merchantId, $customerId, $subscriptionId, $period, $subtotal, $total));
+        $invoice->recordEvent(new InvoiceCreated($id, $merchantId, $customerId, $subscriptionId, $period, $subtotal, $total, $renewal));
 
         return $invoice;
     }
 
-    /**
-     * Rebuilds an Invoice from already-persisted data. Unlike create(),
-     * this does not record an InvoiceCreated event.
-     *
-     * @param  InvoiceLine[]  $lines
-     */
+    /** @param InvoiceLine[] $lines */
     public static function reconstitute(
         InvoiceId $id,
         MerchantId $merchantId,
@@ -160,11 +149,7 @@ final class Invoice
         return $this->voidedAt;
     }
 
-    /**
-     * Marking an already-Paid invoice paid again is a silent no-op rather
-     * than an error: payment.succeeded.v1 may be redelivered, and that
-     * redelivery must not fail.
-     */
+    /** A repeated success is valid under at-least-once delivery. */
     public function markPaid(PaymentId $paymentId, DateTimeImmutable $paidAt): void
     {
         if ($this->status === InvoiceStatus::Paid) {

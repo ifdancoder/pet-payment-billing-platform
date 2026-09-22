@@ -342,7 +342,7 @@ order:
    (real Postgres, real RabbitMQ, no mocking): `subscription-to-billing`,
    `billing-to-payment`, `payment-to-billing`, `billing-to-subscription`
    and `payment-to-notification`, in
-   [`tests/integration/`](tests/integration/). Plus two full E2E
+   [`tests/integration/`](tests/integration/). Plus three full E2E
    scenarios: [`successful-subscription`](tests/e2e/successful-subscription/)
    (all seven services, real infra, no shortcuts — Merchant → Customer →
    Product/Price → Subscription → Invoice → Payment → Subscription
@@ -375,7 +375,7 @@ order:
    proves the restarted consumer's own Inbox guard stops it from
    creating a duplicate Invoice). Plus the Contract layer's producer
    side, done: every `IntegrationEvent` class across all seven
-   services — all 16 events in the
+   services — all 17 events in the
    [event catalog](docs/architecture/event-catalog.md) — has its own
    test proving it maps onto exactly the wire shape the catalog
    documents, with a fresh `event_id` every time. Plus two Component
@@ -395,5 +395,11 @@ order:
    through the deployed cluster. Its rollout test found and drove the
    fix for a real SIGTERM/Service-endpoint race: every API pod now gets
    a five-second `preStop` drain window before termination.
+   The third and final planned E2E scenario,
+   [`overdue-subscription`](tests/e2e/overdue-subscription/), is now
+   complete too: recurring billing stores cycle boundaries, runs from
+   a Kubernetes CronJob, creates the next Invoice through
+   `subscription.renewal_due.v1`, and a failed renewal moves an
+   initially Active subscription to PastDue.
 9. Security hardening.
 10. Load / failure testing.

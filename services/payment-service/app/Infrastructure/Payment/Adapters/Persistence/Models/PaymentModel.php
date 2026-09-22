@@ -20,6 +20,7 @@ class PaymentModel extends Model
         'customer_id',
         'amount_minor_units',
         'currency',
+        'billing_reason',
         'status',
         'paid_at',
         'failed_at',

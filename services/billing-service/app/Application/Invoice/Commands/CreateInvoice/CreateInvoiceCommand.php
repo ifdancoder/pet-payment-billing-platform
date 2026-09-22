@@ -20,5 +20,6 @@ final class CreateInvoiceCommand
         public readonly string $billingInterval,
         public readonly int $billingIntervalCount,
         public readonly DateTimeImmutable $periodStart,
+        public readonly bool $renewal = false,
     ) {}
 }

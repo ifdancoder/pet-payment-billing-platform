@@ -22,15 +22,6 @@ final class CreatePaymentHandler
         private readonly ITransactionManagerPort $transaction,
     ) {}
 
-    /**
-     * Records a Pending Payment for this invoice, or returns null without
-     * doing anything when this exact event has already been processed (an
-     * at-least-once redelivery of invoice.created.v1).
-     *
-     * No outbox write here: nothing downstream needs "a payment was
-     * created" as a fact — only its eventual succeeded/failed outcome
-     * does, and that's ProcessPaymentHandler's job.
-     */
     public function handle(CreatePaymentCommand $command): ?Payment
     {
         return $this->transaction->run(function () use ($command): ?Payment {
@@ -40,9 +31,7 @@ final class CreatePaymentHandler
 
             $invoiceId = InvoiceId::fromString($command->invoiceId);
 
-            // A second, different event for the same invoice must not
-            // create a second payment either — business idempotency on
-            // top of the Inbox's event-id dedup.
+            // Inbox handles redelivery; invoice ID handles distinct events for the same invoice.
             $existing = $this->repository->findByInvoiceId($invoiceId);
             if ($existing !== null) {
                 return $existing;
@@ -54,13 +43,13 @@ final class CreatePaymentHandler
                 MerchantId::fromString($command->merchantId),
                 CustomerId::fromString($command->customerId),
                 Money::of($command->amountMinorUnits, Currency::from($command->currency)),
+                $command->billingReason,
             );
 
             try {
                 $this->repository->save($payment);
             } catch (UniqueConstraintViolationException) {
-                // Lost a race with a concurrent delivery for the same
-                // invoice — the winner's payment is the truth.
+                // A concurrent delivery committed this payment first.
                 return $this->repository->findByInvoiceId($invoiceId);
             }
 

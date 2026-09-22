@@ -35,6 +35,7 @@ final class Payment
         private readonly MerchantId $merchantId,
         private readonly CustomerId $customerId,
         private readonly Money $money,
+        private readonly string $billingReason,
         private PaymentStatus $status,
         array $attempts,
         private ?DateTimeImmutable $paidAt = null,
@@ -43,20 +44,15 @@ final class Payment
         $this->attempts = $attempts;
     }
 
-    public static function create(PaymentId $id, InvoiceId $invoiceId, MerchantId $merchantId, CustomerId $customerId, Money $money): self
+    public static function create(PaymentId $id, InvoiceId $invoiceId, MerchantId $merchantId, CustomerId $customerId, Money $money, string $billingReason = 'subscription_create'): self
     {
-        $payment = new self($id, $invoiceId, $merchantId, $customerId, $money, PaymentStatus::Pending, []);
+        $payment = new self($id, $invoiceId, $merchantId, $customerId, $money, $billingReason, PaymentStatus::Pending, []);
         $payment->recordEvent(new PaymentCreated($id, $invoiceId, $merchantId, $customerId, $money));
 
         return $payment;
     }
 
-    /**
-     * Rebuilds a Payment from already-persisted data. Unlike create(), this
-     * does not record a PaymentCreated event.
-     *
-     * @param  PaymentAttempt[]  $attempts
-     */
+    /** @param PaymentAttempt[] $attempts */
     public static function reconstitute(
         PaymentId $id,
         InvoiceId $invoiceId,
@@ -67,8 +63,9 @@ final class Payment
         array $attempts,
         ?DateTimeImmutable $paidAt,
         ?DateTimeImmutable $failedAt,
+        string $billingReason = 'subscription_create',
     ): self {
-        return new self($id, $invoiceId, $merchantId, $customerId, $money, $status, $attempts, $paidAt, $failedAt);
+        return new self($id, $invoiceId, $merchantId, $customerId, $money, $billingReason, $status, $attempts, $paidAt, $failedAt);
     }
 
     public function id(): PaymentId
@@ -101,6 +98,11 @@ final class Payment
         return $this->status;
     }
 
+    public function billingReason(): string
+    {
+        return $this->billingReason;
+    }
+
     /**
      * @return PaymentAttempt[]
      */
@@ -119,11 +121,7 @@ final class Payment
         return $this->failedAt;
     }
 
-    /**
-     * Starts a new attempt to charge this payment — the first one, or a
-     * retry after a prior Failed attempt. Succeeded is terminal: a
-     * completed payment can never be retried.
-     */
+    /** Starts an initial attempt or retries a failed payment. */
     public function startAttempt(PaymentAttemptId $attemptId, string $provider, DateTimeImmutable $now): PaymentAttempt
     {
         if ($this->status === PaymentStatus::Succeeded) {
@@ -141,12 +139,7 @@ final class Payment
         return $attempt;
     }
 
-    /**
-     * Marking an already-Succeeded payment succeeded again is a silent
-     * no-op rather than an error: payment.succeeded.v1's own trigger (a
-     * provider webhook, or a redelivered inbox event) may arrive more
-     * than once, and that redelivery must not fail.
-     */
+    /** Repeated success notifications are idempotent. */
     public function succeed(PaymentAttemptId $attemptId, ProviderReference $reference, DateTimeImmutable $at): void
     {
         if ($this->status === PaymentStatus::Succeeded) {

@@ -7,11 +7,6 @@ use App\Shared\Application\IntegrationEvents\IntegrationEvent;
 use DateTimeImmutable;
 use Ramsey\Uuid\Uuid;
 
-/**
- * Payment only needs enough to charge the invoice, never the full Invoice
- * (lines, subtotal, currency breakdown, ...) — so this stays intentionally
- * thin rather than mirroring the aggregate.
- */
 final class InvoiceCreatedIntegrationEvent implements IntegrationEvent
 {
     private function __construct(
@@ -22,6 +17,7 @@ final class InvoiceCreatedIntegrationEvent implements IntegrationEvent
         private readonly string $subscriptionId,
         private readonly int $amountMinorUnits,
         private readonly string $currency,
+        private readonly string $billingReason,
         private readonly DateTimeImmutable $occurredAt,
     ) {}
 
@@ -35,6 +31,7 @@ final class InvoiceCreatedIntegrationEvent implements IntegrationEvent
             $event->subscriptionId->toString(),
             $event->total->amountMinorUnits(),
             $event->total->currency()->value,
+            $event->renewal ? 'subscription_cycle' : 'subscription_create',
             $event->occurredAt,
         );
     }
@@ -76,6 +73,7 @@ final class InvoiceCreatedIntegrationEvent implements IntegrationEvent
             'subscription_id' => $this->subscriptionId,
             'amount_minor_units' => $this->amountMinorUnits,
             'currency' => $this->currency,
+            'billing_reason' => $this->billingReason,
         ];
     }
 }

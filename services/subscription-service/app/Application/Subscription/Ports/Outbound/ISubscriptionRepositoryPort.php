@@ -6,6 +6,7 @@ use App\Domain\Subscription\Exceptions\SubscriptionNotFound;
 use App\Domain\Subscription\Subscription;
 use App\Domain\Subscription\ValueObjects\SubscriptionId;
 use App\Shared\Domain\ValueObjects\MerchantId;
+use DateTimeImmutable;
 
 interface ISubscriptionRepositoryPort
 {
@@ -20,4 +21,12 @@ interface ISubscriptionRepositoryPort
      * @return array<int, Subscription>
      */
     public function all(MerchantId $merchantId): array;
+
+    /**
+     * Returns and locks one scheduler batch. Must be called inside the
+     * transaction that advances and saves every returned subscription.
+     *
+     * @return array<int, Subscription>
+     */
+    public function dueForRenewal(DateTimeImmutable $asOf, int $limit): array;
 }

@@ -12,5 +12,6 @@ final class CreatePaymentCommand
         public readonly string $customerId,
         public readonly int $amountMinorUnits,
         public readonly string $currency,
+        public readonly string $billingReason = 'subscription_create',
     ) {}
 }

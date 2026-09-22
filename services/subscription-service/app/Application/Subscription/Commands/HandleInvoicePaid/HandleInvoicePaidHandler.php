@@ -13,21 +13,7 @@ use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
 use App\Shared\Domain\ValueObjects\MerchantId;
 
-/**
- * Reacts to invoice.paid.v1 by activating the Subscription. Deliberately
- * a separate handler from ActivateSubscriptionHandler (the existing
- * HTTP-triggered one) rather than reusing it directly: that one has no
- * Inbox guard because an HTTP caller has no event_id to guard with, and
- * bolting an optional Inbox check onto it would blur which call sites
- * need at-least-once redelivery safety and which don't. Both ultimately
- * call the same Subscription::activate().
- *
- * Skips the transition when Canceled: a late/retried payment succeeding
- * after the customer already canceled must not silently resurrect the
- * subscription. Every other status is a legitimate case for
- * activate()'s own idempotency to handle (Pending/PastDue -> Active,
- * Active -> Active no-op).
- */
+/** Handles event redelivery and never reactivates a canceled subscription. */
 final class HandleInvoicePaidHandler
 {
     public function __construct(
@@ -50,7 +36,7 @@ final class HandleInvoicePaidHandler
             );
 
             if ($subscription->status() !== SubscriptionStatus::Canceled) {
-                $subscription->activate();
+                $subscription->invoicePaid();
             }
 
             $this->repository->save($subscription);

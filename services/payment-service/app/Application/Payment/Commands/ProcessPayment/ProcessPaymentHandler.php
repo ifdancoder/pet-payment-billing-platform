@@ -19,19 +19,9 @@ use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
 use App\Shared\Domain\ValueObjects\MerchantId;
 use DateTimeImmutable;
 
-/**
- * The one handler in this service that talks to the network. The DB
- * transaction never spans that call: a short transaction starts the
- * attempt and commits, then the gateway is called with no transaction
- * open at all, then a second short transaction applies whatever the
- * gateway said.
- */
+/** The gateway call runs outside both database transactions. */
 final class ProcessPaymentHandler
 {
-    /**
-     * Which provider is charging — hardcoded until a second one (Stripe)
-     * exists to actually choose between.
-     */
     private const string PROVIDER = 'fake';
 
     public function __construct(
@@ -54,7 +44,7 @@ final class ProcessPaymentHandler
             $this->repository->save($payment);
         });
 
-        $result = $this->gateway->charge(new ChargeRequest($attemptId, $payment->money()));
+        $result = $this->gateway->charge(new ChargeRequest($attemptId, $payment->money(), $payment->billingReason()));
 
         $this->transaction->run(function () use ($payment, $attemptId, $result): void {
             match ($result->status) {
@@ -64,9 +54,7 @@ final class ProcessPaymentHandler
                     new DateTimeImmutable,
                 ),
                 ChargeStatus::Failed => $payment->fail($attemptId, $result->failureCode, null, new DateTimeImmutable),
-                // Some payment methods don't return a synchronous final
-                // result — the attempt stays Pending until a provider
-                // webhook confirms it. Webhook handling isn't built yet.
+                // A pending result remains open for asynchronous provider confirmation.
                 ChargeStatus::Pending => null,
             };
 

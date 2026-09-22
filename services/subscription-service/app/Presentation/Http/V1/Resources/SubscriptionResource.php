@@ -31,6 +31,8 @@ final class SubscriptionResource extends JsonResource
             'billing_interval' => $priceSnapshot->billingPeriod()->interval()->label(),
             'billing_interval_count' => $priceSnapshot->billingPeriod()->count(),
             'status' => $this->subscription->status()->label(),
+            'current_period_start' => $this->subscription->currentPeriodStart()->format(DATE_ATOM),
+            'current_period_end' => $this->subscription->currentPeriodEnd()->format(DATE_ATOM),
         ];
     }
 }

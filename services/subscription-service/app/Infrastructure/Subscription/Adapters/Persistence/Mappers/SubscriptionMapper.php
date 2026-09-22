@@ -15,6 +15,7 @@ use App\Domain\Subscription\ValueObjects\SubscriptionId;
 use App\Domain\Subscription\ValueObjects\SubscriptionStatus;
 use App\Infrastructure\Subscription\Adapters\Persistence\Models\SubscriptionModel;
 use App\Shared\Domain\ValueObjects\MerchantId;
+use DateTimeImmutable;
 
 final class SubscriptionMapper
 {
@@ -31,6 +32,10 @@ final class SubscriptionMapper
                 BillingPeriod::of(BillingInterval::from($model->billing_interval), $model->billing_interval_count),
             ),
             SubscriptionStatus::from($model->status),
+            $model->current_period_start?->toDateTimeImmutable()
+                ?? new DateTimeImmutable($model->created_at->toAtomString()),
+            $model->current_period_end?->toDateTimeImmutable(),
+            $model->renewal_pending,
         );
     }
 
@@ -50,6 +55,9 @@ final class SubscriptionMapper
         $model->billing_interval = $priceSnapshot->billingPeriod()->interval()->value;
         $model->billing_interval_count = $priceSnapshot->billingPeriod()->count();
         $model->status = $subscription->status()->value;
+        $model->current_period_start = $subscription->currentPeriodStart();
+        $model->current_period_end = $subscription->currentPeriodEnd();
+        $model->renewal_pending = $subscription->renewalPending();
 
         return $model;
     }

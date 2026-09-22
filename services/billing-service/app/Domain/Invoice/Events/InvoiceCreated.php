@@ -22,6 +22,7 @@ final class InvoiceCreated
         public readonly BillingPeriod $period,
         public readonly Money $subtotal,
         public readonly Money $total,
+        public readonly bool $renewal = false,
         ?DateTimeImmutable $occurredAt = null,
     ) {
         $this->occurredAt = $occurredAt ?? new DateTimeImmutable;

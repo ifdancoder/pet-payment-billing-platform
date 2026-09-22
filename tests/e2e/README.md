@@ -18,15 +18,12 @@ for the full plan and current status.
   Subscription — never having reached Active — stays Pending rather
   than PastDue.
 
-Not built yet: `overdue-subscription` — blocked on a real production
-feature this platform doesn't have, not on test infrastructure: there's
-no scheduled job that creates a *second* billing cycle's Invoice for an
-Active subscription, so there's no way to reach a "previously Active,
-now overdue" state to test against. The PastDue transition it would
-exercise is already fully covered anyway, by
-[`tests/integration/billing-to-subscription/`](../integration/billing-to-subscription/)'s
-own second test. See "Building the next slice" in the testing strategy
-doc.
+- [`overdue-subscription/`](overdue-subscription/) — done, together with
+  the recurring-billing production feature it required. The initial
+  Invoice is genuinely paid and the Subscription becomes Active; the
+  scheduler then creates the next cycle's Invoice, its renewal-only fake
+  charge declines, and the real Payment → Billing → Subscription chain
+  moves it to PastDue. See its own README.
 
 Not to be confused with the separate `kind`-based Kubernetes platform
 smoke tests (infrastructure questions: does the Ingress route, does a

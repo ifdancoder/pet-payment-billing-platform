@@ -1,0 +1,4 @@
+name: billing-platform-e2e-overdue-subscription
+
+include:
+  - path: ../successful-subscription/docker-compose.yaml

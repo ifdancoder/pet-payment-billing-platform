@@ -4,6 +4,7 @@ use App\Domain\Subscription\Events\SubscriptionActivated;
 use App\Domain\Subscription\Events\SubscriptionCanceled;
 use App\Domain\Subscription\Events\SubscriptionCreated;
 use App\Domain\Subscription\Events\SubscriptionMarkedPastDue;
+use App\Domain\Subscription\Events\SubscriptionRenewalDue;
 use App\Domain\Subscription\Exceptions\InvalidSubscriptionTransition;
 use App\Domain\Subscription\Subscription;
 use App\Domain\Subscription\ValueObjects\BillingInterval;
@@ -174,3 +175,69 @@ test('cancel throws when the subscription is already Canceled', function () {
 
     $subscription->cancel();
 })->throws(InvalidSubscriptionTransition::class);
+
+test('renew advances one due Active billing period and records a renewal event', function () {
+    $start = new DateTimeImmutable('2026-09-01T00:00:00+00:00');
+    $subscription = Subscription::reconstitute(
+        SubscriptionId::generate(),
+        MerchantId::generate(),
+        CustomerId::generate(),
+        makePriceSnapshot(),
+        SubscriptionStatus::Active,
+        $start,
+        new DateTimeImmutable('2026-10-01T00:00:00+00:00'),
+        false,
+    );
+
+    $subscription->renew(new DateTimeImmutable('2026-10-01T00:00:00+00:00'));
+
+    expect($subscription->currentPeriodStart()->format(DATE_ATOM))->toBe('2026-10-01T00:00:00+00:00')
+        ->and($subscription->currentPeriodEnd()->format(DATE_ATOM))->toBe('2026-11-01T00:00:00+00:00')
+        ->and($subscription->renewalPending())->toBeTrue();
+    $events = $subscription->pullRecordedEvents();
+    expect($events)->toHaveCount(1)
+        ->and($events[0])->toBeInstanceOf(SubscriptionRenewalDue::class)
+        ->and($events[0]->periodStart->format(DATE_ATOM))->toBe('2026-10-01T00:00:00+00:00');
+});
+
+test('renew does nothing before period end or while another renewal is pending', function () {
+    $start = new DateTimeImmutable('2026-09-01T00:00:00+00:00');
+    $subscription = Subscription::reconstitute(
+        SubscriptionId::generate(), MerchantId::generate(), CustomerId::generate(), makePriceSnapshot(),
+        SubscriptionStatus::Active, $start, new DateTimeImmutable('2026-10-01T00:00:00+00:00'), false,
+    );
+
+    $subscription->renew(new DateTimeImmutable('2026-09-30T23:59:59+00:00'));
+    expect($subscription->pullRecordedEvents())->toBe([]);
+
+    $subscription->renew(new DateTimeImmutable('2026-10-01T00:00:00+00:00'));
+    $subscription->pullRecordedEvents();
+    $subscription->renew(new DateTimeImmutable('2027-01-01T00:00:00+00:00'));
+
+    expect($subscription->pullRecordedEvents())->toBe([])
+        ->and($subscription->currentPeriodEnd()->format(DATE_ATOM))->toBe('2026-11-01T00:00:00+00:00');
+});
+
+test('invoice payment clears the renewal guard and reactivates a PastDue subscription', function () {
+    $subscription = Subscription::reconstitute(
+        SubscriptionId::generate(), MerchantId::generate(), CustomerId::generate(), makePriceSnapshot(),
+        SubscriptionStatus::PastDue, renewalPending: true,
+    );
+
+    $subscription->invoicePaid();
+
+    expect($subscription->status())->toBe(SubscriptionStatus::Active)
+        ->and($subscription->renewalPending())->toBeFalse();
+});
+
+test('failed renewal moves Active to PastDue and clears the renewal guard', function () {
+    $subscription = Subscription::reconstitute(
+        SubscriptionId::generate(), MerchantId::generate(), CustomerId::generate(), makePriceSnapshot(),
+        SubscriptionStatus::Active, renewalPending: true,
+    );
+
+    $subscription->invoicePaymentFailed();
+
+    expect($subscription->status())->toBe(SubscriptionStatus::PastDue)
+        ->and($subscription->renewalPending())->toBeFalse();
+});

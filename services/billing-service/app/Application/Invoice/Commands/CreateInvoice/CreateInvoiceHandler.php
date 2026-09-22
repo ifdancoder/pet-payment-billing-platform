@@ -32,12 +32,6 @@ final class CreateInvoiceHandler
         private readonly ITransactionManagerPort $transaction,
     ) {}
 
-    /**
-     * Builds and persists the Invoice for one billing cycle, or returns
-     * null without doing anything when this exact event has already been
-     * processed (an at-least-once redelivery of subscription.created.v1 /
-     * a renewal event).
-     */
     public function handle(CreateInvoiceCommand $command): ?Invoice
     {
         return $this->transaction->run(function () use ($command): ?Invoice {
@@ -49,9 +43,8 @@ final class CreateInvoiceHandler
             $periodStart = $command->periodStart;
             $periodEnd = $this->periodEnd($periodStart, $command->billingInterval, $command->billingIntervalCount);
 
-            // A second, different event for the same subscription and
-            // period must not double-bill either — this is the business
-            // idempotency layer on top of the Inbox's event-id dedup.
+            // Inbox handles redelivery; the billing-cycle key handles distinct
+            // events that refer to the same cycle.
             $existing = $this->repository->findByBillingCycle($subscriptionId, $periodStart);
             if ($existing !== null) {
                 return $existing;
@@ -74,13 +67,13 @@ final class CreateInvoiceHandler
                 $subscriptionId,
                 BillingPeriod::of($periodStart, $periodEnd),
                 [$line],
+                $command->renewal,
             );
 
             try {
                 $this->repository->save($invoice);
             } catch (UniqueConstraintViolationException) {
-                // Lost a race with a concurrent delivery for the same
-                // billing cycle — the winner's invoice is the truth.
+                // A concurrent delivery committed the same billing cycle first.
                 return $this->repository->findByBillingCycle($subscriptionId, $periodStart);
             }
 

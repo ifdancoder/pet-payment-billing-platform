@@ -7,27 +7,12 @@ use App\Application\Subscription\Ports\Outbound\ISubscriptionRepositoryPort;
 use App\Domain\Subscription\Events\SubscriptionMarkedPastDue;
 use App\Domain\Subscription\Subscription;
 use App\Domain\Subscription\ValueObjects\SubscriptionId;
-use App\Domain\Subscription\ValueObjects\SubscriptionStatus;
 use App\Shared\Application\Ports\Outbound\IInboxPort;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
 use App\Shared\Domain\ValueObjects\MerchantId;
 
-/**
- * Reacts to invoice.payment_failed.v1 by marking the Subscription
- * PastDue. Deliberately a separate handler from
- * MarkSubscriptionPastDueHandler (the existing HTTP-triggered one) —
- * same reasoning as HandleInvoicePaidHandler alongside
- * ActivateSubscriptionHandler.
- *
- * Only transitions when Active. A Pending subscription's very first
- * payment attempt can fail before it's ever been activated —
- * Subscription::markPastDue() only knows Active -> PastDue, and
- * "the first payment didn't go through yet" isn't the same fact as
- * "this previously-paying subscription is now overdue", so that case
- * is left Pending rather than forced through a transition that doesn't
- * apply to it.
- */
+/** Initial payment failure stays Pending; renewal failure moves Active to PastDue. */
 final class HandleInvoicePaymentFailedHandler
 {
     public function __construct(
@@ -49,9 +34,7 @@ final class HandleInvoicePaymentFailedHandler
                 MerchantId::fromString($command->merchantId),
             );
 
-            if ($subscription->status() === SubscriptionStatus::Active) {
-                $subscription->markPastDue();
-            }
+            $subscription->invoicePaymentFailed();
 
             $this->repository->save($subscription);
             $this->recordIntegrationEvents($subscription);
