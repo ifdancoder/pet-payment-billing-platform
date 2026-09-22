@@ -57,8 +57,8 @@ moved here once a third slice
 ([`payment-to-billing/`](../integration/payment-to-billing/)) needed
 it — see the extraction rule in
 [`docs/architecture/testing-strategy.md`](../../docs/architecture/testing-strategy.md).
-The first two slices still have their own local copies; migrating them
-to this package is a follow-up, not done yet.
+The first two slices' own local copies have since been migrated onto
+this package too, so every consumer now shares the one implementation.
 
 `DockerCompose` followed the same discipline: copied into
 [`outbox-recovery/`](../resilience/outbox-recovery/), then
@@ -66,6 +66,5 @@ to this package is a follow-up, not done yet.
 here once a third test
 ([`consumer-crash/`](../resilience/consumer-crash/)) needed it — which
 is also where it gained `kill()`, since neither earlier copy needed
-anything beyond `stop()`/`start()`. Those first two copies still have
-their own local versions; migrating them is the same kind of follow-up
-as `eventually()`'s.
+anything beyond `stop()`/`start()`. Those first two copies have since
+been migrated here as well.

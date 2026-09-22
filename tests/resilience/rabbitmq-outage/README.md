@@ -47,15 +47,16 @@ composer test
 docker compose down --volumes
 ```
 
-## Reused `DockerCompose`, second copy
+## Reused `DockerCompose`, from `tests/support/`
 
-[`tests/Support/DockerCompose.php`](tests/Support/DockerCompose.php) is
-a second copy of the one written for
-[`outbox-recovery/`](../outbox-recovery/) — per the extraction
-discipline used throughout `tests/support/`'s own history (copy for
-the first two callers, share on the third), the next resilience test
-that needs start/stop control should move this into
-[`tests/support/`](../../support/) instead of copying it a third time.
+This was originally this test's own second local copy of the one
+written for [`outbox-recovery/`](../outbox-recovery/) — per the
+extraction discipline used throughout `tests/support/`'s own history
+(copy for the first two callers, share on the third), it moved into
+[`DockerCompose`](../../support/src/DockerCompose.php) once
+[`tests/resilience/consumer-crash/`](../consumer-crash/) became the
+third caller, gaining a `kill(service, signal)` method neither of the
+first two copies needed.
 
 ## Verified live: real connection failures, not a lucky race window
 

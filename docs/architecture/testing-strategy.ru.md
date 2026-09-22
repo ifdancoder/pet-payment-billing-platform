@@ -336,6 +336,14 @@ wire-format payload (например, `aSubscriptionCreatedPayload()` в
 репозиторий, поэтому категоризирован как Integration, а не Contract, но
 на самом деле там ничего не было упущено.
 
+Оставшиеся немигрированные локальные копии `eventually()` —
+`subscription-to-billing`/`billing-to-payment` — и `DockerCompose` —
+`outbox-recovery`/`rabbitmq-outage` — с тех пор мигрированы на общий
+пакет `tests/support/`, закрыв эту последующую уборку: теперь у каждого
+потребителя обоих помощников одна и та же реализация, без изменения
+поведения (проверено вживую по каждому срезу; см. «Асинхронные
+проверки» ниже).
+
 Что дальше, и ничто из этого не блокирует то, что уже есть:
 
 - `tests/e2e/overdue-subscription/` — заблокирован фичей
@@ -343,20 +351,16 @@ wire-format payload (например, `aSubscriptionCreatedPayload()` в
   пока эта фича не появится.
 - Уровень Component — всё ещё вообще не начат; см. его собственную
   строку в таблице статуса выше.
-- Миграция двух оставшихся немигрированных локальных копий
-  `eventually()` (`subscription-to-billing`, `billing-to-payment`) и
-  двух копий `DockerCompose` (`outbox-recovery`, `rabbitmq-outage`) на
-  общий пакет `tests/support/` — последующая уборка, ничего не
-  блокирует.
 
 ## Асинхронные проверки
 
 См. ADR 0004, «Асинхронные проверки: polling, а не sleep». Помощник
 `eventually()` живёт в [`tests/support/`](../../tests/support/) начиная
-с `payment-to-billing`, третьего среза, которому он понадобился —
-у `subscription-to-billing` и `billing-to-payment` всё ещё свои более
-ранние, идентичные локальные копии в `tests/Support/`; их миграция на
-общий пакет — последующая работа, пока не сделана.
+с `payment-to-billing`, третьего среза, которому он понадобился — у
+`subscription-to-billing` и `billing-to-payment` изначально были свои
+более ранние, идентичные локальные копии в `tests/Support/`; обе с тех
+пор мигрированы на общий пакет, так что теперь у каждого вызывающего на
+платформе одна и та же реализация.
 
 ## Fake providers
 
