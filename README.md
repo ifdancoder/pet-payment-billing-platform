@@ -74,9 +74,11 @@ pet-payment-billing-platform/
 │   └── adr/
 ├── scripts/
 ├── tests/
+│   ├── component/
 │   ├── integration/
 │   ├── e2e/
-│   └── resilience/
+│   ├── resilience/
+│   └── kind/
 ├── docker-compose.yaml
 └── Makefile
 ```
@@ -123,10 +125,14 @@ and `Feature` cover everything below this level):
 
 - `integration/` — 2-3 real services through a real RabbitMQ, each its
   own Docker Compose stack + standalone Pest project.
+- `component/` — one real service with WireMock replacing its outbound
+  HTTP dependencies.
 - `e2e/` — full business flows across every service, fake
   payment/email providers.
 - `resilience/` — failure-mode scenarios (duplicate delivery, consumer
   crash, broker outage), not business scenarios.
+- `kind/` — platform smoke tests against the live Kubernetes deployment:
+  Ingress routing, zero-downtime rollout, and one business canary.
 
 ## Principles
 
@@ -383,5 +389,11 @@ order:
    [`notification-service`](tests/component/notification-service/)
    (stubs customer-service alone; publishes nothing, so this one
    exercises only the RabbitMQ consume side and its delivery worker).
+   The separate [`tests/kind/`](tests/kind/) platform-smoke suite is
+   also done: all seven Ingress routes, a live zero-downtime rolling
+   restart of `billing-api`, and one successful-subscription canary
+   through the deployed cluster. Its rollout test found and drove the
+   fix for a real SIGTERM/Service-endpoint race: every API pod now gets
+   a five-second `preStop` drain window before termination.
 9. Security hardening.
 10. Load / failure testing.

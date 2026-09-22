@@ -32,3 +32,9 @@ patches:
       kind: Deployment
       labelSelector: app.kubernetes.io/component=api
     path: api-topology-spread.yaml
+  # See api-prestop.yaml's own comment: unlike the patch above, this
+  # one isn't a local-only concession, it belongs in every overlay.
+  - target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/component=api
+    path: api-prestop.yaml

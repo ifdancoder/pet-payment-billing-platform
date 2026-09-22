@@ -1,0 +1,26 @@
+# Every api Deployment declares maxUnavailable: 0 (see each service's
+# own deployment.yaml) and a matching PodDisruptionBudget
+# (base/availability/pdbs.yaml) — the promise is that a rolling update
+# never actually drops a request. Without this hook that promise wasn't
+# kept: SIGTERM reaches the container as soon as kubelet decides to
+# terminate it, which can land before the Endpoints controller has
+# finished removing this pod from the Service (a well-known, unfixable
+# ordering race — see
+# https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination),
+# so a request already in flight to this pod, or one routed to it in
+# that gap, can hang or fail. `preStop` runs *before* SIGTERM, giving
+# the endpoint removal time to actually propagate first. Found by
+# tests/kind/tests/RollingUpdateTest.php reproducing a real dropped
+# request against billing-api, not a hypothetical.
+#
+# Not environment-specific like the topology spread patch beside it —
+# this belongs in every overlay, not just local. It's only here because
+# this is the only overlay that exists yet; when staging/production
+# overlays are built, carry this patch (or a shared equivalent) into
+# them too.
+- op: add
+  path: /spec/template/spec/containers/0/lifecycle
+  value:
+    preStop:
+      exec:
+        command: ["sh", "-c", "sleep 5"]
