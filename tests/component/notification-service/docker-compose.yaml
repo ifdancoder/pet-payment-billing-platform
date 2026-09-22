@@ -1,0 +1,124 @@
+name: billing-platform-component-notification-service
+
+# The platform's second Component test: exactly one real service, its
+# own real Postgres and real RabbitMQ, and a WireMock stub standing in
+# for its one synchronous HTTP dependency (customer-service) — not the
+# real service, unlike every tests/integration/*/ stack. See
+# docs/architecture/testing-strategy.md and
+# tests/component/subscription-service/ for the first slice this one
+# follows the same shape as.
+#
+# notification-service publishes nothing onto billing.events (see the
+# event catalog) — its only job here is reacting correctly to a
+# directly-published payment.succeeded.v1, standing in for
+# payment-service, which isn't part of this stack. payment-service
+# actually publishing that event is already covered by
+# tests/integration/billing-to-payment/.
+
+x-app-env: &app_env
+  APP_ENV: production
+  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_DEBUG: "false"
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_DATABASE: notification
+  DB_USERNAME: billing
+  DB_PASSWORD: billing
+  SESSION_DRIVER: array
+  CACHE_STORE: array
+  QUEUE_CONNECTION: sync
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_USER: billing
+  RABBITMQ_DEFAULT_PASS: billing
+  CUSTOMER_SERVICE_URL: http://customer-stub:8080
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: billing
+      POSTGRES_PASSWORD: billing
+      POSTGRES_DB: postgres
+    volumes:
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billing"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: billing
+      RABBITMQ_DEFAULT_PASS: billing
+    ports:
+      - "34672:5672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Standing in for customer-service — notification-service's one
+  # synchronous HTTP dependency, used to look up an email/name by
+  # customer_id. See tests/component/subscription-service/README.md
+  # for why WireMock over a hand-rolled script.
+  customer-stub:
+    image: wiremock/wiremock:3.9.1
+    command: ["--global-response-templating", "--verbose"]
+    volumes:
+      - ./wiremock/mappings:/home/wiremock/mappings:ro
+    healthcheck:
+      # A plain GET, not `wget --spider` (HEAD) — WireMock's admin API
+      # doesn't answer HEAD requests.
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/__admin/mappings"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  notification-api:
+    build: ../../../services/notification-service
+    command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
+    environment: *app_env
+    ports:
+      - "18006:8080"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      customer-stub: {condition: service_healthy}
+
+  # Consumes payment.succeeded.v1 and creates a Pending Notification —
+  # named "ingest" (not "consumer") to distinguish it from
+  # notification-delivery-worker below, matching the naming every other
+  # notification-service stack in this repo uses.
+  notification-ingest-consumer:
+    build: ../../../services/notification-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan payment-succeeded:consume; sleep 1 & wait $$!; done"
+    environment: *app_env
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      customer-stub: {condition: service_healthy}
+
+  # Delivers Pending notifications via FakeEmailSender — an in-process
+  # fake, not an HTTP call, so this worker needs no stub of its own.
+  notification-delivery-worker:
+    build: ../../../services/notification-service
+    command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan notifications:deliver; sleep 1 & wait $$!; done"
+    environment: *app_env
+    depends_on:
+      postgres: {condition: service_healthy}
+
+# An explicit subnet, not Docker's auto-assigned pool — same reasoning
+# as every other stack in this repo; the next free /24 after
+# tests/component/subscription-service/'s 172.42.0.0/24.
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.43.0.0/24

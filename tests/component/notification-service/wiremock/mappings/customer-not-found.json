@@ -1,0 +1,10 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/v1/customers/00000000-0000-0000-0000-000000000404"
+  },
+  "response": {
+    "status": 404
+  }
+}

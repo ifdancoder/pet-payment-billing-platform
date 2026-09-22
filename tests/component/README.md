@@ -22,7 +22,14 @@ run (Feature tests) can't provide.
   README. The first Component test: a WireMock stub stands in for
   customer-service and catalog-service, subscription-service's own two
   synchronous HTTP dependencies.
+- [`notification-service/`](notification-service/) — done, see its own
+  README. The second Component test, and the platform's only other
+  service with a synchronous outbound HTTP dependency worth stubbing
+  (customer-service, for the email receipt's recipient) — unlike
+  `subscription-service`, it publishes nothing, so this one exercises
+  only the RabbitMQ consume side and the delivery worker.
 
-Not built yet for the other six services — see "Building the next
-slice" in the testing strategy doc for which ones would actually
-benefit from one.
+Not built yet for the other five services — none of them has an
+outbound HTTP dependency or a guard condition that would benefit from
+isolation the way these two did; see "Building the next slice" in the
+testing strategy doc.

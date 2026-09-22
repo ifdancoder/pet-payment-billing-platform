@@ -1,0 +1,19 @@
+{
+  "priority": 5,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/v1/customers/.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": {"Content-Type": "application/json"},
+    "jsonBody": {
+      "data": {
+        "id": "{{request.path.[3]}}",
+        "email": "component-test-customer@example.com",
+        "name": "Component Test Customer"
+      }
+    },
+    "transformers": ["response-template"]
+  }
+}
