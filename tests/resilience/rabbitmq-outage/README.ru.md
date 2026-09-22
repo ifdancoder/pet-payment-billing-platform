@@ -50,15 +50,17 @@ composer test
 docker compose down --volumes
 ```
 
-## Переиспользованный `DockerCompose`, вторая копия
+## Переиспользованный `DockerCompose`, из `tests/support/`
 
-[`tests/Support/DockerCompose.php`](tests/Support/DockerCompose.php) —
-вторая копия того, что был написан для
+Изначально это была собственная вторая локальная копия этого теста —
+того, что был написан для
 [`outbox-recovery/`](../outbox-recovery/) — по дисциплине extraction,
 используемой во всей истории `tests/support/` (копируем для первых
-двух вызывающих, делимся на третьем), следующий resilience-тест,
-которому понадобится управление start/stop, должен перенести это в
-[`tests/support/`](../../support/), а не копировать в третий раз.
+двух вызывающих, делимся на третьем), она переехала в
+[`DockerCompose`](../../support/src/DockerCompose.php), как только
+[`tests/resilience/consumer-crash/`](../consumer-crash/) стал третьим
+вызывающим, получив метод `kill(service, signal)`, который ни одной из
+первых двух копий не был нужен.
 
 ## Проверено вживую: реальные сбои соединения, а не удачное окно гонки
 

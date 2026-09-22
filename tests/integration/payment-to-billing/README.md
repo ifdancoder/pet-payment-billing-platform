@@ -63,9 +63,9 @@ extraction rule, it's the first one to use
 (pulled in via a `path` repository) providing `eventually()` and
 `AmqpTestClient`, a generic publish/bind/read helper for the
 `billing.events` exchange — instead of copying `eventually.php` a
-third time. `subscription-to-billing/` and `billing-to-payment/` still
-have their own local copies; migrating them is a follow-up, not done by
-this slice.
+third time. `subscription-to-billing/` and `billing-to-payment/` had
+their own local copies at the time; both have since been migrated onto
+this shared package too.
 
 `AmqpTestClient` is what makes the seed-event and
 republish-verification parts of this test possible: it declares/binds

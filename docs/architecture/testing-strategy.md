@@ -312,6 +312,14 @@ question from a hand-built wire-format payload (e.g.
 it also touches a real repository, so it's categorized as Integration
 rather than Contract, but nothing was actually missing there.
 
+`eventually()`'s and `DockerCompose`'s remaining un-migrated local
+copies — `subscription-to-billing`/`billing-to-payment` for the
+former, `outbox-recovery`/`rabbitmq-outage` for the latter — have since
+been migrated onto the shared `tests/support/` package, closing that
+cleanup follow-up: every consumer of either helper now shares the one
+implementation, with no behavior change (verified live per slice; see
+"Asynchronous assertions" below).
+
 What's next, none of it blocking what exists today:
 
 - `tests/e2e/overdue-subscription/` — blocked on the recurring-billing
@@ -319,20 +327,16 @@ What's next, none of it blocking what exists today:
   that feature exists.
 - Component layer — still not started at all; see its own row in the
   status table above.
-- Migrating `eventually()`'s two remaining un-migrated local copies
-  (`subscription-to-billing`, `billing-to-payment`) and
-  `DockerCompose`'s two (`outbox-recovery`, `rabbitmq-outage`) onto the
-  shared `tests/support/` package — a cleanup follow-up, not blocking
-  anything.
 
 ## Asynchronous assertions
 
 See ADR 0004, "Asynchronous assertions: poll, don't sleep." The
 `eventually()` helper lives in [`tests/support/`](../../tests/support/)
 as of `payment-to-billing`, the third slice to need it —
-`subscription-to-billing` and `billing-to-payment` still have their own
-earlier, identical local copies in `tests/Support/`; migrating them to
-the shared package is a follow-up, not done yet.
+`subscription-to-billing` and `billing-to-payment` originally had their
+own earlier, identical local copies in `tests/Support/`; both have
+since been migrated onto the shared package, so every caller across the
+platform now shares the one implementation.
 
 ## Fake providers
 

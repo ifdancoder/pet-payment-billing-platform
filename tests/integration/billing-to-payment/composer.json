@@ -2,8 +2,12 @@
     "name": "billing-platform/test-billing-to-payment",
     "description": "Service integration test: Billing Service -> RabbitMQ -> Payment Service. Publishes subscription.created.v1 directly (standing in for Subscription's Outbox) and talks to the two real services over HTTP, no shared code with any service's own vendor.",
     "type": "project",
+    "repositories": [
+        {"type": "path", "url": "../../support"}
+    ],
     "require": {
         "php": "^8.3",
+        "billing-platform/test-support": "@dev",
         "guzzlehttp/guzzle": "^7.9",
         "php-amqplib/php-amqplib": "^3.7",
         "ramsey/uuid": "^4.7"

@@ -17,14 +17,13 @@
 
 Остановка и перезапуск `billing-outbox` посреди сценария — это и есть
 тест, а не подготовка к нему, поэтому это происходит внутри `composer
-test` через
-[`tests/Support/DockerCompose.php`](tests/Support/DockerCompose.php)
-(тонкая обёртка над `docker compose stop/start`), а не как ручной шаг,
-который иначе пришлось бы описывать в README. Пока локально в этом
-тесте, не в [`tests/support/`](../../support/) — та же дисциплина
-extraction, что и у `eventually()`: копируем для первых двух
-resilience-тестов, которым нужно управление start/stop
-(`rabbitmq-outage/` почти наверняка понадобится), делимся на третьем.
+test` через [`DockerCompose`](../../support/src/DockerCompose.php)
+(тонкая обёртка над `docker compose stop/start/kill`), а не как ручной
+шаг, который иначе пришлось бы описывать в README. Это была первая из
+двух локальных копий (та же дисциплина extraction, что и у
+`eventually()`), прежде чем
+[`tests/resilience/consumer-crash/`](../consumer-crash/) понадобилась
+третья и переехала в [`tests/support/`](../../support/).
 
 ## Что реально доказано, и почему важен порядок
 

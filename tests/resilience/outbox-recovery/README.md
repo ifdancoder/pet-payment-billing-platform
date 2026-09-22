@@ -15,13 +15,12 @@ to check the rest of the promise.
 
 Stopping and restarting `billing-outbox` mid-scenario *is* the test,
 not setup for it — so it happens inside `composer test` via
-[`tests/Support/DockerCompose.php`](tests/Support/DockerCompose.php)
-(a thin wrapper around `docker compose stop/start`), not as a manual
-step this README would otherwise have to describe. Local to this test
-for now, not in [`tests/support/`](../../support/) — same extraction
-discipline as `eventually()`: copy for the first two resilience tests
-that need start/stop control (`rabbitmq-outage/` almost certainly
-will), share on the third.
+[`DockerCompose`](../../support/src/DockerCompose.php) (a thin wrapper
+around `docker compose stop/start/kill`), not as a manual step this
+README would otherwise have to describe. This was the first of two
+local copies (the extraction discipline also used for `eventually()`)
+before [`tests/resilience/consumer-crash/`](../consumer-crash/) needed
+a third and moved it into [`tests/support/`](../../support/).
 
 ## What's actually proven, and why the ordering matters
 

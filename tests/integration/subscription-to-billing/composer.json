@@ -2,8 +2,12 @@
     "name": "billing-platform/test-subscription-to-billing",
     "description": "Service integration test: Subscription Service -> RabbitMQ -> Billing Service. Talks to real running services over HTTP, no shared code with any service's own vendor.",
     "type": "project",
+    "repositories": [
+        {"type": "path", "url": "../../support"}
+    ],
     "require": {
         "php": "^8.3",
+        "billing-platform/test-support": "@dev",
         "guzzlehttp/guzzle": "^7.9",
         "ramsey/uuid": "^4.7"
     },

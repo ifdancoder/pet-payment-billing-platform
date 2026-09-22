@@ -43,8 +43,9 @@ anything yet. That happens on `subscription-outbox`'s and
 `billing-consumer`'s own polling loops, entirely out of band. Asserting
 immediately is a race; a fixed `sleep(N)` is both slow (always pays the
 worst case) and still flaky (a loaded CI box can still lose the race).
-`tests/Support/eventually.php` polls the assertion itself until it
-stops throwing or a timeout elapses.
+[`eventually()`](../../support/src/eventually.php), from the shared
+[`tests/support/`](../../support/) package, polls the assertion itself
+until it stops throwing or a timeout elapses.
 
 ## Extending this scenario
 

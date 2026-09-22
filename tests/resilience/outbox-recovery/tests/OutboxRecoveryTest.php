@@ -1,8 +1,8 @@
 <?php
 
 use BillingPlatform\TestSupport\AmqpTestClient;
+use BillingPlatform\TestSupport\DockerCompose;
 use Ramsey\Uuid\Uuid;
-use Tests\Support\DockerCompose;
 use Tests\Support\Services;
 
 /**
@@ -28,10 +28,12 @@ use Tests\Support\Services;
  * Run: docker compose up -d --build; composer install; composer test
  */
 test('billing-outbox catches up on rows it missed while it was stopped', function () {
+    $docker = new DockerCompose(dirname(__DIR__));
+
     // Stopped *before* anything is created — the Outbox row this test
     // is actually about must be written while the relay provably isn't
     // running, not race a relay that just hasn't gotten to it yet.
-    DockerCompose::stop('billing-outbox');
+    $docker->stop('billing-outbox');
 
     $amqp = AmqpTestClient::fromEnv();
     $amqp->ensureConsumerQueueBound('billing.events.v1', 'subscription.created.v1');
@@ -77,7 +79,7 @@ test('billing-outbox catches up on rows it missed while it was stopped', functio
 
     // The recovery: the same container, restarted — not a fresh one,
     // and not the original transaction replayed.
-    DockerCompose::start('billing-outbox');
+    $docker->start('billing-outbox');
 
     eventually(function () use ($amqp, $invoiceCreatedQueue, $invoiceId): void {
         $message = $amqp->readMessage($invoiceCreatedQueue);

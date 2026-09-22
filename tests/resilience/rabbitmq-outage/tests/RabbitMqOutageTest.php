@@ -1,7 +1,7 @@
 <?php
 
+use BillingPlatform\TestSupport\DockerCompose;
 use Ramsey\Uuid\Uuid;
-use Tests\Support\DockerCompose;
 use Tests\Support\Services;
 
 /**
@@ -28,6 +28,8 @@ use Tests\Support\Services;
  * Run: docker compose up -d --build; composer install; composer test
  */
 test('creating a subscription survives a rabbitmq outage and the chain catches up once it recovers', function () {
+    $docker = new DockerCompose(dirname(__DIR__));
+
     $merchantId = Uuid::uuid4()->toString();
 
     $customer = Services::customer()->post('/api/v1/customers', [
@@ -57,7 +59,7 @@ test('creating a subscription survives a rabbitmq outage and the chain catches u
 
     // The outage. Everything above this point was setup; everything
     // below is the actual scenario.
-    DockerCompose::stop('rabbitmq');
+    $docker->stop('rabbitmq');
 
     // The claim: this 201 has to come back Pending, exactly as it
     // would with the broker healthy — subscription-api never touches
@@ -79,7 +81,7 @@ test('creating a subscription survives a rabbitmq outage and the chain catches u
     // The recovery: the same broker container, restarted — not a fresh
     // exchange, not the subscription-outbox/billing-consumer containers
     // replaced, and definitely not the HTTP request above retried.
-    DockerCompose::start('rabbitmq');
+    $docker->start('rabbitmq');
 
     eventually(function () use ($merchantId, $subscriptionId): void {
         $invoices = Services::billing()->get("/api/v1/merchants/{$merchantId}/invoices");
