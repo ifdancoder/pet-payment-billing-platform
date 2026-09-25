@@ -6,6 +6,7 @@ use App\Application\Membership\Ports\Outbound\IMembershipRepositoryPort;
 use App\Domain\Membership\Exceptions\MembershipNotFound;
 use App\Domain\Membership\Membership;
 use App\Domain\Membership\ValueObjects\MembershipId;
+use App\Domain\Membership\ValueObjects\Role;
 use App\Domain\Merchant\ValueObjects\MerchantId;
 use App\Domain\User\ValueObjects\UserId;
 use App\Infrastructure\Membership\Adapters\Persistence\Mappers\MembershipMapper;
@@ -36,6 +37,29 @@ final class EloquentMembershipRepository implements IMembershipRepositoryPort
         }
 
         return $this->mapper->toDomain($model);
+    }
+
+    public function getForMerchant(MembershipId $id, MerchantId $merchantId): Membership
+    {
+        $model = MembershipModel::query()
+            ->whereKey($id->toString())
+            ->where('merchant_id', $merchantId->toString())
+            ->first();
+
+        if ($model === null) {
+            throw MembershipNotFound::withId($id);
+        }
+
+        return $this->mapper->toDomain($model);
+    }
+
+    public function countOwnersForUpdate(MerchantId $merchantId): int
+    {
+        return MembershipModel::query()
+            ->where('merchant_id', $merchantId->toString())
+            ->where('role', Role::Owner->value)
+            ->lockForUpdate()
+            ->count();
     }
 
     public function findByUserAndMerchant(UserId $userId, MerchantId $merchantId): ?Membership

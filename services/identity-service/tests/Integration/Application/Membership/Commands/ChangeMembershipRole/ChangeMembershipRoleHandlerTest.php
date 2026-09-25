@@ -25,11 +25,13 @@ test('handle changes the role', function () {
     (new EloquentMerchantRepository(new MerchantMapper))->save($merchant);
     $membership = app(AddMembershipHandler::class)->handle(new AddMembershipCommand($user->id()->toString(), $merchant->id()->toString(), Role::Viewer->value));
 
-    $changed = app(ChangeMembershipRoleHandler::class)->handle(new ChangeMembershipRoleCommand($membership->id()->toString(), Role::Admin->value));
+    $changed = app(ChangeMembershipRoleHandler::class)->handle(new ChangeMembershipRoleCommand($merchant->id()->toString(), $membership->id()->toString(), Role::Admin->value));
 
     expect($changed->role())->toBe(Role::Admin);
 });
 
 test('handle throws MembershipNotFound when no membership matches', function () {
-    app(ChangeMembershipRoleHandler::class)->handle(new ChangeMembershipRoleCommand(MembershipId::generate()->toString(), Role::Admin->value));
+    $merchant = Merchant::create(MerchantId::generate(), MerchantName::fromString('Missing Membership Merchant'));
+    (new EloquentMerchantRepository(new MerchantMapper))->save($merchant);
+    app(ChangeMembershipRoleHandler::class)->handle(new ChangeMembershipRoleCommand($merchant->id()->toString(), MembershipId::generate()->toString(), Role::Admin->value));
 })->throws(MembershipNotFound::class);

@@ -2,6 +2,8 @@
 
 namespace App\Infrastructure\ApiKey\Providers;
 
+use App\Application\ApiKey\Ports\Outbound\IApiKeyRepositoryPort;
+use App\Infrastructure\ApiKey\Adapters\Persistence\Repositories\EloquentApiKeyRepository;
 use App\Infrastructure\ApiKey\Providers\V1\ApiKeyServiceProvider as ApiKeyServiceProviderV1;
 use Illuminate\Support\ServiceProvider;
 
@@ -12,6 +14,7 @@ class ApiKeyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->bind(IApiKeyRepositoryPort::class, EloquentApiKeyRepository::class);
         // API bindings are version-scoped: each supported version registers
         // its own provider under Providers/{Version}. Only V1 exists today;
         // adding V2 means a new sibling provider, never touching this one.

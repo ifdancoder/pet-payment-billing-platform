@@ -24,13 +24,15 @@ test('handle removes the membership', function () {
     (new EloquentUserRepository(new UserMapper))->save($user);
     $merchant = Merchant::create(MerchantId::generate(), MerchantName::fromString('Acme Inc.'));
     (new EloquentMerchantRepository(new MerchantMapper))->save($merchant);
-    $membership = app(AddMembershipHandler::class)->handle(new AddMembershipCommand($user->id()->toString(), $merchant->id()->toString(), Role::Owner->value));
+    $membership = app(AddMembershipHandler::class)->handle(new AddMembershipCommand($user->id()->toString(), $merchant->id()->toString(), Role::Viewer->value));
 
-    app(RemoveMembershipHandler::class)->handle(new RemoveMembershipCommand($membership->id()->toString()));
+    app(RemoveMembershipHandler::class)->handle(new RemoveMembershipCommand($merchant->id()->toString(), $membership->id()->toString()));
 
     expect(fn () => app(IMembershipRepositoryPort::class)->get($membership->id()))->toThrow(MembershipNotFound::class);
 });
 
 test('handle throws MembershipNotFound when no membership matches', function () {
-    app(RemoveMembershipHandler::class)->handle(new RemoveMembershipCommand(MembershipId::generate()->toString()));
+    $merchant = Merchant::create(MerchantId::generate(), MerchantName::fromString('Missing Membership Merchant'));
+    (new EloquentMerchantRepository(new MerchantMapper))->save($merchant);
+    app(RemoveMembershipHandler::class)->handle(new RemoveMembershipCommand($merchant->id()->toString(), MembershipId::generate()->toString()));
 })->throws(MembershipNotFound::class);
