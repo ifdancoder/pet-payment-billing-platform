@@ -1,25 +1,13 @@
 # Service integration tests
 
-2-3 real services talking through a real RabbitMQ and real databases —
-one directory per boundary, each its own standalone Docker Compose
-stack and Pest project. Not the whole platform (that's
-[`tests/e2e/`](../e2e/)) and not one real service against a stubbed
-dependency (that's [`tests/component/`](../component/)). See
-[`docs/architecture/testing-strategy.md`](../../docs/architecture/testing-strategy.md)
-for the full pyramid and current status of every slice.
+*[Русская версия](README.ru.md)*
 
-- [`subscription-to-billing/`](subscription-to-billing/) — done, see
-  its own README.
-- [`billing-to-payment/`](billing-to-payment/) — done, see its own
-  README.
-- [`payment-to-billing/`](payment-to-billing/) — done, see its own
-  README. The first slice to use [`../support/`](../support/) instead
-  of a local copy of `eventually()`.
-- [`billing-to-subscription/`](billing-to-subscription/) — done, see
-  its own README. Completed the last slice `tests/e2e/` needed before
-  its first scenario could be assembled.
-- [`payment-to-notification/`](payment-to-notification/) — done, see
-  its own README. The fifth and last of the event-boundary slices
-  identified in the pyramid; includes a negative test proving an
-  absence (no notification for an unknown customer), not just a
-  transition.
+Each suite exercises one asynchronous boundary between running services with real PostgreSQL and RabbitMQ.
+
+- `subscription-to-billing/`: subscription creation opens an invoice.
+- `billing-to-payment/`: a new invoice creates and processes a payment.
+- `payment-to-billing/`: payment success marks an invoice Paid and emits `invoice.paid.v1`.
+- `billing-to-subscription/`: invoice results update subscription state.
+- `payment-to-notification/`: payment success creates and delivers a receipt.
+
+Upstream events may be published directly when their producer is outside the tested boundary.

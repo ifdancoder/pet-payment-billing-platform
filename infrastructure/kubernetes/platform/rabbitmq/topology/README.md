@@ -1,20 +1,11 @@
 # RabbitMQ topology
 
-This is where [RabbitMQ Topology Operator](https://www.rabbitmq.com/kubernetes/operator/install-topology-operator)
-resources (`Queue`, `Exchange`, `Binding`, `Vhost`) will go, once:
+*[Русская версия](README.ru.md)*
 
-- the RabbitMQ cluster (`../cluster.yaml`) is actually deployed, and
-- application services exist and know what queues/exchanges/bindings
-  they need.
+The local overlay and root Compose stack declare queues and bindings from the
+consumer processes. This directory is reserved for RabbitMQ Topology Operator
+resources in shared environments.
 
-Neither of those is true yet (see the root README's "Status"), so
-there's nothing to declare here. Expected layout once services land:
-
-```text
-topology/
-├── kustomization.yaml
-├── vhosts.yaml
-├── <service-name>-exchanges.yaml
-├── <service-name>-queues.yaml
-└── <service-name>-bindings.yaml
-```
+No `Queue`, `Exchange`, `Binding`, or `Vhost` resources are defined yet. Add
+them only when the operator-backed `RabbitmqCluster` replaces the base RabbitMQ
+Deployment; keep names consistent with ADR 0002 and the consumer commands.

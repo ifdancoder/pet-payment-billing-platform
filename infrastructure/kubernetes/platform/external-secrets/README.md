@@ -1,5 +1,7 @@
 # External Secrets Operator
 
+*[Русская версия](README.ru.md)*
+
 [External Secrets Operator](https://external-secrets.io/) will pull
 secrets from an external store and sync them into native Kubernetes
 `Secret` objects, so manifests never carry plaintext credentials.

@@ -1,58 +1,23 @@
 # Architecture Decision Records
 
-An ADR is a short writeup of one significant decision: what forced it,
-what was decided, what it costs. Write it once, when the decision is
-made, and don't go back and edit it later. If the decision stops
-holding, write a new ADR that supersedes the old one instead of touching
-it.
+*[Русская версия](README.ru.md)*
 
-## When to write one
+ADRs record decisions that are costly to reverse, affect multiple services, or
+cannot be inferred safely from the code. A superseded decision gets a new ADR;
+the original remains as historical context.
 
-Write an ADR for anything hard to reverse, anything that touches more
-than one service, or anything a future contributor (including future
-you) would otherwise have to reverse-engineer from the code. Think:
-choice of message broker, database-per-service boundaries, sync vs async
-for a given workflow, which ingress controller or operator to use under
-`infrastructure/kubernetes/`.
+Use a zero-padded `NNNN-short-title.md` filename and these sections:
 
-Day-to-day stuff that's easy to change later doesn't need one.
+- Status: Proposed, Accepted, or Superseded by NNNN.
+- Context: constraints that require a decision.
+- Decision: the chosen behavior or boundary.
+- Consequences: costs, limitations, and follow-up work.
 
-## Format
+English is canonical. Russian translations use the `*.ru.md` suffix.
 
-One file per decision, named `NNNN-short-title.md` (zero-padded,
-sequential), roughly the classic Nygard template:
-
-```markdown
-# NNNN. Title
-
-## Status
-
-Proposed | Accepted | Superseded by NNNN
-
-## Context
-
-What's forcing this decision: technical, business, team constraints.
-State the facts, not the decision.
-
-## Decision
-
-What was decided, in plain active voice.
-
-## Consequences
-
-What gets easier, what gets harder. Trade-offs and follow-up work, not
-just the upside.
-```
-
-## Language
-
-English is canonical. Where a Russian translation exists it sits next
-to the original as `NNNN-short-title.ru.md`, linked from the top of
-each file — not every ADR has one.
-
-## Recorded
+## Decisions
 
 - [0001. API gateway routing and the public/internal split](0001-api-gateway-routing.md)
 - [0002. RabbitMQ messaging contract](0002-rabbitmq-messaging.md)
-- [0003. Kubernetes foundation: runtime, manifests, health checks](0003-kubernetes-foundation.md)
-- [0004. Testing strategy: the pyramid, and where each layer runs](0004-testing-strategy.md) ([ru](0004-testing-strategy.ru.md))
+- [0003. Kubernetes foundation](0003-kubernetes-foundation.md)
+- [0004. Testing strategy](0004-testing-strategy.md)

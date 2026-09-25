@@ -1,42 +1,29 @@
-# Platform layer (Kubernetes)
+# Kubernetes platform components
 
-Platform-level infrastructure that runs inside the cluster, alongside
-(and configured for) the `pet-payment-billing-platform` namespace defined
-in `../base/`.
+*[Русская версия](README.ru.md)*
 
-This isn't wired into local development. Local dev uses
-`docker-compose.yaml` at the repo root. This directory targets a real
-Kubernetes cluster and right now it's just a scaffold, see the root
-README's "Status" section (Phase 0).
+Shared cluster components for the `pet-payment-billing-platform` namespace.
+Application workloads are defined under `../../base`; the root Compose stack
+does not use this directory.
 
-## Layout
+| Directory | Contents |
+| --- | --- |
+| `ingress/` | ingress-nginx route to the gateway |
+| `observability/` | OpenTelemetry Collector, Prometheus, Grafana, Tempo, and Loki charts |
+| `rabbitmq/` | Namespace placeholder; no operator resources yet |
+| `autoscaling/` | CPU-based HPAs |
+| `keda/` | RabbitMQ queue-depth `ScaledObject` resources |
+| `external-secrets/` | Installation notes; no resources yet |
 
-| Directory | Purpose | Status |
-| --- | --- | --- |
-| `ingress/` | Ingress resource for the API gateway (ingress-nginx) | Ready, controller installed separately |
-| `rabbitmq/` | RabbitMQ cluster + topology (Cluster/Topology Operators) | Placeholder, see `rabbitmq/cluster.yaml` |
-| `autoscaling/` | HorizontalPodAutoscalers (CPU) for API Deployments | Defined, needs metrics-server |
-| `keda/` | Event-driven autoscaling for queue consumers | Not installed, see `keda/README.md` |
-| `external-secrets/` | Secret sync from an external store | Not installed, see `external-secrets/README.md` |
-| `observability/` | OpenTelemetry Collector, Prometheus, Grafana, Tempo, Loki | Ready |
+Helm-backed Kustomize directories require `helm` and `--enable-helm`. Operator
+resources also require their CRDs and controllers.
 
-## Prerequisites
-
-- A Kubernetes cluster and a `kubectl` context pointed at it.
-- [Kustomize](https://kustomize.io/) with Helm chart inflation enabled
-  (built into `kubectl` since 1.21+ via `--enable-helm`, or the
-  standalone `kustomize` binary).
-- `helm` on `PATH` (the Kustomize Helm inflator uses it to render charts
-  referenced from `helmCharts:`).
-- The `pet-payment-billing-platform` namespace applied from `../base/`.
-
-## Usage
-
-Render (and optionally apply) a component, e.g. observability:
+Render a component before applying it:
 
 ```bash
-kubectl kustomize --enable-helm infrastructure/kubernetes/platform/observability | kubectl apply -f -
+kubectl kustomize --enable-helm infrastructure/kubernetes/platform/observability
 ```
 
-Each subdirectory renders independently. `ingress/` and `rabbitmq/` don't
-use the Helm inflator, so they work fine without `--enable-helm`.
+`ingress/` and the current empty `rabbitmq/` kustomization do not require Helm.
+Optional operator and autoscaling resources are not included in the local
+overlay.
