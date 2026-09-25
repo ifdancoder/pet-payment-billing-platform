@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d5819a2caa08bee7ae48928817fef7e6",
+    "content-hash": "cd85bd5fe47121e61c6297dd3d859beb",
     "packages": [
         {
             "name": "brick/math",
@@ -2995,6 +2995,70 @@
                 }
             ],
             "time": "2026-08-26T12:13:21+00:00"
+        },
+        {
+            "name": "platform/auth-contract",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../../packages/auth-contract",
+                "reference": "f77f4ddef39519d3f96add7e02d859485726ac8c"
+            },
+            "require": {
+                "ext-json": "*",
+                "ext-sodium": "*",
+                "illuminate/http": "^13.0",
+                "illuminate/support": "^13.0",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Platform\\Auth\\Laravel\\AuthContractServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Platform\\Auth\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Shared signed access-token contract for the billing platform",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "platform/messaging-contract",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../../packages/messaging-contract",
+                "reference": "ebe014c51494cde9045bdc0b381a4a19c18af498"
+            },
+            "require": {
+                "php": "^8.3",
+                "php-amqplib/php-amqplib": "^3.7"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Platform\\Messaging\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Reliable RabbitMQ delivery primitives for the billing platform",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
         },
         {
             "name": "psr/clock",
@@ -9054,7 +9118,7 @@
             "dist": {
                 "type": "path",
                 "url": "../../packages/testing-conventions",
-                "reference": "4f66e41e81e2456419cb008d33d8fff5db87f9e8"
+                "reference": "b0643c6db210f5722cdd0de2bbe682b6a33277a0"
             },
             "require": {
                 "php": "^8.3"
@@ -9070,6 +9134,7 @@
             ],
             "description": "Shared Pest architecture rules for services in this monorepo.",
             "transport-options": {
+                "symlink": false,
                 "relative": true
             }
         },
@@ -10486,6 +10551,8 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
+        "platform/auth-contract": 20,
+        "platform/messaging-contract": 20,
         "platform/testing-conventions": 20
     },
     "prefer-stable": true,

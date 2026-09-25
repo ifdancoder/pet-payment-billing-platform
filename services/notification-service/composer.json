@@ -2,18 +2,32 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "laravel/laravel",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Notification delivery service for the billing platform.",
     "keywords": [
         "laravel",
         "framework"
     ],
     "license": "MIT",
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../packages/auth-contract",
+            "options": {"symlink": false}
+        },
+        {
+            "type": "path",
+            "url": "../../packages/messaging-contract",
+            "options": {"symlink": false}
+        }
+    ],
     "require": {
         "php": "^8.3",
         "laravel/framework": "^13.17",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^3.0",
-        "php-amqplib/php-amqplib": "^3.7"
+        "php-amqplib/php-amqplib": "^3.7",
+        "platform/auth-contract": "dev-main",
+        "platform/messaging-contract": "dev-main"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
