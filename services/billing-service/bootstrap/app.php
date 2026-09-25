@@ -7,6 +7,9 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Platform\Auth\Laravel\AuthenticateAccessToken;
+use Platform\Auth\Laravel\EnsureMerchantTenant;
+use Platform\Auth\Laravel\RequireRole;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,7 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'access-token' => AuthenticateAccessToken::class,
+            'merchant-tenant' => EnsureMerchantTenant::class,
+            'role' => RequireRole::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

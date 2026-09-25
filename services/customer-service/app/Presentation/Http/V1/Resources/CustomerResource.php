@@ -20,6 +20,7 @@ final class CustomerResource extends JsonResource
     {
         return [
             'id' => $this->customer->id()->toString(),
+            'merchant_id' => $this->customer->merchantId()->toString(),
             'email' => $this->customer->email()->toString(),
             'name' => $this->customer->name()->toString(),
         ];

@@ -10,6 +10,7 @@ use App\Infrastructure\Customer\Adapters\Persistence\Models\CustomerModel;
 test('toDomain builds a Customer matching the model attributes', function () {
     $model = new CustomerModel([
         'id' => '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'merchant_id' => aMerchantId()->toString(),
         'email' => 'jane@example.com',
         'name' => 'Jane Doe',
     ]);
@@ -24,6 +25,7 @@ test('toDomain builds a Customer matching the model attributes', function () {
 test('toDomain does not record a CustomerCreated event', function () {
     $model = new CustomerModel([
         'id' => '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'merchant_id' => aMerchantId()->toString(),
         'email' => 'jane@example.com',
         'name' => 'Jane Doe',
     ]);
@@ -36,6 +38,7 @@ test('toDomain does not record a CustomerCreated event', function () {
 test('toModel fills a new model from a Customer', function () {
     $customer = Customer::create(
         CustomerId::fromString('9f8e7d6c-5b4a-4321-9876-abcdef012345'),
+        aMerchantId(),
         Email::fromString('jane@example.com'),
         CustomerName::fromString('Jane Doe'),
     );
@@ -50,11 +53,13 @@ test('toModel fills a new model from a Customer', function () {
 test('toModel fills an existing model instance in place instead of creating a new one', function () {
     $existing = new CustomerModel([
         'id' => '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'merchant_id' => aMerchantId()->toString(),
         'email' => 'old@example.com',
         'name' => 'Old Name',
     ]);
     $customer = Customer::create(
         CustomerId::fromString('9f8e7d6c-5b4a-4321-9876-abcdef012345'),
+        aMerchantId(),
         Email::fromString('new@example.com'),
         CustomerName::fromString('New Name'),
     );
@@ -69,6 +74,7 @@ test('toModel fills an existing model instance in place instead of creating a ne
 test('toModel sets a model attribute for every Customer constructor parameter', function () {
     $customer = Customer::create(
         CustomerId::fromString('9f8e7d6c-5b4a-4321-9876-abcdef012345'),
+        aMerchantId(),
         Email::fromString('jane@example.com'),
         CustomerName::fromString('Jane Doe'),
     );
@@ -80,13 +86,15 @@ test('toModel sets a model attribute for every Customer constructor parameter', 
         (new ReflectionClass(Customer::class))->getConstructor()->getParameters(),
     );
     foreach ($constructorParams as $param) {
-        expect((string) $model->{$param})->toBe($customer->{$param}()->toString());
+        $column = $param === 'merchantId' ? 'merchant_id' : $param;
+        expect((string) $model->{$column})->toBe($customer->{$param}()->toString());
     }
 });
 
 test('toDomain builds a Customer using every constructor parameter from the model', function () {
     $model = new CustomerModel([
         'id' => '9f8e7d6c-5b4a-4321-9876-abcdef012345',
+        'merchant_id' => aMerchantId()->toString(),
         'email' => 'jane@example.com',
         'name' => 'Jane Doe',
     ]);
@@ -98,6 +106,7 @@ test('toDomain builds a Customer using every constructor parameter from the mode
         (new ReflectionClass(Customer::class))->getConstructor()->getParameters(),
     );
     foreach ($constructorParams as $param) {
-        expect($customer->{$param}()->toString())->toBe((string) $model->{$param});
+        $column = $param === 'merchantId' ? 'merchant_id' : $param;
+        expect($customer->{$param}()->toString())->toBe((string) $model->{$column});
     }
 });

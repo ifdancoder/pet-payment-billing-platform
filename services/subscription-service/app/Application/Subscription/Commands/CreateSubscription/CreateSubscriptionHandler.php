@@ -43,7 +43,7 @@ final class CreateSubscriptionHandler
 
         // Both external calls happen before any transaction opens, so the
         // DB transaction below stays short and never waits on the network.
-        if ($this->customers->find($customerId) === null) {
+        if ($this->customers->find($merchantId, $customerId) === null) {
             throw CustomerNotFound::withId($customerId);
         }
 

@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Http;
 function fakeSubscriptionUpstream(MerchantId $merchantId, CustomerId $customerId, PriceId $priceId): void
 {
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),

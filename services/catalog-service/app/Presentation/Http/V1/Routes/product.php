@@ -3,15 +3,16 @@
 use App\Presentation\Http\V1\Controllers\ProductController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('/merchants/{merchant}/products')
+Route::middleware(['access-token', 'merchant-tenant'])
+    ->prefix('/merchants/{merchant}/products')
     ->group(function () {
-        Route::get('', [ProductController::class, 'index']);
-        Route::post('', [ProductController::class, 'store']);
+        Route::get('', [ProductController::class, 'index'])->middleware('role:owner,admin,developer,finance,viewer');
+        Route::post('', [ProductController::class, 'store'])->middleware('role:owner,admin,developer');
 
         Route::prefix('/{product}')
             ->group(function () {
-                Route::get('', [ProductController::class, 'show']);
-                Route::patch('', [ProductController::class, 'update']);
-                Route::post('/archive', [ProductController::class, 'archive']);
+                Route::get('', [ProductController::class, 'show'])->middleware('role:owner,admin,developer,finance,viewer');
+                Route::patch('', [ProductController::class, 'update'])->middleware('role:owner,admin,developer');
+                Route::post('/archive', [ProductController::class, 'archive'])->middleware('role:owner,admin,developer');
             });
     });

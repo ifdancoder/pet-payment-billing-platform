@@ -6,9 +6,10 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 test('find returns customer contact details when the customer exists', function () {
+    $merchantId = (string) Str::uuid();
     $id = (string) Str::uuid();
     Http::fake([
-        "https://customers.internal/api/v1/customers/{$id}" => Http::response([
+        "https://customers.internal/api/v1/merchants/{$merchantId}/customers/{$id}" => Http::response([
             'data' => [
                 'id' => $id,
                 'email' => 'jane@example.com',
@@ -18,7 +19,7 @@ test('find returns customer contact details when the customer exists', function 
     ]);
 
     $gateway = new HttpCustomerContactGateway('https://customers.internal');
-    $contact = $gateway->find($id);
+    $contact = $gateway->find($merchantId, $id);
 
     expect($contact)->not->toBeNull()
         ->and($contact->id)->toBe($id)
@@ -27,23 +28,25 @@ test('find returns customer contact details when the customer exists', function 
 });
 
 test('find returns null when the customer does not exist', function () {
+    $merchantId = (string) Str::uuid();
     $id = (string) Str::uuid();
     Http::fake([
-        "https://customers.internal/api/v1/customers/{$id}" => Http::response(['message' => 'not found'], 404),
+        "https://customers.internal/api/v1/merchants/{$merchantId}/customers/{$id}" => Http::response(['message' => 'not found'], 404),
     ]);
 
     $gateway = new HttpCustomerContactGateway('https://customers.internal');
 
-    expect($gateway->find($id))->toBeNull();
+    expect($gateway->find($merchantId, $id))->toBeNull();
 });
 
 test('find throws when customer-service responds with a server error', function () {
+    $merchantId = (string) Str::uuid();
     $id = (string) Str::uuid();
     Http::fake([
-        "https://customers.internal/api/v1/customers/{$id}" => Http::response(['message' => 'boom'], 500),
+        "https://customers.internal/api/v1/merchants/{$merchantId}/customers/{$id}" => Http::response(['message' => 'boom'], 500),
     ]);
 
     $gateway = new HttpCustomerContactGateway('https://customers.internal');
 
-    $gateway->find($id);
+    $gateway->find($merchantId, $id);
 })->throws(RequestException::class);

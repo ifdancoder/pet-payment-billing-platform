@@ -11,9 +11,9 @@ test('handle persists a new customer with the given email and name', function ()
     Mail::fake();
     $handler = app(CreateCustomerHandler::class);
 
-    $customer = $handler->handle(new CreateCustomerCommand('jane@example.com', 'Jane Doe'));
+    $customer = $handler->handle(new CreateCustomerCommand(aMerchantId()->toString(), 'jane@example.com', 'Jane Doe'));
 
-    $persisted = app(ICustomerRepositoryPort::class)->get($customer->id());
+    $persisted = app(ICustomerRepositoryPort::class)->get($customer->id(), aMerchantId());
     expect($persisted->email()->toString())->toBe('jane@example.com')
         ->and($persisted->name()->toString())->toBe('Jane Doe');
 });
@@ -22,7 +22,7 @@ test('handle sends a welcome notification to the new customer', function () {
     Mail::fake();
     $handler = app(CreateCustomerHandler::class);
 
-    $handler->handle(new CreateCustomerCommand('jane@example.com', 'Jane Doe'));
+    $handler->handle(new CreateCustomerCommand(aMerchantId()->toString(), 'jane@example.com', 'Jane Doe'));
 
     Mail::assertSent(
         GenericNotificationMail::class,
@@ -34,7 +34,7 @@ test('handle records a CustomerCreated integration event in the outbox', functio
     Mail::fake();
     $handler = app(CreateCustomerHandler::class);
 
-    $customer = $handler->handle(new CreateCustomerCommand('jane@example.com', 'Jane Doe'));
+    $customer = $handler->handle(new CreateCustomerCommand(aMerchantId()->toString(), 'jane@example.com', 'Jane Doe'));
 
     $unpublished = app(IOutboxPort::class)->unpublished();
     expect($unpublished)->toHaveCount(1)
@@ -42,6 +42,7 @@ test('handle records a CustomerCreated integration event in the outbox', functio
         ->and($unpublished[0]->aggregateId)->toBe($customer->id()->toString())
         ->and($unpublished[0]->payload)->toBe([
             'customer_id' => $customer->id()->toString(),
+            'merchant_id' => aMerchantId()->toString(),
             'email' => 'jane@example.com',
             'name' => 'Jane Doe',
         ]);

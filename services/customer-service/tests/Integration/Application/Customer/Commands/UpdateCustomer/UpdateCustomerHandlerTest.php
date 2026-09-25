@@ -13,14 +13,14 @@ use App\Infrastructure\Customer\Adapters\Persistence\Repositories\EloquentCustom
 test('handle updates the email and name of an existing customer', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
     $id = CustomerId::generate();
-    $repository->save(Customer::create($id, Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
+    $repository->save(Customer::create($id, aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
     $handler = new UpdateCustomerHandler($repository);
 
-    $updated = $handler->handle(new UpdateCustomerCommand($id->toString(), 'jane.doe@example.com', 'Jane Smith'));
+    $updated = $handler->handle(new UpdateCustomerCommand(aMerchantId()->toString(), $id->toString(), 'jane.doe@example.com', 'Jane Smith'));
 
     expect($updated->email()->toString())->toBe('jane.doe@example.com')
         ->and($updated->name()->toString())->toBe('Jane Smith');
-    $persisted = $repository->get($id);
+    $persisted = $repository->get($id, aMerchantId());
     expect($persisted->email()->toString())->toBe('jane.doe@example.com')
         ->and($persisted->name()->toString())->toBe('Jane Smith');
 });
@@ -28,5 +28,5 @@ test('handle updates the email and name of an existing customer', function () {
 test('handle throws CustomerNotFound when no customer matches', function () {
     $handler = new UpdateCustomerHandler(new EloquentCustomerRepository(new CustomerMapper));
 
-    $handler->handle(new UpdateCustomerCommand(CustomerId::generate()->toString(), 'jane@example.com', 'Jane Doe'));
+    $handler->handle(new UpdateCustomerCommand(aMerchantId()->toString(), CustomerId::generate()->toString(), 'jane@example.com', 'Jane Doe'));
 })->throws(CustomerNotFound::class);

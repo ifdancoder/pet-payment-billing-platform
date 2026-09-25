@@ -10,7 +10,7 @@ test('a valid request creates a subscription and returns it', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),
@@ -59,7 +59,7 @@ test('a request for a non-existent customer returns not found', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['message' => 'not found'], 404),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['message' => 'not found'], 404),
     ]);
 
     $response = $this->postJson("/api/v1/merchants/{$merchantId->toString()}/subscriptions", [
@@ -75,7 +75,7 @@ test('a request for a non-existent price returns not found', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response(['message' => 'not found'], 404),
     ]);
 
@@ -92,7 +92,7 @@ test('a request for a one-time price returns a conflict', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),
@@ -120,7 +120,7 @@ test('a request for an inactive price returns a conflict', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),

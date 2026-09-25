@@ -6,6 +6,7 @@ use App\Domain\Customer\Events\CustomerCreated;
 use App\Domain\Customer\ValueObjects\CustomerId;
 use App\Domain\Customer\ValueObjects\CustomerName;
 use App\Domain\Customer\ValueObjects\Email;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class Customer
 {
@@ -14,30 +15,32 @@ final class Customer
 
     private function __construct(
         private readonly CustomerId $id,
+        private readonly MerchantId $merchantId,
         private Email $email,
         private CustomerName $name,
     ) {}
 
-    public static function create(CustomerId $id, Email $email, CustomerName $name): self
+    public static function create(CustomerId $id, MerchantId $merchantId, Email $email, CustomerName $name): self
     {
-        $customer = new self($id, $email, $name);
-        $customer->recordEvent(new CustomerCreated($id, $email, $name));
+        $customer = new self($id, $merchantId, $email, $name);
+        $customer->recordEvent(new CustomerCreated($id, $merchantId, $email, $name));
 
         return $customer;
     }
 
-    /**
-     * Rebuilds a Customer from already-persisted data. Unlike create(), this
-     * does not record a CustomerCreated event.
-     */
-    public static function reconstitute(CustomerId $id, Email $email, CustomerName $name): self
+    public static function reconstitute(CustomerId $id, MerchantId $merchantId, Email $email, CustomerName $name): self
     {
-        return new self($id, $email, $name);
+        return new self($id, $merchantId, $email, $name);
     }
 
     public function id(): CustomerId
     {
         return $this->id;
+    }
+
+    public function merchantId(): MerchantId
+    {
+        return $this->merchantId;
     }
 
     public function email(): Email

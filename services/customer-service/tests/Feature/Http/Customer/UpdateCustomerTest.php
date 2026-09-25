@@ -5,12 +5,12 @@ use Illuminate\Support\Facades\Mail;
 
 test('a valid request updates the customer and returns it', function () {
     Mail::fake();
-    $created = $this->postJson('/api/v1/customers', [
+    $created = $this->postJson(customerApi(), [
         'email' => 'jane@example.com',
         'name' => 'Jane Doe',
     ])->json('data');
 
-    $response = $this->putJson("/api/v1/customers/{$created['id']}", [
+    $response = $this->putJson(customerApi("/{$created['id']}"), [
         'email' => 'jane.doe@example.com',
         'name' => 'Jane Smith',
     ]);
@@ -22,18 +22,18 @@ test('a valid request updates the customer and returns it', function () {
 
 test('a request missing required fields is rejected', function () {
     Mail::fake();
-    $created = $this->postJson('/api/v1/customers', [
+    $created = $this->postJson(customerApi(), [
         'email' => 'jane@example.com',
         'name' => 'Jane Doe',
     ])->json('data');
 
-    $response = $this->putJson("/api/v1/customers/{$created['id']}", []);
+    $response = $this->putJson(customerApi("/{$created['id']}"), []);
 
     $response->assertUnprocessable()->assertJsonValidationErrors(['email', 'name']);
 });
 
 test('a request for a missing customer returns 404', function () {
-    $response = $this->putJson('/api/v1/customers/'.CustomerId::generate()->toString(), [
+    $response = $this->putJson(customerApi('/'.CustomerId::generate()->toString()), [
         'email' => 'jane@example.com',
         'name' => 'Jane Doe',
     ]);

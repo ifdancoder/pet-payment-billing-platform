@@ -20,16 +20,17 @@ final class CustomerController extends Controller
 {
     public function __construct(private readonly ICustomerServicePort $customerService) {}
 
-    public function index(): JsonResponse
+    public function index(string $merchant): JsonResponse
     {
-        $customers = $this->customerService->listCustomers(new ListCustomersQuery);
+        $customers = $this->customerService->listCustomers(new ListCustomersQuery($merchant));
 
         return (new CustomerResourceCollection($customers))->response();
     }
 
-    public function store(CreateCustomerRequest $request): JsonResponse
+    public function store(string $merchant, CreateCustomerRequest $request): JsonResponse
     {
         $customer = $this->customerService->createCustomer(new CreateCustomerCommand(
+            $merchant,
             $request->validated('email'),
             $request->validated('name'),
         ));
@@ -37,17 +38,18 @@ final class CustomerController extends Controller
         return CustomerResource::make($customer)->response()->setStatusCode(201);
     }
 
-    public function show(string $id): JsonResponse
+    public function show(string $merchant, string $customer): JsonResponse
     {
-        $customer = $this->customerService->getCustomer(new GetCustomerQuery($id));
+        $customer = $this->customerService->getCustomer(new GetCustomerQuery($merchant, $customer));
 
         return CustomerResource::make($customer)->response();
     }
 
-    public function update(string $id, UpdateCustomerRequest $request): JsonResponse
+    public function update(string $merchant, string $customer, UpdateCustomerRequest $request): JsonResponse
     {
         $customer = $this->customerService->updateCustomer(new UpdateCustomerCommand(
-            $id,
+            $merchant,
+            $customer,
             $request->validated('email'),
             $request->validated('name'),
         ));
@@ -55,9 +57,9 @@ final class CustomerController extends Controller
         return CustomerResource::make($customer)->response();
     }
 
-    public function destroy(string $id): Response
+    public function destroy(string $merchant, string $customer): Response
     {
-        $this->customerService->deleteCustomer(new DeleteCustomerCommand($id));
+        $this->customerService->deleteCustomer(new DeleteCustomerCommand($merchant, $customer));
 
         return response()->noContent();
     }

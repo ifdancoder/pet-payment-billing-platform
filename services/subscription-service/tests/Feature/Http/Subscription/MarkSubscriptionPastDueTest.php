@@ -10,7 +10,7 @@ test('a valid request marks an Active subscription past due', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),
@@ -46,7 +46,7 @@ test('a request to mark a Pending subscription past due returns a conflict', fun
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),

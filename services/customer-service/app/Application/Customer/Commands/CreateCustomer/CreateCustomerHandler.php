@@ -12,6 +12,7 @@ use App\Domain\Customer\ValueObjects\CustomerName;
 use App\Domain\Customer\ValueObjects\Email;
 use App\Shared\Application\Ports\Outbound\IOutboxPort;
 use App\Shared\Application\Ports\Outbound\ITransactionManagerPort;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class CreateCustomerHandler
 {
@@ -26,6 +27,7 @@ final class CreateCustomerHandler
     {
         $customer = Customer::create(
             CustomerId::generate(),
+            MerchantId::fromString($command->merchantId),
             Email::fromString($command->email),
             CustomerName::fromString($command->name),
         );

@@ -5,6 +5,7 @@ namespace App\Application\Customer\Queries\GetCustomer;
 use App\Application\Customer\Ports\Outbound\ICustomerRepositoryPort;
 use App\Domain\Customer\Customer;
 use App\Domain\Customer\ValueObjects\CustomerId;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class GetCustomerHandler
 {
@@ -12,6 +13,9 @@ final class GetCustomerHandler
 
     public function handle(GetCustomerQuery $query): Customer
     {
-        return $this->repository->get(CustomerId::fromString($query->id));
+        return $this->repository->get(
+            CustomerId::fromString($query->id),
+            MerchantId::fromString($query->merchantId),
+        );
     }
 }
