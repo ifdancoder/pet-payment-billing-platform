@@ -19,6 +19,10 @@ interface IMembershipRepositoryPort
      */
     public function get(MembershipId $id): Membership;
 
+    public function getForMerchant(MembershipId $id, MerchantId $merchantId): Membership;
+
+    public function countOwnersForUpdate(MerchantId $merchantId): int;
+
     public function findByUserAndMerchant(UserId $userId, MerchantId $merchantId): ?Membership;
 
     /**
