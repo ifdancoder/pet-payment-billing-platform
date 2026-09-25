@@ -1,5 +1,7 @@
 # 3. Kubernetes foundation: runtime, manifests, health checks
 
+*[Русская версия](0003-kubernetes-foundation.ru.md)*
+
 ## Status
 
 Accepted

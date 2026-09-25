@@ -1,5 +1,7 @@
 # End-to-end tests
 
+*[Русская версия](README.ru.md)*
+
 Full business flows across every service (Identity through
 Notification), with fake payment/email providers instead of real ones.
 See

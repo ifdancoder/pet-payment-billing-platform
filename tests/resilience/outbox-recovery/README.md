@@ -1,5 +1,7 @@
 # Resilience: outbox recovery
 
+*[Русская версия](README.ru.md)*
+
 The second resilience test (see
 [`docs/architecture/testing-strategy.md`](../../../docs/architecture/testing-strategy.md)).
 Not a business scenario or a boundary — a specific claim about failure

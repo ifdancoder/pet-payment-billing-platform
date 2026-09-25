@@ -1,5 +1,7 @@
 # 1. API gateway routing and the public/internal split
 
+*[Русская версия](0001-api-gateway-routing.ru.md)*
+
 ## Status
 
 Accepted

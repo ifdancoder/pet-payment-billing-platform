@@ -1,5 +1,7 @@
 # Resilience: consumer crash
 
+*[Русская версия](README.ru.md)*
+
 The fourth and last planned resilience test (see
 [`docs/architecture/testing-strategy.md`](../../../docs/architecture/testing-strategy.md)).
 Not the same claim

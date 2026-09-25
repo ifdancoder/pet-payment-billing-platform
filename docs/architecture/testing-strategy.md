@@ -1,5 +1,7 @@
 # Testing strategy
 
+*[Русская версия](testing-strategy.ru.md)*
+
 The living version of [ADR 0004](../adr/0004-testing-strategy.md)'s
 decision — what's actually built today, and what's next. Rebuilt
 against the code and the `tests/` tree, not a target design; update

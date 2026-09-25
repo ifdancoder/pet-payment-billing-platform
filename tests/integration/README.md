@@ -1,5 +1,7 @@
 # Service integration tests
 
+*[Русская версия](README.ru.md)*
+
 2-3 real services talking through a real RabbitMQ and real databases —
 one directory per boundary, each its own standalone Docker Compose
 stack and Pest project. Not the whole platform (that's

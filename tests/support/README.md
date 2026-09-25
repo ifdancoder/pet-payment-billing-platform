@@ -1,5 +1,7 @@
 # Shared test support
 
+*[Русская версия](README.ru.md)*
+
 A small Composer library (`billing-platform/test-support`), pulled
 into `tests/integration/*/`, `tests/e2e/*/` and `tests/resilience/*/`
 Pest projects via a `path` repository — not a service, not shared with

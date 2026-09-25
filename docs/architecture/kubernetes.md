@@ -1,5 +1,7 @@
 # Kubernetes infrastructure
 
+*[Русская версия](kubernetes.ru.md)*
+
 What lives under `infrastructure/kubernetes/` and how it relates to the
 architecture in [`overview.md`](overview.md). For actual commands (how to
 render/apply things), see

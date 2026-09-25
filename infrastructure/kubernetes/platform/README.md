@@ -1,5 +1,7 @@
 # Platform layer (Kubernetes)
 
+*[Русская версия](README.ru.md)*
+
 Platform-level infrastructure that runs inside the cluster, alongside
 (and configured for) the `pet-payment-billing-platform` namespace defined
 in `../base/`.

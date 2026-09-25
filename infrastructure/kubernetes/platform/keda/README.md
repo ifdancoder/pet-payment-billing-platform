@@ -1,5 +1,7 @@
 # KEDA
 
+*[Русская версия](README.ru.md)*
+
 [KEDA](https://keda.sh/) handles event-driven autoscaling for the
 RabbitMQ consumer Deployments, scaling on queue depth — CPU is a bad
 signal for queue backlog, since a consumer can be idle-CPU while a

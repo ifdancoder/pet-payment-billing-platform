@@ -124,8 +124,8 @@ RabbitMQ → отдельный процесс-консьюмер), нельзя
 платит худший случай) и всё равно нестабильный (нагруженный CI может
 гонку проиграть). Каждый service integration, E2E и resilience тест
 вместо этого опрашивает финальную проверку, пока она не пройдёт или не
-истечёт таймаут — см. `eventually()` в
-[`tests/integration/subscription-to-billing/tests/Support/eventually.php`](../../tests/integration/subscription-to-billing/tests/Support/eventually.php).
+истечёт таймаут — см. [`eventually()`](../../tests/support/src/eventually.php)
+в общем пакете test-support.
 
 ### Проверка через HTTP, а не через залезание в чужую БД
 

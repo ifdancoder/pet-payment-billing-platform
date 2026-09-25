@@ -1,5 +1,7 @@
 # Architecture Decision Records
 
+*[Русская версия](README.ru.md)*
+
 An ADR is a short writeup of one significant decision: what forced it,
 what was decided, what it costs. Write it once, when the decision is
 made, and don't go back and edit it later. If the decision stops

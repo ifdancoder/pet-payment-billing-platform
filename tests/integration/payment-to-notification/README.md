@@ -1,5 +1,7 @@
 # Service integration: Payment → Notification
 
+*[Русская версия](README.ru.md)*
+
 The fifth service integration test in the platform's test pyramid (see
 [`docs/architecture/testing-strategy.md`](../../../docs/architecture/testing-strategy.md)).
 The boundary itself is already exercised for real by the

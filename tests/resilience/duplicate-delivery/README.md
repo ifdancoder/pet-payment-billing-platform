@@ -1,5 +1,7 @@
 # Resilience: duplicate delivery
 
+*[Русская версия](README.ru.md)*
+
 The platform's first resilience test (see
 [`docs/architecture/testing-strategy.md`](../../../docs/architecture/testing-strategy.md)).
 Not a business scenario like [`tests/e2e/`](../../e2e/) or a boundary
@@ -14,10 +16,11 @@ At-least-once delivery means RabbitMQ *will* redeliver a message whose
 ack it never saw — a consumer crashing after committing its
 transaction but before acking, or an unacked message simply timing
 out. Every such crash produces the same thing on the wire: the same
-`event_id` arriving twice. This test doesn't reproduce the crash itself
-(that's `tests/resilience/consumer-crash/`, not built yet) — it
-reproduces the one thing every version of that crash has in common,
-directly, by publishing the identical `event_id` twice via
+`event_id` arriving twice. This test isolates the duplicate-delivery
+effect; the separately implemented
+[`consumer-crash`](../consumer-crash/) scenario reproduces the actual
+commit-before-ack crash. Here, the shared effect is exercised directly
+by publishing the identical `event_id` twice via
 [`AmqpTestClient::publish()`](../../support/src/AmqpTestClient.php)'s
 `eventId` parameter (added for exactly this test — every other slice
 lets it auto-generate one).

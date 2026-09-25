@@ -1,5 +1,7 @@
 # 2. RabbitMQ messaging contract
 
+*[Русская версия](0002-rabbitmq-messaging.ru.md)*
+
 ## Status
 
 Accepted

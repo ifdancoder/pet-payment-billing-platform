@@ -1,5 +1,7 @@
 # RabbitMQ topology
 
+*[Русская версия](README.ru.md)*
+
 This is where [RabbitMQ Topology Operator](https://www.rabbitmq.com/kubernetes/operator/install-topology-operator)
 resources (`Queue`, `Exchange`, `Binding`, `Vhost`) will go, once:
 

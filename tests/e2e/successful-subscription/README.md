@@ -1,5 +1,7 @@
 # E2E: successful subscription
 
+*[Русская версия](README.ru.md)*
+
 The platform's first end-to-end scenario (see
 [`docs/architecture/testing-strategy.md`](../../../docs/architecture/testing-strategy.md)).
 All seven services, real Postgres, real RabbitMQ, no direct-publish

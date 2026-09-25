@@ -1,5 +1,7 @@
 # Service integration: Subscription → Billing
 
+*[Русская версия](README.ru.md)*
+
 The first service integration test in the platform's test pyramid (see
 [`docs/architecture/testing-strategy.md`](../../../docs/architecture/testing-strategy.md)).
 Exercises exactly what belongs to this boundary — Subscription

@@ -1,5 +1,7 @@
 # 4. Testing strategy: the pyramid, and where each layer runs
 
+*[Русская версия](0004-testing-strategy.ru.md)*
+
 ## Status
 
 Accepted
@@ -118,8 +120,8 @@ A fixed `sleep(N)` before asserting is both slow (always pays the worst
 case) and still flaky (a loaded CI runner can still lose the race).
 Every service integration, E2E and resilience test instead polls its
 final assertion until it passes or a timeout elapses — see
-`eventually()` in
-[`tests/integration/subscription-to-billing/tests/Support/eventually.php`](../../tests/integration/subscription-to-billing/tests/Support/eventually.php).
+[`eventually()`](../../tests/support/src/eventually.php) in the shared
+test-support package.
 
 ### Assert through HTTP, not by reaching into another service's database
 

@@ -1,5 +1,7 @@
 # Service integration: Payment → Billing
 
+*[Русская версия](README.ru.md)*
+
 The third service integration test in the platform's test pyramid (see
 [`docs/architecture/testing-strategy.md`](../../../docs/architecture/testing-strategy.md)).
 Goes one hop further than

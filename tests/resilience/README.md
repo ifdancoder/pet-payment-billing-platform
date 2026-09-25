@@ -1,5 +1,7 @@
 # Resilience tests
 
+*[Русская версия](README.ru.md)*
+
 Failure-mode scenarios, not business scenarios: duplicate delivery,
 a consumer crashing mid-message, a RabbitMQ outage, Outbox recovery
 after a crash before publish. Each one proves one specific claim this

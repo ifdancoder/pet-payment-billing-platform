@@ -1,5 +1,7 @@
 # Resilience: RabbitMQ outage
 
+*[Русская версия](README.ru.md)*
+
 The third resilience test (see
 [`docs/architecture/testing-strategy.md`](../../../docs/architecture/testing-strategy.md)).
 Not a business scenario or a boundary — a specific claim about failure
