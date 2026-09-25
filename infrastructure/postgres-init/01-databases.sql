@@ -1,0 +1,7 @@
+CREATE DATABASE identity;
+CREATE DATABASE customer;
+CREATE DATABASE catalog;
+CREATE DATABASE subscription;
+CREATE DATABASE billing;
+CREATE DATABASE payment;
+CREATE DATABASE notification;

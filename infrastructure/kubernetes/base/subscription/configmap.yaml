@@ -13,7 +13,7 @@ data:
   DB_DATABASE: subscription
   DB_USERNAME: billing
   SESSION_DRIVER: array
-  CACHE_STORE: array
+  CACHE_STORE: database
   QUEUE_CONNECTION: sync
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: "5672"

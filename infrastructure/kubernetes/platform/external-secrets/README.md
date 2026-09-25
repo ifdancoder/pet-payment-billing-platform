@@ -8,9 +8,10 @@ secrets from an external store and sync them into native Kubernetes
 
 ## Status
 
-Not installed. Backend not picked yet either (Vault, AWS Secrets
-Manager, GCP Secret Manager, something like that). Local dev still uses
-plain `.env` files, see `.env.example` at the repo root.
+Not installed. Backend is not picked yet (Vault, AWS Secrets Manager, GCP
+Secret Manager, or equivalent). No Secret payload is committed meanwhile:
+`make init` creates a Git-ignored local `.env`, and `make kind-secrets`
+provisions the native Secret objects required by the local overlay.
 
 ## Planned setup
 

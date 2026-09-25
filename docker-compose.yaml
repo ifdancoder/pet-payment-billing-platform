@@ -1,46 +1,75 @@
 name: ${COMPOSE_PROJECT_NAME:-pet-payment-billing-platform}
 
+x-app-env: &app-env
+  APP_ENV: local
+  APP_DEBUG: "false"
+  APP_KEY: ${APP_KEY:?run make init first}
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USERNAME: ${POSTGRES_USER:?run make init first}
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?run make init first}
+  SESSION_DRIVER: array
+  CACHE_STORE: database
+  QUEUE_CONNECTION: sync
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?run make init first}
+  RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?run make init first}
+  AUTH_ED25519_PUBLIC_KEY_BASE64: ${AUTH_ED25519_PUBLIC_KEY_BASE64:?run make init first}
+  INTERNAL_SERVICE_ACCESS_TOKEN: ${INTERNAL_SERVICE_ACCESS_TOKEN:?run make init first}
+
+x-api: &api
+  restart: unless-stopped
+  command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8000 --root /app/public"
+  depends_on:
+    postgres: {condition: service_healthy}
+  networks: [billing-network]
+
+x-worker: &worker
+  restart: unless-stopped
+  healthcheck:
+    disable: true
+  depends_on:
+    postgres: {condition: service_healthy}
+    rabbitmq: {condition: service_healthy}
+  networks: [billing-network]
+
 services:
   gateway:
     image: nginx:1.29-alpine
-    ports:
-      - "${GATEWAY_HTTP_PORT:-8080}:80"
+    restart: unless-stopped
+    ports: ["${GATEWAY_HTTP_PORT:-8080}:80"]
     volumes:
       - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infrastructure/nginx/proxy-common.conf:/etc/nginx/proxy-common.conf:ro
       - ./infrastructure/nginx/resolver.docker-compose.conf:/etc/nginx/generated/resolver.conf:ro
       - ./infrastructure/nginx/dns_suffix.docker-compose.conf:/etc/nginx/generated/dns_suffix.conf:ro
-    networks:
-      - billing-network
+    networks: [billing-network]
 
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-billing}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-billing}
-      POSTGRES_DB: ${POSTGRES_DB:-billing}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      POSTGRES_USER: ${POSTGRES_USER:?run make init first}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make init first}
+      POSTGRES_DB: postgres
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql
+      - ./infrastructure/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-billing} -d ${POSTGRES_DB:-billing}"
-        ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?run make init first}"]
       interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - billing-network
+      retries: 12
+    networks: [billing-network]
 
   rabbitmq:
     image: rabbitmq:4-management-alpine
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-billing}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-billing}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?run make init first}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?run make init first}
     ports:
       - "${RABBITMQ_PORT:-5672}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
@@ -52,9 +81,111 @@ services:
       test: rabbitmq-diagnostics -q ping
       interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - billing-network
+      retries: 12
+    networks: [billing-network]
+
+  identity-service:
+    <<: *api
+    build: {context: ., dockerfile: services/identity-service/Dockerfile}
+    environment:
+      <<: *app-env
+      DB_DATABASE: identity
+      AUTH_ED25519_SECRET_KEY_BASE64: ${AUTH_ED25519_SECRET_KEY_BASE64:?run make init first}
+
+  customer-service:
+    <<: *api
+    build: {context: ., dockerfile: services/customer-service/Dockerfile}
+    environment: {<<: *app-env, DB_DATABASE: customer}
+  customer-outbox:
+    <<: *worker
+    build: {context: ., dockerfile: services/customer-service/Dockerfile}
+    command: sh -c "while true; do php artisan outbox:publish; sleep 2; done"
+    environment: {<<: *app-env, DB_DATABASE: customer}
+
+  catalog-service:
+    <<: *api
+    build: {context: ., dockerfile: services/catalog-service/Dockerfile}
+    environment: {<<: *app-env, DB_DATABASE: catalog}
+  catalog-outbox:
+    <<: *worker
+    build: {context: ., dockerfile: services/catalog-service/Dockerfile}
+    command: sh -c "while true; do php artisan outbox:publish; sleep 2; done"
+    environment: {<<: *app-env, DB_DATABASE: catalog}
+
+  subscription-service:
+    <<: *api
+    build: {context: ., dockerfile: services/subscription-service/Dockerfile}
+    environment:
+      <<: *app-env
+      DB_DATABASE: subscription
+      CUSTOMER_SERVICE_URL: http://customer-service:8000
+      CATALOG_SERVICE_URL: http://catalog-service:8000
+  subscription-outbox:
+    <<: *worker
+    build: {context: ., dockerfile: services/subscription-service/Dockerfile}
+    command: sh -c "while true; do php artisan outbox:publish; sleep 2; done"
+    environment: {<<: *app-env, DB_DATABASE: subscription}
+  subscription-consumer:
+    <<: *worker
+    build: {context: ., dockerfile: services/subscription-service/Dockerfile}
+    command: sh -c "while true; do php artisan subscription-events:consume; sleep 1; done"
+    environment: {<<: *app-env, DB_DATABASE: subscription}
+  subscription-renewal:
+    <<: *worker
+    build: {context: ., dockerfile: services/subscription-service/Dockerfile}
+    command: sh -c "while true; do php artisan subscriptions:renew; sleep 60; done"
+    environment: {<<: *app-env, DB_DATABASE: subscription}
+
+  billing-service:
+    <<: *api
+    build: {context: ., dockerfile: services/billing-service/Dockerfile}
+    environment: {<<: *app-env, DB_DATABASE: billing}
+  billing-outbox:
+    <<: *worker
+    build: {context: ., dockerfile: services/billing-service/Dockerfile}
+    command: sh -c "while true; do php artisan outbox:publish; sleep 2; done"
+    environment: {<<: *app-env, DB_DATABASE: billing}
+  billing-consumer:
+    <<: *worker
+    build: {context: ., dockerfile: services/billing-service/Dockerfile}
+    command: sh -c "while true; do php artisan billing-events:consume; sleep 1; done"
+    environment: {<<: *app-env, DB_DATABASE: billing}
+
+  payment-service:
+    <<: *api
+    build: {context: ., dockerfile: services/payment-service/Dockerfile}
+    environment: {<<: *app-env, DB_DATABASE: payment}
+  payment-outbox:
+    <<: *worker
+    build: {context: ., dockerfile: services/payment-service/Dockerfile}
+    command: sh -c "while true; do php artisan outbox:publish; sleep 2; done"
+    environment: {<<: *app-env, DB_DATABASE: payment}
+  payment-consumer:
+    <<: *worker
+    build: {context: ., dockerfile: services/payment-service/Dockerfile}
+    command: sh -c "while true; do php artisan invoice-created:consume; sleep 1; done"
+    environment: {<<: *app-env, DB_DATABASE: payment}
+
+  notification-service:
+    <<: *api
+    build: {context: ., dockerfile: services/notification-service/Dockerfile}
+    environment:
+      <<: *app-env
+      DB_DATABASE: notification
+      CUSTOMER_SERVICE_URL: http://customer-service:8000
+  notification-ingest:
+    <<: *worker
+    build: {context: ., dockerfile: services/notification-service/Dockerfile}
+    command: sh -c "while true; do php artisan payment-succeeded:consume; sleep 1; done"
+    environment:
+      <<: *app-env
+      DB_DATABASE: notification
+      CUSTOMER_SERVICE_URL: http://customer-service:8000
+  notification-delivery:
+    <<: *worker
+    build: {context: ., dockerfile: services/notification-service/Dockerfile}
+    command: sh -c "while true; do php artisan notifications:deliver; sleep 1; done"
+    environment: {<<: *app-env, DB_DATABASE: notification}
 
 networks:
   billing-network:

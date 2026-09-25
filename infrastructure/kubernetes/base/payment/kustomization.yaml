@@ -7,7 +7,6 @@ labels:
     includeSelectors: true
 resources:
   - configmap.yaml
-  - secret.yaml
   - serviceaccount.yaml
   - workloads.yaml
   - service.yaml

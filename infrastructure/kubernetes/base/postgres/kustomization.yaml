@@ -11,7 +11,6 @@ resources:
   - deployment.yaml
   - service.yaml
   - pvc.yaml
-  - secret.yaml
 
 configMapGenerator:
   - name: postgres-init

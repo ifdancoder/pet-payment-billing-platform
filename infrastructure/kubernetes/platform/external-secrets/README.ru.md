@@ -9,10 +9,11 @@
 
 ## Состояние
 
-Не установлен. Backend пока также не выбран: Vault, AWS Secrets
-Manager, GCP Secret Manager или другой вариант. Локальная разработка
-по-прежнему использует обычные `.env`-файлы; см. `.env.example` в корне
-репозитория.
+Не установлен. Backend пока не выбран: Vault, AWS Secrets Manager, GCP
+Secret Manager или аналог. Payload Secret при этом не коммитится:
+`make init` создаёт игнорируемый Git локальный `.env`, а
+`make kind-secrets` создаёт необходимые local overlay нативные
+Secret-объекты.
 
 ## План установки
 
