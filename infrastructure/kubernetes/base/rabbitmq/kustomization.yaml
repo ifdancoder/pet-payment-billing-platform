@@ -8,14 +8,10 @@ labels:
     includeSelectors: true
 
 resources:
-  - secret.yaml
   - pvc.yaml
   - deployment.yaml
   - service.yaml
 
-# Generated from the same files docker-compose's rabbitmq mounts
-# (infrastructure/rabbitmq/) — one config source of truth for both
-# environments, same reasoning as the gateway's nginx config.
 configMapGenerator:
   - name: rabbitmq-conf
     files:

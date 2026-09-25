@@ -13,5 +13,5 @@ data:
   DB_DATABASE: identity
   DB_USERNAME: billing
   SESSION_DRIVER: array
-  CACHE_STORE: array
+  CACHE_STORE: database
   QUEUE_CONNECTION: sync

@@ -13,13 +13,9 @@ data:
   DB_DATABASE: subscription
   DB_USERNAME: billing
   SESSION_DRIVER: array
-  CACHE_STORE: array
+  CACHE_STORE: database
   QUEUE_CONNECTION: sync
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: "5672"
-  # Bare Service names, not FQDNs — PHP's own (musl) resolver applies
-  # /etc/resolv.conf's search-domain suffixes normally, unlike nginx's
-  # resolver module (see docs/adr/0003-kubernetes-foundation.md and
-  # infrastructure/nginx/nginx.conf's $dns_suffix comment).
   CUSTOMER_SERVICE_URL: http://customer-service:8000
   CATALOG_SERVICE_URL: http://catalog-service:8000
