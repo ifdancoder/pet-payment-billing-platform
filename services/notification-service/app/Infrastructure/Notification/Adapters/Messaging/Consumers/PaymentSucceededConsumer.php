@@ -9,12 +9,6 @@ use App\Application\Notification\Ports\Outbound\ITemplateRendererPort;
 use App\Domain\Notification\ValueObjects\NotificationChannel;
 use App\Domain\Notification\ValueObjects\NotificationType;
 
-/**
- * Translates a decoded payment.succeeded.v1 message into a rendered
- * email receipt and a CreateNotification command. Has no idea RabbitMQ
- * exists — it takes plain data, so it's testable without an AMQPMessage
- * at all.
- */
 final class PaymentSucceededConsumer
 {
     public function __construct(
@@ -28,13 +22,10 @@ final class PaymentSucceededConsumer
      */
     public function handle(string $eventId, array $payload): void
     {
-        $contact = $this->customerContacts->find($payload['customer_id']);
+        $contact = $this->customerContacts->find($payload['merchant_id'], $payload['customer_id']);
 
-        // No contact to notify — e.g. the customer was since deleted, or
-        // customer-service is unreachable. Neither the Inbox nor a
-        // Notification is recorded, so a redelivery of this same event
-        // will simply retry the lookup.
         if ($contact === null) {
+            // The inbox remains untouched so redelivery can retry the lookup.
             return;
         }
 

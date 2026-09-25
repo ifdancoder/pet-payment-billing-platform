@@ -11,6 +11,7 @@ test('it publishes every unpublished outbox message and reports how many', funct
     $outbox = app(IOutboxPort::class);
     $outbox->add(CustomerCreatedIntegrationEvent::fromDomainEvent(new CustomerCreated(
         CustomerId::generate(),
+        aMerchantId(),
         Email::fromString('jane@example.com'),
         CustomerName::fromString('Jane Doe'),
     )));

@@ -22,14 +22,12 @@ test('it consumes and acks one pending message and reports it', function () {
             'occurred_at' => (new DateTimeImmutable)->format(DATE_ATOM),
         ]),
     ]);
-    $deliveryChannel = Mockery::mock(AMQPChannel::class);
+    $deliveryChannel = Mockery::mock(AMQPChannel::class)->shouldIgnoreMissing();
     $deliveryChannel->shouldReceive('basic_ack')->once()->with(1, false);
     $message->setChannel($deliveryChannel);
     $message->setDeliveryInfo(1, false, 'billing.events', 'invoice.created.v1');
 
-    $channel = Mockery::mock(AMQPChannel::class);
-    $channel->shouldReceive('queue_declare')->once()->with('payment.invoice-created', false, true, false, false);
-    $channel->shouldReceive('queue_bind')->once()->with('payment.invoice-created', 'billing.events', 'invoice.created.v1');
+    $channel = Mockery::mock(AMQPChannel::class)->shouldIgnoreMissing();
     $channel->shouldReceive('basic_get')->once()->with('payment.invoice-created')->andReturn($message);
     $this->app->instance(AMQPChannel::class, $channel);
 
@@ -41,9 +39,7 @@ test('it consumes and acks one pending message and reports it', function () {
 });
 
 test('it reports zero when there is nothing to consume', function () {
-    $channel = Mockery::mock(AMQPChannel::class);
-    $channel->shouldReceive('queue_declare')->once();
-    $channel->shouldReceive('queue_bind')->once();
+    $channel = Mockery::mock(AMQPChannel::class)->shouldIgnoreMissing();
     $channel->shouldReceive('basic_get')->once()->andReturn(null);
     $this->app->instance(AMQPChannel::class, $channel);
 

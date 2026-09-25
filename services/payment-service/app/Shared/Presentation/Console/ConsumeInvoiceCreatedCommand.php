@@ -6,6 +6,7 @@ use App\Infrastructure\Payment\Adapters\Messaging\Consumers\InvoiceCreatedConsum
 use App\Shared\Infrastructure\Messaging\RabbitMQ\RabbitMqEventPublisher;
 use Illuminate\Console\Command;
 use PhpAmqpLib\Channel\AMQPChannel;
+use Platform\Messaging\ReliableRabbitMqConsumer;
 
 final class ConsumeInvoiceCreatedCommand extends Command
 {
@@ -15,27 +16,11 @@ final class ConsumeInvoiceCreatedCommand extends Command
 
     protected $description = 'Drain up to one pending invoice.created.v1 message from the queue and process it.';
 
-    public function handle(AMQPChannel $channel, InvoiceCreatedConsumer $consumer): int
+    public function handle(AMQPChannel $channel, InvoiceCreatedConsumer $consumer, ReliableRabbitMqConsumer $reliable): int
     {
-        $channel->queue_declare(self::QUEUE, false, true, false, false);
-        $channel->queue_bind(self::QUEUE, RabbitMqEventPublisher::EXCHANGE, 'invoice.created.v1');
-
-        $message = $channel->basic_get(self::QUEUE);
-
-        if ($message === null) {
-            $this->info('Consumed 0 message(s).');
-
-            return self::SUCCESS;
-        }
-
-        $headers = $message->get('application_headers')->getNativeData();
-        $payload = json_decode($message->getBody(), true, 512, JSON_THROW_ON_ERROR);
-
-        $consumer->handle($headers['event_id'], $payload);
-
-        $message->ack();
-
-        $this->info('Consumed 1 message(s).');
+        $result = $reliable->consumeOne($channel, self::QUEUE, RabbitMqEventPublisher::EXCHANGE, ['invoice.created.v1'],
+            fn ($message, array $headers, array $payload) => $consumer->handle($headers['event_id'], $payload));
+        $this->info($result === 'empty' ? 'Consumed 0 message(s).' : ($result === 'processed' ? 'Consumed 1 message(s).' : "Message {$result}."));
 
         return self::SUCCESS;
     }

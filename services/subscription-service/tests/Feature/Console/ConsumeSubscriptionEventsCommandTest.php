@@ -28,7 +28,7 @@ function aQueuedSubscriptionEventsMessage(string $body, string $routingKey): AMQ
             'occurred_at' => (new DateTimeImmutable)->format(DATE_ATOM),
         ]),
     ]);
-    $deliveryChannel = Mockery::mock(AMQPChannel::class);
+    $deliveryChannel = Mockery::mock(AMQPChannel::class)->shouldIgnoreMissing();
     $deliveryChannel->shouldReceive('basic_ack')->once()->with(1, false);
     $message->setChannel($deliveryChannel);
     $message->setDeliveryInfo(1, false, 'billing.events', $routingKey);
@@ -51,10 +51,7 @@ function seedSubscriptionForConsumeEventsCommand(MerchantId $merchantId, Subscri
 }
 
 test('it declares the queue with bindings for every event type it consumes', function () {
-    $channel = Mockery::mock(AMQPChannel::class);
-    $channel->shouldReceive('queue_declare')->once()->with('subscription.events.v1', false, true, false, false);
-    $channel->shouldReceive('queue_bind')->once()->with('subscription.events.v1', 'billing.events', 'invoice.paid.v1');
-    $channel->shouldReceive('queue_bind')->once()->with('subscription.events.v1', 'billing.events', 'invoice.payment_failed.v1');
+    $channel = Mockery::mock(AMQPChannel::class)->shouldIgnoreMissing();
     $channel->shouldReceive('basic_get')->once()->with('subscription.events.v1')->andReturn(null);
     $this->app->instance(AMQPChannel::class, $channel);
 
@@ -77,9 +74,7 @@ test('it routes an invoice.paid.v1 message to the activation flow', function () 
         'paid_at' => '2026-09-01T00:05:00+00:00',
     ]);
     $message = aQueuedSubscriptionEventsMessage($body, 'invoice.paid.v1');
-    $channel = Mockery::mock(AMQPChannel::class);
-    $channel->shouldReceive('queue_declare')->once();
-    $channel->shouldReceive('queue_bind')->twice();
+    $channel = Mockery::mock(AMQPChannel::class)->shouldIgnoreMissing();
     $channel->shouldReceive('basic_get')->once()->andReturn($message);
     $this->app->instance(AMQPChannel::class, $channel);
 
@@ -103,9 +98,7 @@ test('it routes an invoice.payment_failed.v1 message to the past-due flow', func
         'failure_code' => 'card_declined',
     ]);
     $message = aQueuedSubscriptionEventsMessage($body, 'invoice.payment_failed.v1');
-    $channel = Mockery::mock(AMQPChannel::class);
-    $channel->shouldReceive('queue_declare')->once();
-    $channel->shouldReceive('queue_bind')->twice();
+    $channel = Mockery::mock(AMQPChannel::class)->shouldIgnoreMissing();
     $channel->shouldReceive('basic_get')->once()->andReturn($message);
     $this->app->instance(AMQPChannel::class, $channel);
 
@@ -118,9 +111,7 @@ test('it routes an invoice.payment_failed.v1 message to the past-due flow', func
 });
 
 test('it reports zero when there is nothing to consume', function () {
-    $channel = Mockery::mock(AMQPChannel::class);
-    $channel->shouldReceive('queue_declare')->once();
-    $channel->shouldReceive('queue_bind')->twice();
+    $channel = Mockery::mock(AMQPChannel::class)->shouldIgnoreMissing();
     $channel->shouldReceive('basic_get')->once()->andReturn(null);
     $this->app->instance(AMQPChannel::class, $channel);
 

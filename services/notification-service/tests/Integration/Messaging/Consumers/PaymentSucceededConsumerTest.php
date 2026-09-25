@@ -20,10 +20,10 @@ function aPaymentSucceededPayload(array $overrides = []): array
     ], $overrides);
 }
 
-function fakeCustomerServiceContact(string $customerId, ?string $email = 'jane@example.com'): void
+function fakeCustomerServiceContact(string $merchantId, string $customerId, ?string $email = 'jane@example.com'): void
 {
     Http::fake([
-        "*/api/v1/customers/{$customerId}" => $email === null
+        "*/api/v1/merchants/{$merchantId}/customers/{$customerId}" => $email === null
             ? Http::response(['message' => 'not found'], 404)
             : Http::response(['data' => ['id' => $customerId, 'email' => $email, 'name' => 'Jane Doe']], 200),
     ]);
@@ -31,7 +31,7 @@ function fakeCustomerServiceContact(string $customerId, ?string $email = 'jane@e
 
 test('handle creates a Pending notification with rendered email content', function () {
     $payload = aPaymentSucceededPayload();
-    fakeCustomerServiceContact($payload['customer_id']);
+    fakeCustomerServiceContact($payload['merchant_id'], $payload['customer_id']);
 
     app(PaymentSucceededConsumer::class)->handle((string) Str::uuid(), $payload);
 
@@ -45,7 +45,7 @@ test('handle creates a Pending notification with rendered email content', functi
 
 test('handle does nothing when the customer has no contact details', function () {
     $payload = aPaymentSucceededPayload();
-    fakeCustomerServiceContact($payload['customer_id'], null);
+    fakeCustomerServiceContact($payload['merchant_id'], $payload['customer_id'], null);
 
     app(PaymentSucceededConsumer::class)->handle((string) Str::uuid(), $payload);
 
@@ -55,7 +55,7 @@ test('handle does nothing when the customer has no contact details', function ()
 
 test('handle does nothing when the same event id is redelivered', function () {
     $payload = aPaymentSucceededPayload();
-    fakeCustomerServiceContact($payload['customer_id']);
+    fakeCustomerServiceContact($payload['merchant_id'], $payload['customer_id']);
     $eventId = (string) Str::uuid();
     app(PaymentSucceededConsumer::class)->handle($eventId, $payload);
 
