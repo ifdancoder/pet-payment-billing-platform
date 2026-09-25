@@ -1,0 +1,1397 @@
+openapi: 3.1.0
+info:
+  title: Billing Platform API
+  version: 1.0.0
+  description: >-
+    Public HTTP contract implemented by the gateway and the seven backend
+    services. Public /v1 paths are rewritten by the gateway to the services'
+    internal /api/v1 paths. Authentication is not implemented yet, so this
+    version intentionally declares no security scheme.
+servers:
+  - url: http://localhost:8080
+    description: Local gateway
+tags:
+  - name: System
+  - name: Identity
+  - name: Customers
+  - name: Catalog
+  - name: Subscriptions
+  - name: Billing
+  - name: Payments
+  - name: Notifications
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Check gateway health
+      operationId: getGatewayHealth
+      responses:
+        '200':
+          description: Gateway is serving requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayHealth'
+
+  /v1/merchants:
+    post:
+      tags: [Identity]
+      summary: Create a merchant
+      operationId: createMerchant
+      requestBody:
+        $ref: '#/components/requestBodies/CreateMerchant'
+      responses:
+        '201':
+          $ref: '#/components/responses/MerchantCreated'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/users:
+    post:
+      tags: [Identity]
+      summary: Register a user
+      operationId: registerUser
+      requestBody:
+        $ref: '#/components/requestBodies/RegisterUser'
+      responses:
+        '201':
+          $ref: '#/components/responses/UserCreated'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      operationId: listCustomers
+      responses:
+        '200':
+          $ref: '#/components/responses/CustomerCollection'
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      operationId: createCustomer
+      requestBody:
+        $ref: '#/components/requestBodies/CreateCustomer'
+      responses:
+        '201':
+          $ref: '#/components/responses/CustomerCreated'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/customers/{customer}:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+    get:
+      tags: [Customers]
+      summary: Get a customer
+      operationId: getCustomer
+      responses:
+        '200':
+          $ref: '#/components/responses/CustomerOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Customers]
+      summary: Replace a customer's editable fields
+      operationId: updateCustomer
+      requestBody:
+        $ref: '#/components/requestBodies/UpdateCustomer'
+      responses:
+        '200':
+          $ref: '#/components/responses/CustomerOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Customers]
+      summary: Delete a customer
+      operationId: deleteCustomer
+      responses:
+        '204':
+          description: Customer deleted. The response has no body.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/merchants/{merchant}/products:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+    get:
+      tags: [Catalog]
+      summary: List a merchant's products
+      operationId: listProducts
+      responses:
+        '200':
+          $ref: '#/components/responses/ProductCollection'
+    post:
+      tags: [Catalog]
+      summary: Create a product
+      operationId: createProduct
+      requestBody:
+        $ref: '#/components/requestBodies/CreateProduct'
+      responses:
+        '201':
+          $ref: '#/components/responses/ProductCreated'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/merchants/{merchant}/products/{product}:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      tags: [Catalog]
+      summary: Get a product and its prices
+      operationId: getProductCatalog
+      responses:
+        '200':
+          $ref: '#/components/responses/ProductCatalogOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Catalog]
+      summary: Update a product
+      operationId: updateProduct
+      requestBody:
+        $ref: '#/components/requestBodies/UpdateProduct'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProductOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/merchants/{merchant}/products/{product}/archive:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/ProductId'
+    post:
+      tags: [Catalog]
+      summary: Archive a product
+      operationId: archiveProduct
+      responses:
+        '200':
+          $ref: '#/components/responses/ProductOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/merchants/{merchant}/products/{product}/prices:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/ProductId'
+    post:
+      tags: [Catalog]
+      summary: Create a price for a product
+      operationId: createPrice
+      requestBody:
+        $ref: '#/components/requestBodies/CreatePrice'
+      responses:
+        '201':
+          $ref: '#/components/responses/PriceCreated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/merchants/{merchant}/prices/{price}:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/PriceId'
+    get:
+      tags: [Catalog]
+      summary: Get a price
+      operationId: getPrice
+      responses:
+        '200':
+          $ref: '#/components/responses/PriceOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/merchants/{merchant}/prices/{price}/activate:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/PriceId'
+    post:
+      tags: [Catalog]
+      summary: Activate a price
+      operationId: activatePrice
+      responses:
+        '200':
+          $ref: '#/components/responses/PriceOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/merchants/{merchant}/prices/{price}/deactivate:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/PriceId'
+    post:
+      tags: [Catalog]
+      summary: Deactivate a price
+      operationId: deactivatePrice
+      responses:
+        '200':
+          $ref: '#/components/responses/PriceOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/merchants/{merchant}/subscriptions:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+    get:
+      tags: [Subscriptions]
+      summary: List a merchant's subscriptions
+      operationId: listSubscriptions
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionCollection'
+    post:
+      tags: [Subscriptions]
+      summary: Create a subscription
+      operationId: createSubscription
+      requestBody:
+        $ref: '#/components/requestBodies/CreateSubscription'
+      responses:
+        '201':
+          $ref: '#/components/responses/SubscriptionCreated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/merchants/{merchant}/subscriptions/{subscription}:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/SubscriptionId'
+    get:
+      tags: [Subscriptions]
+      summary: Get a subscription
+      operationId: getSubscription
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/merchants/{merchant}/subscriptions/{subscription}/activate:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/SubscriptionId'
+    post:
+      tags: [Subscriptions]
+      summary: Activate a subscription
+      operationId: activateSubscription
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/merchants/{merchant}/subscriptions/{subscription}/mark-past-due:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/SubscriptionId'
+    post:
+      tags: [Subscriptions]
+      summary: Mark a subscription past due
+      operationId: markSubscriptionPastDue
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/merchants/{merchant}/subscriptions/{subscription}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/SubscriptionId'
+    post:
+      tags: [Subscriptions]
+      summary: Cancel a subscription
+      operationId: cancelSubscription
+      responses:
+        '200':
+          $ref: '#/components/responses/SubscriptionOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/merchants/{merchant}/invoices:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+    get:
+      tags: [Billing]
+      summary: List a merchant's invoices
+      operationId: listInvoices
+      responses:
+        '200':
+          $ref: '#/components/responses/InvoiceCollection'
+
+  /v1/merchants/{merchant}/invoices/{invoice}:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/InvoiceId'
+    get:
+      tags: [Billing]
+      summary: Get an invoice
+      operationId: getInvoice
+      responses:
+        '200':
+          $ref: '#/components/responses/InvoiceOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/merchants/{merchant}/invoices/{invoice}/void:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/InvoiceId'
+    post:
+      tags: [Billing]
+      summary: Void an invoice
+      operationId: voidInvoice
+      responses:
+        '200':
+          $ref: '#/components/responses/InvoiceOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/merchants/{merchant}/payments:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+    get:
+      tags: [Payments]
+      summary: List a merchant's payments
+      operationId: listPayments
+      responses:
+        '200':
+          $ref: '#/components/responses/PaymentCollection'
+
+  /v1/merchants/{merchant}/payments/{payment}:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/PaymentId'
+    get:
+      tags: [Payments]
+      summary: Get a payment
+      operationId: getPayment
+      responses:
+        '200':
+          $ref: '#/components/responses/PaymentOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/merchants/{merchant}/notifications:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+    get:
+      tags: [Notifications]
+      summary: List a merchant's notifications
+      operationId: listNotifications
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationCollection'
+
+  /v1/merchants/{merchant}/notifications/{notification}:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+      - $ref: '#/components/parameters/NotificationId'
+    get:
+      tags: [Notifications]
+      summary: Get a notification
+      operationId: getNotification
+      responses:
+        '200':
+          $ref: '#/components/responses/NotificationOk'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    MerchantId:
+      name: merchant
+      in: path
+      required: true
+      description: Merchant UUID used as the tenant boundary.
+      schema:
+        type: string
+        format: uuid
+    CustomerId:
+      name: customer
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProductId:
+      name: product
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PriceId:
+      name: price
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SubscriptionId:
+      name: subscription
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InvoiceId:
+      name: invoice
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PaymentId:
+      name: payment
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    NotificationId:
+      name: notification
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  requestBodies:
+    CreateMerchant:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreateMerchantRequest'
+    RegisterUser:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RegisterUserRequest'
+    CreateCustomer:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CustomerWriteRequest'
+    UpdateCustomer:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CustomerWriteRequest'
+    CreateProduct:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreateProductRequest'
+    UpdateProduct:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UpdateProductRequest'
+    CreatePrice:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreatePriceRequest'
+    CreateSubscription:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreateSubscriptionRequest'
+
+  responses:
+    MerchantCreated:
+      description: Merchant created.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MerchantResponse'
+    UserCreated:
+      description: User registered.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UserResponse'
+    CustomerCreated:
+      description: Customer created.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CustomerResponse'
+    CustomerOk:
+      description: Customer returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CustomerResponse'
+    CustomerCollection:
+      description: Customer collection returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CustomerCollectionResponse'
+    ProductCreated:
+      description: Product created.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductResponse'
+    ProductOk:
+      description: Product returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductResponse'
+    ProductCatalogOk:
+      description: Product and its prices returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductCatalogResponse'
+    ProductCollection:
+      description: Product collection returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductCollectionResponse'
+    PriceCreated:
+      description: Price created.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PriceResponse'
+    PriceOk:
+      description: Price returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PriceResponse'
+    SubscriptionCreated:
+      description: Subscription created.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SubscriptionResponse'
+    SubscriptionOk:
+      description: Subscription returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SubscriptionResponse'
+    SubscriptionCollection:
+      description: Subscription collection returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SubscriptionCollectionResponse'
+    InvoiceOk:
+      description: Invoice returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvoiceResponse'
+    InvoiceCollection:
+      description: Invoice collection returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvoiceCollectionResponse'
+    PaymentOk:
+      description: Payment returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PaymentResponse'
+    PaymentCollection:
+      description: Payment collection returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PaymentCollectionResponse'
+    NotificationOk:
+      description: Notification returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotificationResponse'
+    NotificationCollection:
+      description: Notification collection returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NotificationCollectionResponse'
+    NotFound:
+      description: The requested resource does not exist in the given scope.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MessageError'
+    Conflict:
+      description: The request conflicts with current state or uniqueness rules.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MessageError'
+    ValidationError:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+
+  schemas:
+    GatewayHealth:
+      type: object
+      additionalProperties: false
+      required: [status, service]
+      properties:
+        status:
+          type: string
+          const: ok
+        service:
+          type: string
+          const: gateway
+
+    MessageError:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    ValidationError:
+      type: object
+      required: [message, errors]
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    CreateMerchantRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+
+    RegisterUserRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          format: password
+          minLength: 8
+
+    CustomerWriteRequest:
+      type: object
+      additionalProperties: false
+      required: [email, name]
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          maxLength: 255
+
+    CreateProductRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: [string, 'null']
+
+    UpdateProductRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+
+    CreatePriceRequest:
+      oneOf:
+        - $ref: '#/components/schemas/CreateOneTimePriceRequest'
+        - $ref: '#/components/schemas/CreateRecurringPriceRequest'
+
+    CreateOneTimePriceRequest:
+      type: object
+      additionalProperties: false
+      required: [amount_minor_units, currency, type]
+      properties:
+        amount_minor_units:
+          type: integer
+          minimum: 0
+        currency:
+          $ref: '#/components/schemas/Currency'
+        type:
+          type: integer
+          const: 1
+          description: One-time price.
+
+    CreateRecurringPriceRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - amount_minor_units
+        - currency
+        - type
+        - billing_interval
+        - billing_interval_count
+      properties:
+        amount_minor_units:
+          type: integer
+          minimum: 0
+        currency:
+          $ref: '#/components/schemas/Currency'
+        type:
+          type: integer
+          const: 2
+          description: Recurring price.
+        billing_interval:
+          type: integer
+          enum: [1, 2, 3, 4]
+          description: 1=day, 2=week, 3=month, 4=year.
+        billing_interval_count:
+          type: integer
+          minimum: 1
+
+    CreateSubscriptionRequest:
+      type: object
+      additionalProperties: false
+      required: [customer_id, price_id]
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        price_id:
+          type: string
+          format: uuid
+
+    Currency:
+      type: string
+      enum: [USD, EUR, GBP]
+
+    Merchant:
+      type: object
+      additionalProperties: false
+      required: [id, name, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+          enum: [active, disabled]
+
+    Customer:
+      type: object
+      additionalProperties: false
+      required: [id, email, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    Product:
+      type: object
+      additionalProperties: false
+      required: [id, merchant_id, name, description, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [active, archived]
+
+    ProductCatalog:
+      type: object
+      additionalProperties: false
+      required: [id, merchant_id, name, description, status, prices]
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: [string, 'null']
+        status:
+          type: string
+          enum: [active, archived]
+        prices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Price'
+
+    Price:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - merchant_id
+        - product_id
+        - amount_minor_units
+        - currency
+        - type
+        - billing_interval
+        - billing_interval_count
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        amount_minor_units:
+          type: integer
+          minimum: 0
+        currency:
+          $ref: '#/components/schemas/Currency'
+        type:
+          type: string
+          enum: [one_time, recurring]
+        billing_interval:
+          type: [string, 'null']
+          enum: [day, week, month, year, null]
+        billing_interval_count:
+          type: [integer, 'null']
+          minimum: 1
+        status:
+          type: string
+          enum: [active, inactive]
+
+    Subscription:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - merchant_id
+        - customer_id
+        - price_id
+        - product_id
+        - amount_minor_units
+        - currency
+        - billing_interval
+        - billing_interval_count
+        - status
+        - current_period_start
+        - current_period_end
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        price_id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        amount_minor_units:
+          type: integer
+          minimum: 0
+        currency:
+          $ref: '#/components/schemas/Currency'
+        billing_interval:
+          type: string
+          enum: [day, week, month, year]
+        billing_interval_count:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum: [pending, active, past_due, canceled]
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+
+    InvoiceLine:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - product_id
+        - price_id
+        - description
+        - quantity
+        - unit_amount_minor_units
+        - total_amount_minor_units
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: [string, 'null']
+          format: uuid
+        price_id:
+          type: [string, 'null']
+          format: uuid
+        description:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        unit_amount_minor_units:
+          type: integer
+          minimum: 0
+        total_amount_minor_units:
+          type: integer
+          minimum: 0
+
+    Invoice:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - merchant_id
+        - customer_id
+        - subscription_id
+        - period_start
+        - period_end
+        - currency
+        - subtotal_amount_minor_units
+        - total_amount_minor_units
+        - status
+        - payment_id
+        - paid_at
+        - voided_at
+        - lines
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        subscription_id:
+          type: string
+          format: uuid
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        currency:
+          $ref: '#/components/schemas/Currency'
+        subtotal_amount_minor_units:
+          type: integer
+          minimum: 0
+        total_amount_minor_units:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [open, paid, void]
+        payment_id:
+          type: [string, 'null']
+          format: uuid
+        paid_at:
+          type: [string, 'null']
+          format: date-time
+        voided_at:
+          type: [string, 'null']
+          format: date-time
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvoiceLine'
+
+    PaymentAttempt:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - provider
+        - provider_reference
+        - status
+        - failure_code
+        - failure_message
+        - started_at
+        - completed_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          type: string
+        provider_reference:
+          type: [string, 'null']
+          description: Opaque identifier returned by the payment provider.
+        status:
+          type: string
+          enum: [pending, succeeded, failed]
+        failure_code:
+          type: [string, 'null']
+        failure_message:
+          type: [string, 'null']
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, 'null']
+          format: date-time
+
+    Payment:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - invoice_id
+        - merchant_id
+        - customer_id
+        - amount_minor_units
+        - currency
+        - billing_reason
+        - status
+        - paid_at
+        - failed_at
+        - attempts
+      properties:
+        id:
+          type: string
+          format: uuid
+        invoice_id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+          format: uuid
+        amount_minor_units:
+          type: integer
+          minimum: 0
+        currency:
+          $ref: '#/components/schemas/Currency'
+        billing_reason:
+          type: string
+          examples: [subscription_create, subscription_cycle]
+        status:
+          type: string
+          enum: [pending, processing, succeeded, failed]
+        paid_at:
+          type: [string, 'null']
+          format: date-time
+        failed_at:
+          type: [string, 'null']
+          format: date-time
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentAttempt'
+
+    DeliveryAttempt:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - provider
+        - provider_reference
+        - status
+        - failure_code
+        - failure_message
+        - started_at
+        - completed_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          type: string
+        provider_reference:
+          type: [string, 'null']
+          description: Opaque identifier returned by the delivery provider.
+        status:
+          type: string
+          enum: [pending, succeeded, failed]
+        failure_code:
+          type: [string, 'null']
+        failure_message:
+          type: [string, 'null']
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: [string, 'null']
+          format: date-time
+
+    Notification:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - merchant_id
+        - source_event_id
+        - type
+        - channel
+        - recipient
+        - subject
+        - status
+        - sent_at
+        - failed_at
+        - attempts
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant_id:
+          type: string
+          format: uuid
+        source_event_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [payment_receipt]
+        channel:
+          type: string
+          enum: [email]
+        recipient:
+          type: string
+          format: email
+        subject:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, sent, failed]
+        sent_at:
+          type: [string, 'null']
+          format: date-time
+        failed_at:
+          type: [string, 'null']
+          format: date-time
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryAttempt'
+
+    MerchantResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Merchant'
+    UserResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/User'
+    CustomerResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Customer'
+    CustomerCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+    ProductResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Product'
+    ProductCatalogResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ProductCatalog'
+    ProductCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+    PriceResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Price'
+    SubscriptionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Subscription'
+    SubscriptionCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subscription'
+    InvoiceResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Invoice'
+    InvoiceCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+    PaymentResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Payment'
+    PaymentCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Payment'
+    NotificationResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Notification'
+    NotificationCollectionResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
