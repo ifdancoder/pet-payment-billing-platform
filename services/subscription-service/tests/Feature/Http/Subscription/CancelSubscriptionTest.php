@@ -10,7 +10,7 @@ test('a valid request cancels an Active subscription', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),
@@ -46,7 +46,7 @@ test('a request to cancel a Pending subscription returns a conflict', function (
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),
@@ -75,7 +75,7 @@ test('a request to cancel an already-canceled subscription returns a conflict', 
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),

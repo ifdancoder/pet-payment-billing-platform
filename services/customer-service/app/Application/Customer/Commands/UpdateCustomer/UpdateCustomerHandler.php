@@ -7,6 +7,7 @@ use App\Domain\Customer\Customer;
 use App\Domain\Customer\ValueObjects\CustomerId;
 use App\Domain\Customer\ValueObjects\CustomerName;
 use App\Domain\Customer\ValueObjects\Email;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class UpdateCustomerHandler
 {
@@ -14,7 +15,10 @@ final class UpdateCustomerHandler
 
     public function handle(UpdateCustomerCommand $command): Customer
     {
-        $customer = $this->repository->get(CustomerId::fromString($command->id));
+        $customer = $this->repository->get(
+            CustomerId::fromString($command->id),
+            MerchantId::fromString($command->merchantId),
+        );
 
         $customer->changeEmail(Email::fromString($command->email));
         $customer->rename(CustomerName::fromString($command->name));

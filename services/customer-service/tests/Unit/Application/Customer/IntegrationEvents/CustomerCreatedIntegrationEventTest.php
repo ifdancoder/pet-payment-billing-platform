@@ -9,7 +9,7 @@ use Ramsey\Uuid\Uuid;
 
 test('fromDomainEvent maps every field and generates a fresh event id', function () {
     $customerId = CustomerId::generate();
-    $domainEvent = new CustomerCreated($customerId, Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $domainEvent = new CustomerCreated($customerId, aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
 
     $integrationEvent = CustomerCreatedIntegrationEvent::fromDomainEvent($domainEvent);
 
@@ -20,13 +20,14 @@ test('fromDomainEvent maps every field and generates a fresh event id', function
         ->and($integrationEvent->occurredAt())->toBe($domainEvent->occurredAt)
         ->and($integrationEvent->payload())->toBe([
             'customer_id' => $customerId->toString(),
+            'merchant_id' => aMerchantId()->toString(),
             'email' => 'jane@example.com',
             'name' => 'Jane Doe',
         ]);
 });
 
 test('two integration events built from the same domain event get different event ids', function () {
-    $domainEvent = new CustomerCreated(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $domainEvent = new CustomerCreated(CustomerId::generate(), aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
 
     $a = CustomerCreatedIntegrationEvent::fromDomainEvent($domainEvent);
     $b = CustomerCreatedIntegrationEvent::fromDomainEvent($domainEvent);

@@ -8,19 +8,21 @@ use App\Presentation\Http\V1\Resources\CustomerResourceCollection;
 use Illuminate\Http\Request;
 
 test('toArray wraps every customer through CustomerResource', function () {
-    $jane = Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
-    $john = Customer::create(CustomerId::generate(), Email::fromString('john@example.com'), CustomerName::fromString('John Doe'));
+    $jane = Customer::create(CustomerId::generate(), aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $john = Customer::create(CustomerId::generate(), aMerchantId(), Email::fromString('john@example.com'), CustomerName::fromString('John Doe'));
 
     $array = (new CustomerResourceCollection([$jane, $john]))->toArray(new Request);
 
     expect($array)->toHaveCount(2)
         ->and($array[0])->toBe([
             'id' => $jane->id()->toString(),
+            'merchant_id' => aMerchantId()->toString(),
             'email' => 'jane@example.com',
             'name' => 'Jane Doe',
         ])
         ->and($array[1])->toBe([
             'id' => $john->id()->toString(),
+            'merchant_id' => aMerchantId()->toString(),
             'email' => 'john@example.com',
             'name' => 'John Doe',
         ]);

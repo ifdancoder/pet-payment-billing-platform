@@ -5,6 +5,7 @@ namespace App\Application\Customer\Ports\Outbound;
 use App\Domain\Customer\Customer;
 use App\Domain\Customer\Exceptions\CustomerNotFound;
 use App\Domain\Customer\ValueObjects\CustomerId;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 interface ICustomerRepositoryPort
 {
@@ -13,15 +14,15 @@ interface ICustomerRepositoryPort
     /**
      * @throws CustomerNotFound
      */
-    public function get(CustomerId $id): Customer;
+    public function get(CustomerId $id, MerchantId $merchantId): Customer;
 
     /**
      * @throws CustomerNotFound
      */
-    public function delete(CustomerId $id): void;
+    public function delete(CustomerId $id, MerchantId $merchantId): void;
 
     /**
      * @return array<int, Customer>
      */
-    public function all(): array;
+    public function all(MerchantId $merchantId): array;
 }

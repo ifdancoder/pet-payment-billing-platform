@@ -10,7 +10,7 @@ test('a valid request activates a Pending subscription', function () {
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),
@@ -45,7 +45,7 @@ test('a request to activate an already-active subscription is idempotent', funct
     $customerId = CustomerId::generate();
     $priceId = PriceId::generate();
     Http::fake([
-        "*/api/v1/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
+        "*/api/v1/merchants/{$merchantId->toString()}/customers/{$customerId->toString()}" => Http::response(['data' => ['id' => $customerId->toString(), 'email' => 'jane@example.com', 'name' => 'Jane']], 200),
         "*/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}" => Http::response([
             'data' => [
                 'id' => $priceId->toString(),

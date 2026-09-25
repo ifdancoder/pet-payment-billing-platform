@@ -11,7 +11,7 @@ use App\Infrastructure\Customer\Adapters\Persistence\Repositories\EloquentCustom
 
 test('save persists a new customer', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
-    $customer = Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $customer = Customer::create(CustomerId::generate(), aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
 
     $repository->save($customer);
 
@@ -21,9 +21,9 @@ test('save persists a new customer', function () {
 test('save updates an already-persisted customer instead of duplicating it', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
     $id = CustomerId::generate();
-    $repository->save(Customer::create($id, Email::fromString('old@example.com'), CustomerName::fromString('Old Name')));
+    $repository->save(Customer::create($id, aMerchantId(), Email::fromString('old@example.com'), CustomerName::fromString('Old Name')));
 
-    $repository->save(Customer::reconstitute($id, Email::fromString('new@example.com'), CustomerName::fromString('New Name')));
+    $repository->save(Customer::reconstitute($id, aMerchantId(), Email::fromString('new@example.com'), CustomerName::fromString('New Name')));
 
     expect(CustomerModel::query()->where('id', $id->toString())->count())->toBe(1)
         ->and(CustomerModel::query()->find($id->toString())->email)->toBe('new@example.com');
@@ -32,9 +32,9 @@ test('save updates an already-persisted customer instead of duplicating it', fun
 test('get returns the matching customer', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
     $id = CustomerId::generate();
-    $repository->save(Customer::create($id, Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
+    $repository->save(Customer::create($id, aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
 
-    $found = $repository->get($id);
+    $found = $repository->get($id, aMerchantId());
 
     expect($found->id()->equals($id))->toBeTrue()
         ->and($found->email()->toString())->toBe('jane@example.com')
@@ -44,15 +44,15 @@ test('get returns the matching customer', function () {
 test('get throws CustomerNotFound when no customer matches', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
 
-    $repository->get(CustomerId::generate());
+    $repository->get(CustomerId::generate(), aMerchantId());
 })->throws(CustomerNotFound::class);
 
 test('delete removes a persisted customer', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
     $id = CustomerId::generate();
-    $repository->save(Customer::create($id, Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
+    $repository->save(Customer::create($id, aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
 
-    $repository->delete($id);
+    $repository->delete($id, aMerchantId());
 
     expect(CustomerModel::query()->where('id', $id->toString())->exists())->toBeFalse();
 });
@@ -60,15 +60,15 @@ test('delete removes a persisted customer', function () {
 test('delete throws CustomerNotFound when no customer matches', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
 
-    $repository->delete(CustomerId::generate());
+    $repository->delete(CustomerId::generate(), aMerchantId());
 })->throws(CustomerNotFound::class);
 
 test('all returns every persisted customer', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
-    $repository->save(Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
-    $repository->save(Customer::create(CustomerId::generate(), Email::fromString('john@example.com'), CustomerName::fromString('John Doe')));
+    $repository->save(Customer::create(CustomerId::generate(), aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
+    $repository->save(Customer::create(CustomerId::generate(), aMerchantId(), Email::fromString('john@example.com'), CustomerName::fromString('John Doe')));
 
-    $customers = $repository->all();
+    $customers = $repository->all(aMerchantId());
 
     expect($customers)->toHaveCount(2)
         ->and(array_map(fn (Customer $c) => $c->email()->toString(), $customers))
@@ -78,5 +78,5 @@ test('all returns every persisted customer', function () {
 test('all returns an empty array when there are no customers', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
 
-    expect($repository->all())->toBe([]);
+    expect($repository->all(aMerchantId()))->toBe([]);
 });

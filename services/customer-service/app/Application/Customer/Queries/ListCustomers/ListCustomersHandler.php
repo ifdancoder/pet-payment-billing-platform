@@ -4,6 +4,7 @@ namespace App\Application\Customer\Queries\ListCustomers;
 
 use App\Application\Customer\Ports\Outbound\ICustomerRepositoryPort;
 use App\Domain\Customer\Customer;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class ListCustomersHandler
 {
@@ -14,6 +15,6 @@ final class ListCustomersHandler
      */
     public function handle(ListCustomersQuery $query): array
     {
-        return $this->repository->all();
+        return $this->repository->all(MerchantId::fromString($query->merchantId));
     }
 }

@@ -11,7 +11,7 @@ test('create exposes the given id, email and name', function () {
     $email = Email::fromString('jane@example.com');
     $name = CustomerName::fromString('Jane Doe');
 
-    $customer = Customer::create($id, $email, $name);
+    $customer = Customer::create($id, aMerchantId(), $email, $name);
 
     expect($customer->id()->equals($id))->toBeTrue()
         ->and($customer->email()->equals($email))->toBeTrue()
@@ -23,7 +23,7 @@ test('create records a CustomerCreated event carrying the same data', function (
     $email = Email::fromString('jane@example.com');
     $name = CustomerName::fromString('Jane Doe');
 
-    $customer = Customer::create($id, $email, $name);
+    $customer = Customer::create($id, aMerchantId(), $email, $name);
     $events = $customer->pullRecordedEvents();
 
     expect($events)->toHaveCount(1);
@@ -34,7 +34,7 @@ test('create records a CustomerCreated event carrying the same data', function (
 });
 
 test('pullRecordedEvents empties the recorded events', function () {
-    $customer = Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $customer = Customer::create(CustomerId::generate(), aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
 
     $customer->pullRecordedEvents();
 
@@ -46,7 +46,7 @@ test('reconstitute exposes the given id, email and name without recording an eve
     $email = Email::fromString('jane@example.com');
     $name = CustomerName::fromString('Jane Doe');
 
-    $customer = Customer::reconstitute($id, $email, $name);
+    $customer = Customer::reconstitute($id, aMerchantId(), $email, $name);
 
     expect($customer->id()->equals($id))->toBeTrue()
         ->and($customer->email()->equals($email))->toBeTrue()
@@ -55,7 +55,7 @@ test('reconstitute exposes the given id, email and name without recording an eve
 });
 
 test('changeEmail replaces the email', function () {
-    $customer = Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $customer = Customer::create(CustomerId::generate(), aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
     $newEmail = Email::fromString('jane.doe@example.com');
 
     $customer->changeEmail($newEmail);
@@ -64,7 +64,7 @@ test('changeEmail replaces the email', function () {
 });
 
 test('rename replaces the name', function () {
-    $customer = Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $customer = Customer::create(CustomerId::generate(), aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
     $newName = CustomerName::fromString('Jane Smith');
 
     $customer->rename($newName);

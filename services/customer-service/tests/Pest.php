@@ -1,5 +1,6 @@
 <?php
 
+use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -51,4 +52,14 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+function aMerchantId(): MerchantId
+{
+    return MerchantId::fromString('11111111-1111-4111-8111-111111111111');
+}
+
+function customerApi(string $suffix = ''): string
+{
+    return '/api/v1/merchants/'.aMerchantId()->toString().'/customers'.$suffix;
 }

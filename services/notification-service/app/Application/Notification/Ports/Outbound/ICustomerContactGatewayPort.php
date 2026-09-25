@@ -13,5 +13,5 @@ use App\Application\Notification\DataTransferObjects\CustomerContact;
  */
 interface ICustomerContactGatewayPort
 {
-    public function find(string $customerId): ?CustomerContact;
+    public function find(string $merchantId, string $customerId): ?CustomerContact;
 }

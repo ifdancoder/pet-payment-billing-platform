@@ -7,6 +7,7 @@ use App\Application\Subscription\Ports\Outbound\ICatalogGatewayPort;
 use App\Domain\Subscription\ValueObjects\PriceId;
 use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Support\Facades\Http;
+use Platform\Auth\Laravel\CorrelationIdMiddleware;
 
 final class HttpCatalogGateway implements ICatalogGatewayPort
 {
@@ -15,6 +16,8 @@ final class HttpCatalogGateway implements ICatalogGatewayPort
     public function findPrice(MerchantId $merchantId, PriceId $priceId): ?PriceData
     {
         $response = Http::baseUrl($this->baseUrl)
+            ->withToken(request()->bearerToken() ?? (string) config('services.internal_access_token'))
+            ->withHeaders($this->correlationHeaders())
             ->get("/api/v1/merchants/{$merchantId->toString()}/prices/{$priceId->toString()}");
 
         if ($response->status() === 404) {
@@ -35,5 +38,11 @@ final class HttpCatalogGateway implements ICatalogGatewayPort
             $body['billing_interval_count'],
             $body['status'],
         );
+    }
+
+    private function correlationHeaders(): array
+    {
+        $id = request()->attributes->get(CorrelationIdMiddleware::ATTRIBUTE);
+        return is_string($id) ? [CorrelationIdMiddleware::HEADER => $id] : [];
     }
 }

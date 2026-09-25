@@ -8,6 +8,7 @@ use App\Domain\Customer\Exceptions\CustomerNotFound;
 use App\Domain\Customer\ValueObjects\CustomerId;
 use App\Infrastructure\Customer\Adapters\Persistence\Mappers\CustomerMapper;
 use App\Infrastructure\Customer\Adapters\Persistence\Models\CustomerModel;
+use App\Shared\Domain\ValueObjects\MerchantId;
 
 final class EloquentCustomerRepository implements ICustomerRepositoryPort
 {
@@ -20,9 +21,12 @@ final class EloquentCustomerRepository implements ICustomerRepositoryPort
         $this->mapper->toModel($customer, $model)->save();
     }
 
-    public function get(CustomerId $id): Customer
+    public function get(CustomerId $id, MerchantId $merchantId): Customer
     {
-        $model = CustomerModel::query()->find($id->toString());
+        $model = CustomerModel::query()
+            ->whereKey($id->toString())
+            ->where('merchant_id', $merchantId->toString())
+            ->first();
 
         if ($model === null) {
             throw CustomerNotFound::withId($id);
@@ -31,18 +35,23 @@ final class EloquentCustomerRepository implements ICustomerRepositoryPort
         return $this->mapper->toDomain($model);
     }
 
-    public function delete(CustomerId $id): void
+    public function delete(CustomerId $id, MerchantId $merchantId): void
     {
-        $deleted = CustomerModel::query()->whereKey($id->toString())->delete();
+        $deleted = CustomerModel::query()
+            ->whereKey($id->toString())
+            ->where('merchant_id', $merchantId->toString())
+            ->delete();
 
         if ($deleted === 0) {
             throw CustomerNotFound::withId($id);
         }
     }
 
-    public function all(): array
+    public function all(MerchantId $merchantId): array
     {
-        return CustomerModel::query()->get()
+        return CustomerModel::query()
+            ->where('merchant_id', $merchantId->toString())
+            ->get()
             ->map(fn (CustomerModel $model) => $this->mapper->toDomain($model))
             ->all();
     }

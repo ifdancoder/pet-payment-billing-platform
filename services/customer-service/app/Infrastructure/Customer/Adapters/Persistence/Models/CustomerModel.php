@@ -14,6 +14,7 @@ class CustomerModel extends Model
 
     protected $fillable = [
         'id',
+        'merchant_id',
         'email',
         'name',
     ];

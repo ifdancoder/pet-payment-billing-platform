@@ -50,4 +50,6 @@ return [
         'base_url' => env('CATALOG_SERVICE_URL', 'http://localhost:8002'),
     ],
 
+    'internal_access_token' => env('INTERNAL_SERVICE_ACCESS_TOKEN', ''),
+
 ];

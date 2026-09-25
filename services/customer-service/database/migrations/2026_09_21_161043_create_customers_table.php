@@ -13,9 +13,13 @@ return new class extends Migration
     {
         Schema::create('customers', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('email')->unique();
+            $table->uuid('merchant_id');
+            $table->string('email');
             $table->string('name');
             $table->timestamps();
+
+            $table->unique(['merchant_id', 'email']);
+            $table->index('merchant_id');
         });
     }
 

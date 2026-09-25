@@ -12,6 +12,7 @@ final class CustomerCreatedIntegrationEvent implements IntegrationEvent
     private function __construct(
         private readonly string $eventId,
         private readonly string $customerId,
+        private readonly string $merchantId,
         private readonly string $email,
         private readonly string $name,
         private readonly DateTimeImmutable $occurredAt,
@@ -22,6 +23,7 @@ final class CustomerCreatedIntegrationEvent implements IntegrationEvent
         return new self(
             Uuid::uuid4()->toString(),
             $event->customerId->toString(),
+            $event->merchantId->toString(),
             $event->email->toString(),
             $event->name->toString(),
             $event->occurredAt,
@@ -60,6 +62,7 @@ final class CustomerCreatedIntegrationEvent implements IntegrationEvent
     {
         return [
             'customer_id' => $this->customerId,
+            'merchant_id' => $this->merchantId,
             'email' => $this->email,
             'name' => $this->name,
         ];

@@ -46,4 +46,6 @@ return [
         'base_url' => env('CUSTOMER_SERVICE_URL', 'http://localhost:8001'),
     ],
 
+    'internal_access_token' => env('INTERNAL_SERVICE_ACCESS_TOKEN', ''),
+
 ];

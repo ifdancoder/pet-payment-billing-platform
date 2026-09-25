@@ -2,13 +2,15 @@
 
 use App\Domain\Subscription\ValueObjects\CustomerId;
 use App\Infrastructure\Subscription\Adapters\Gateways\HttpCustomerGateway;
+use App\Shared\Domain\ValueObjects\MerchantId;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
 test('find returns customer data when the customer exists', function () {
     $id = CustomerId::generate();
+    $merchantId = MerchantId::generate();
     Http::fake([
-        "https://customers.internal/api/v1/customers/{$id->toString()}" => Http::response([
+        "https://customers.internal/api/v1/merchants/{$merchantId->toString()}/customers/{$id->toString()}" => Http::response([
             'data' => [
                 'id' => $id->toString(),
                 'email' => 'jane@example.com',
@@ -18,7 +20,7 @@ test('find returns customer data when the customer exists', function () {
     ]);
 
     $gateway = new HttpCustomerGateway('https://customers.internal');
-    $customer = $gateway->find($id);
+    $customer = $gateway->find($merchantId, $id);
 
     expect($customer)->not->toBeNull()
         ->and($customer->id)->toBe($id->toString())
@@ -28,22 +30,24 @@ test('find returns customer data when the customer exists', function () {
 
 test('find returns null when the customer does not exist', function () {
     $id = CustomerId::generate();
+    $merchantId = MerchantId::generate();
     Http::fake([
-        "https://customers.internal/api/v1/customers/{$id->toString()}" => Http::response(['message' => 'not found'], 404),
+        "https://customers.internal/api/v1/merchants/{$merchantId->toString()}/customers/{$id->toString()}" => Http::response(['message' => 'not found'], 404),
     ]);
 
     $gateway = new HttpCustomerGateway('https://customers.internal');
 
-    expect($gateway->find($id))->toBeNull();
+    expect($gateway->find($merchantId, $id))->toBeNull();
 });
 
 test('find throws when customer-service responds with a server error', function () {
     $id = CustomerId::generate();
+    $merchantId = MerchantId::generate();
     Http::fake([
-        "https://customers.internal/api/v1/customers/{$id->toString()}" => Http::response(['message' => 'boom'], 500),
+        "https://customers.internal/api/v1/merchants/{$merchantId->toString()}/customers/{$id->toString()}" => Http::response(['message' => 'boom'], 500),
     ]);
 
     $gateway = new HttpCustomerGateway('https://customers.internal');
 
-    $gateway->find($id);
+    $gateway->find($merchantId, $id);
 })->throws(RequestException::class);

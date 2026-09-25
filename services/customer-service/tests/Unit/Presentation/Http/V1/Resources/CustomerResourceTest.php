@@ -9,12 +9,13 @@ use Illuminate\Http\Request;
 
 test('toArray exposes the customer id, email and name', function () {
     $id = CustomerId::generate();
-    $customer = Customer::create($id, Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $customer = Customer::create($id, aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
 
     $array = (new CustomerResource($customer))->toArray(new Request);
 
     expect($array)->toBe([
         'id' => $id->toString(),
+        'merchant_id' => aMerchantId()->toString(),
         'email' => 'jane@example.com',
         'name' => 'Jane Doe',
     ]);
@@ -25,7 +26,7 @@ test('constructing with a non-Customer value fails with a TypeError', function (
 })->throws(TypeError::class);
 
 test('toArray exposes a key for every Customer constructor parameter', function () {
-    $customer = Customer::create(CustomerId::generate(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
+    $customer = Customer::create(CustomerId::generate(), aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe'));
 
     $array = (new CustomerResource($customer))->toArray(new Request);
 
@@ -33,6 +34,8 @@ test('toArray exposes a key for every Customer constructor parameter', function 
         fn (ReflectionParameter $parameter) => $parameter->getName(),
         (new ReflectionClass(Customer::class))->getConstructor()->getParameters(),
     );
+
+    $constructorParams = array_map(fn (string $name) => $name === 'merchantId' ? 'merchant_id' : $name, $constructorParams);
 
     expect(array_keys($array))->toEqualCanonicalizing($constructorParams);
 });

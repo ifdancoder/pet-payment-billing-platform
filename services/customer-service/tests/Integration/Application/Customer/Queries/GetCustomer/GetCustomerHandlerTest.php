@@ -13,10 +13,10 @@ use App\Infrastructure\Customer\Adapters\Persistence\Repositories\EloquentCustom
 test('handle returns the customer matching the given id', function () {
     $repository = new EloquentCustomerRepository(new CustomerMapper);
     $id = CustomerId::generate();
-    $repository->save(Customer::create($id, Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
+    $repository->save(Customer::create($id, aMerchantId(), Email::fromString('jane@example.com'), CustomerName::fromString('Jane Doe')));
     $handler = new GetCustomerHandler($repository);
 
-    $customer = $handler->handle(new GetCustomerQuery($id->toString()));
+    $customer = $handler->handle(new GetCustomerQuery(aMerchantId()->toString(), $id->toString()));
 
     expect($customer->email()->toString())->toBe('jane@example.com')
         ->and($customer->name()->toString())->toBe('Jane Doe');
@@ -25,5 +25,5 @@ test('handle returns the customer matching the given id', function () {
 test('handle throws CustomerNotFound when no customer matches', function () {
     $handler = new GetCustomerHandler(new EloquentCustomerRepository(new CustomerMapper));
 
-    $handler->handle(new GetCustomerQuery(CustomerId::generate()->toString()));
+    $handler->handle(new GetCustomerQuery(aMerchantId()->toString(), CustomerId::generate()->toString()));
 })->throws(CustomerNotFound::class);
