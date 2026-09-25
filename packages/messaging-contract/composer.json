@@ -1,0 +1,13 @@
+{
+    "name": "platform/messaging-contract",
+    "description": "Reliable RabbitMQ delivery primitives for the billing platform",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "php-amqplib/php-amqplib": "^3.7"
+    },
+    "autoload": {
+        "psr-4": {"Platform\\Messaging\\": "src/"}
+    }
+}

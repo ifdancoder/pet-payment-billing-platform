@@ -9,9 +9,10 @@ WORKDIR /app
 FROM base AS vendor
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-COPY composer.json composer.lock ./
+COPY services/identity-service/composer.json services/identity-service/composer.lock ./
+COPY packages /packages
 RUN composer install --no-dev --no-interaction --no-scripts --no-autoloader --prefer-dist
-COPY . .
+COPY services/identity-service/ ./
 RUN composer dump-autoload --optimize --no-dev --classmap-authoritative
 
 FROM base AS runtime

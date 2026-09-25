@@ -29,7 +29,8 @@ FROM base AS vendor
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-COPY composer.json composer.lock ./
+COPY services/subscription-service/composer.json services/subscription-service/composer.lock ./
+COPY packages /packages
 
 RUN composer install \
     --no-dev \
@@ -38,7 +39,7 @@ RUN composer install \
     --no-autoloader \
     --prefer-dist
 
-COPY . .
+COPY services/subscription-service/ ./
 
 RUN composer dump-autoload --optimize --no-dev --classmap-authoritative
 

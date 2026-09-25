@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3275bcbba8f84afc696dc46725e25792",
+    "content-hash": "254506a78ea259891b482ce4c6e57e49",
     "packages": [
         {
             "name": "brick/math",
@@ -2686,6 +2686,43 @@
                 }
             ],
             "time": "2026-08-24T00:54:40+00:00"
+        },
+        {
+            "name": "platform/auth-contract",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "../../packages/auth-contract",
+                "reference": "f77f4ddef39519d3f96add7e02d859485726ac8c"
+            },
+            "require": {
+                "ext-json": "*",
+                "ext-sodium": "*",
+                "illuminate/http": "^13.0",
+                "illuminate/support": "^13.0",
+                "php": "^8.3"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Platform\\Auth\\Laravel\\AuthContractServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Platform\\Auth\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Shared signed access-token contract for the billing platform",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
         },
         {
             "name": "psr/clock",
@@ -10151,7 +10188,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "platform/auth-contract": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
