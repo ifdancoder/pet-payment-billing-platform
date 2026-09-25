@@ -11,6 +11,7 @@ use DateTimeImmutable;
 use Illuminate\Console\Command;
 use PhpAmqpLib\Channel\AMQPChannel;
 use RuntimeException;
+use Platform\Messaging\ReliableRabbitMqConsumer;
 
 /**
  * One queue per consuming service, not per event type (see
@@ -35,31 +36,17 @@ final class ConsumeBillingEventsCommand extends Command
         SubscriptionRenewalDueConsumer $subscriptionRenewalDueConsumer,
         PaymentSucceededConsumer $paymentSucceededConsumer,
         PaymentFailedConsumer $paymentFailedConsumer,
+        ReliableRabbitMqConsumer $reliable,
     ): int {
-        $channel->queue_declare(self::QUEUE, false, true, false, false);
-
-        foreach (self::ROUTING_KEYS as $routingKey) {
-            $channel->queue_bind(self::QUEUE, RabbitMqEventPublisher::EXCHANGE, $routingKey);
-        }
-
-        $message = $channel->basic_get(self::QUEUE);
-
-        if ($message === null) {
-            $this->info('Consumed 0 message(s).');
-
-            return self::SUCCESS;
-        }
-
-        $headers = $message->get('application_headers')->getNativeData();
-        $payload = json_decode($message->getBody(), true, 512, JSON_THROW_ON_ERROR);
-
-        match ($message->getRoutingKey()) {
-            'subscription.created.v1' => $subscriptionCreatedConsumer->handle($headers['event_id'], $payload, new DateTimeImmutable($headers['occurred_at'])),
-            'subscription.renewal_due.v1' => $subscriptionRenewalDueConsumer->handle($headers['event_id'], $payload),
-            'payment.succeeded.v1' => $paymentSucceededConsumer->handle($headers['event_id'], $payload),
-            'payment.failed.v1' => $paymentFailedConsumer->handle($headers['event_id'], $payload),
-            default => throw new RuntimeException("Unroutable message with routing key \"{$message->getRoutingKey()}\" on queue \"".self::QUEUE.'".'),
-        };
+        $result = $reliable->consumeOne($channel, self::QUEUE, RabbitMqEventPublisher::EXCHANGE, self::ROUTING_KEYS,
+            function ($message, array $headers, array $payload) use ($subscriptionCreatedConsumer, $subscriptionRenewalDueConsumer, $paymentSucceededConsumer, $paymentFailedConsumer): void {
+                match ($message->getRoutingKey()) {
+                    'subscription.created.v1' => $subscriptionCreatedConsumer->handle($headers['event_id'], $payload, new DateTimeImmutable($headers['occurred_at'])),
+                    'subscription.renewal_due.v1' => $subscriptionRenewalDueConsumer->handle($headers['event_id'], $payload),
+                    'payment.succeeded.v1' => $paymentSucceededConsumer->handle($headers['event_id'], $payload),
+                    'payment.failed.v1' => $paymentFailedConsumer->handle($headers['event_id'], $payload),
+                    default => throw new RuntimeException("Unroutable message with routing key \"{$message->getRoutingKey()}\" on queue \"".self::QUEUE.'".'),
+                };
 
         // Deliberately logged before ack, not after: the only externally
         // observable signal that the business transaction has committed
@@ -69,7 +56,7 @@ final class ConsumeBillingEventsCommand extends Command
         // and prove Inbox/RabbitMQ redelivery actually recovers from a
         // real crash there, not just a manually duplicated event — see
         // tests/resilience/consumer-crash/.
-        $this->info("Processed event {$headers['event_id']}, acking.");
+                $this->info("Processed event {$headers['event_id']}, acking.");
 
         // Unset (0) in every real environment — this widens the window
         // above just enough for an external test to reliably observe
@@ -77,13 +64,11 @@ final class ConsumeBillingEventsCommand extends Command
         // instead of racing a gap that's normally microseconds wide.
         // tests/resilience/consumer-crash/ is the only place that sets
         // CONSUMER_CRASH_TEST_DELAY_MS.
-        if ($delayMs = (int) env('CONSUMER_CRASH_TEST_DELAY_MS', 0)) {
-            usleep($delayMs * 1000);
-        }
-
-        $message->ack();
-
-        $this->info('Consumed 1 message(s).');
+                if ($delayMs = (int) env('CONSUMER_CRASH_TEST_DELAY_MS', 0)) {
+                    usleep($delayMs * 1000);
+                }
+            });
+        $this->info($result === 'empty' ? 'Consumed 0 message(s).' : ($result === 'processed' ? 'Consumed 1 message(s).' : "Message {$result}."));
 
         return self::SUCCESS;
     }

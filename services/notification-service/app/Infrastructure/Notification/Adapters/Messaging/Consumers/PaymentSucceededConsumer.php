@@ -28,7 +28,7 @@ final class PaymentSucceededConsumer
      */
     public function handle(string $eventId, array $payload): void
     {
-        $contact = $this->customerContacts->find($payload['customer_id']);
+        $contact = $this->customerContacts->find($payload['merchant_id'], $payload['customer_id']);
 
         // No contact to notify — e.g. the customer was since deleted, or
         // customer-service is unreachable. Neither the Inbox nor a

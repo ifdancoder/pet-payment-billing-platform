@@ -8,6 +8,7 @@ use App\Shared\Infrastructure\Messaging\RabbitMQ\RabbitMqEventPublisher;
 use Illuminate\Console\Command;
 use PhpAmqpLib\Channel\AMQPChannel;
 use RuntimeException;
+use Platform\Messaging\ReliableRabbitMqConsumer;
 
 /**
  * One queue per consuming service, not per event type (see
@@ -29,33 +30,17 @@ final class ConsumeSubscriptionEventsCommand extends Command
         AMQPChannel $channel,
         InvoicePaidConsumer $invoicePaidConsumer,
         InvoicePaymentFailedConsumer $invoicePaymentFailedConsumer,
+        ReliableRabbitMqConsumer $reliable,
     ): int {
-        $channel->queue_declare(self::QUEUE, false, true, false, false);
-
-        foreach (self::ROUTING_KEYS as $routingKey) {
-            $channel->queue_bind(self::QUEUE, RabbitMqEventPublisher::EXCHANGE, $routingKey);
-        }
-
-        $message = $channel->basic_get(self::QUEUE);
-
-        if ($message === null) {
-            $this->info('Consumed 0 message(s).');
-
-            return self::SUCCESS;
-        }
-
-        $headers = $message->get('application_headers')->getNativeData();
-        $payload = json_decode($message->getBody(), true, 512, JSON_THROW_ON_ERROR);
-
-        match ($message->getRoutingKey()) {
-            'invoice.paid.v1' => $invoicePaidConsumer->handle($headers['event_id'], $payload),
-            'invoice.payment_failed.v1' => $invoicePaymentFailedConsumer->handle($headers['event_id'], $payload),
-            default => throw new RuntimeException("Unroutable message with routing key \"{$message->getRoutingKey()}\" on queue \"".self::QUEUE.'".'),
-        };
-
-        $message->ack();
-
-        $this->info('Consumed 1 message(s).');
+        $result = $reliable->consumeOne($channel, self::QUEUE, RabbitMqEventPublisher::EXCHANGE, self::ROUTING_KEYS,
+            function ($message, array $headers, array $payload) use ($invoicePaidConsumer, $invoicePaymentFailedConsumer): void {
+                match ($message->getRoutingKey()) {
+                    'invoice.paid.v1' => $invoicePaidConsumer->handle($headers['event_id'], $payload),
+                    'invoice.payment_failed.v1' => $invoicePaymentFailedConsumer->handle($headers['event_id'], $payload),
+                    default => throw new RuntimeException("Unroutable message with routing key \"{$message->getRoutingKey()}\" on queue \"".self::QUEUE.'".'),
+                };
+            });
+        $this->info($result === 'empty' ? 'Consumed 0 message(s).' : ($result === 'processed' ? 'Consumed 1 message(s).' : "Message {$result}."));
 
         return self::SUCCESS;
     }

@@ -7,6 +7,8 @@ use PhpAmqpLib\Message\AMQPMessage;
 
 test('publish sends the message to the billing.events exchange with the event type as routing key', function () {
     $channel = Mockery::mock(AMQPChannel::class);
+    $channel->shouldReceive('confirm_select')->once();
+    $channel->shouldReceive('wait_for_pending_acks_returns')->once()->with(5.0);
     $message = new OutboxMessage(
         '9f8e7d6c-5b4a-4321-9876-abcdef012345',
         'payment.succeeded.v1',
@@ -35,6 +37,8 @@ test('publish sends the message to the billing.events exchange with the event ty
 
 test('publish marks the message persistent and JSON content type', function () {
     $channel = Mockery::mock(AMQPChannel::class);
+    $channel->shouldReceive('confirm_select')->once();
+    $channel->shouldReceive('wait_for_pending_acks_returns')->once()->with(5.0);
     $message = new OutboxMessage(
         '9f8e7d6c-5b4a-4321-9876-abcdef012345',
         'payment.succeeded.v1',
