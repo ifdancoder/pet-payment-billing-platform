@@ -56,6 +56,25 @@ Services talk to each other over HTTP when they need an answer right
 away, and through RabbitMQ events for everything else (most cross-service
 workflows).
 
+The main successful subscription flow shows where synchronous validation
+ends and the event-driven chain begins:
+
+```mermaid
+flowchart LR
+    Client([Client]) -->|HTTP| Gateway[API Gateway]
+    Gateway --> Subscription[Subscription Service]
+    Subscription -->|validate customer| Customer[Customer Service]
+    Subscription -->|validate price| Catalog[Catalog Service]
+    Subscription -->|subscription.created.v1| MQ[(RabbitMQ)]
+    MQ --> Billing[Billing Service]
+    Billing -->|invoice.created.v1| MQ
+    MQ --> Payment[Payment Service]
+    Payment -->|payment.succeeded.v1| MQ
+    MQ --> Billing
+    MQ --> Notification[Notification Service]
+    Notification -->|email receipt| Provider[Email provider]
+```
+
 ## Repository structure
 
 ```text
@@ -113,8 +132,11 @@ local dev.
 
 ### docs
 
-Architecture notes and ADRs. English is canonical; where a Russian
-translation exists it sits alongside as `*.ru.md`.
+Architecture notes and ADRs. English is canonical; every user-facing
+Markdown document has a Russian translation alongside it as `*.ru.md`,
+with a language switch at the top of both versions. The implemented
+public HTTP contract is available as an
+[OpenAPI 3.1 specification](docs/openapi/openapi.yaml).
 
 ### tests
 
@@ -213,6 +235,68 @@ Remove containers and local volumes:
 ```bash
 make clean
 ```
+
+## Testing
+
+The commands mirror the test layers: start with fast service feedback,
+then validate real boundaries, complete workflows, failure recovery, and
+finally the deployed platform.
+
+```mermaid
+flowchart LR
+    A[make test<br/>7 service suites] --> B[make test-docs<br/>Markdown + OpenAPI]
+    B --> C[make test-compose<br/>Component + Integration]
+    C --> D[E2E + Resilience]
+    D --> E[make test-kind<br/>deployed platform]
+    All[make test-all] -. runs every stage .-> A
+```
+
+Run all seven service test suites (the fast default for local work):
+
+```bash
+make test
+```
+
+Validate every EN/RU Markdown pair, local documentation link, and the
+OpenAPI contract against the routes registered by all services:
+
+```bash
+make test-docs
+```
+
+Run all standalone Component, Service integration, E2E, and Resilience
+suites. Each temporary Docker Compose stack is removed, with its volumes,
+after the suite finishes or fails:
+
+```bash
+make test-compose
+```
+
+Run the three Kubernetes smoke tests against the existing
+`kind-pet-payment-billing-platform` cluster without changing the current
+`kubectl` context:
+
+```bash
+make test-kind
+```
+
+Override the context when necessary:
+
+```bash
+make test-kind KIND_CONTEXT=my-kind-context
+```
+
+Run the complete quality gate in that order:
+
+```bash
+make test-all
+```
+
+`make test` and `make test-docs` require PHP 8.5 and Composer with the
+service dependencies installed. The Compose and kind targets additionally
+require Docker and `kubectl`; `test-kind` expects an already deployed,
+ready cluster and performs the suite's intentional `billing-api` rolling
+restart.
 
 ## Local endpoints
 

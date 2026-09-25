@@ -56,6 +56,25 @@ event-driven взаимодействие между сервисами.
 через события RabbitMQ для всего остального (большинство
 межсервисных workflow).
 
+Основной успешный сценарий подписки показывает, где заканчивается
+синхронная валидация и начинается event-driven цепочка:
+
+```mermaid
+flowchart LR
+    Client([Клиент]) -->|HTTP| Gateway[API Gateway]
+    Gateway --> Subscription[Subscription Service]
+    Subscription -->|проверить клиента| Customer[Customer Service]
+    Subscription -->|проверить цену| Catalog[Catalog Service]
+    Subscription -->|subscription.created.v1| MQ[(RabbitMQ)]
+    MQ --> Billing[Billing Service]
+    Billing -->|invoice.created.v1| MQ
+    MQ --> Payment[Payment Service]
+    Payment -->|payment.succeeded.v1| MQ
+    MQ --> Billing
+    MQ --> Notification[Notification Service]
+    Notification -->|email-чек| Provider[Email-провайдер]
+```
+
 ## Структура репозитория
 
 ```text
@@ -117,8 +136,11 @@ RabbitMQ.
 
 ### docs
 
-Заметки по архитектуре и ADR. Английский — канонический язык; там, где
-есть русский перевод, он лежит рядом как `*.ru.md`.
+Заметки по архитектуре и ADR. Английский — канонический язык; у каждого
+пользовательского Markdown-документа рядом лежит русский перевод
+`*.ru.md`, а в начале обеих версий есть переключатель языка. Реализованный
+публичный HTTP-контракт опубликован как
+[спецификация OpenAPI 3.1](docs/openapi/openapi.yaml).
 
 ### tests
 
@@ -220,6 +242,67 @@ make down
 ```bash
 make clean
 ```
+
+## Тестирование
+
+Команды повторяют слои тестирования: от быстрой проверки сервисов к
+реальным границам, полным workflow, восстановлению после сбоев и, наконец,
+к развёрнутой платформе.
+
+```mermaid
+flowchart LR
+    A[make test<br/>7 service suites] --> B[make test-docs<br/>Markdown + OpenAPI]
+    B --> C[make test-compose<br/>Component + Integration]
+    C --> D[E2E + Resilience]
+    D --> E[make test-kind<br/>развёрнутая платформа]
+    All[make test-all] -. запускает все этапы .-> A
+```
+
+Запустить test suites всех семи сервисов — быстрый вариант для обычной
+локальной работы:
+
+```bash
+make test
+```
+
+Проверить все пары Markdown EN/RU, локальные ссылки документации и
+OpenAPI-контракт по фактически зарегистрированным маршрутам сервисов:
+
+```bash
+make test-docs
+```
+
+Запустить все самостоятельные наборы Component, Service integration, E2E
+и Resilience. Каждый временный Docker Compose стек удаляется вместе с
+volumes после успешного выполнения или ошибки:
+
+```bash
+make test-compose
+```
+
+Запустить три Kubernetes smoke-теста против существующего кластера
+`kind-pet-payment-billing-platform`, не меняя текущий `kubectl` context:
+
+```bash
+make test-kind
+```
+
+При необходимости context можно переопределить:
+
+```bash
+make test-kind KIND_CONTEXT=my-kind-context
+```
+
+Запустить весь quality gate в указанном порядке:
+
+```bash
+make test-all
+```
+
+Для `make test` и `make test-docs` нужны PHP 8.5, Composer и установленные
+зависимости сервисов. Для Compose- и kind-команд дополнительно требуются
+Docker и `kubectl`; `test-kind` ожидает уже развёрнутый готовый кластер и
+выполняет предусмотренный тестом rolling restart `billing-api`.
 
 ## Локальные адреса
 
