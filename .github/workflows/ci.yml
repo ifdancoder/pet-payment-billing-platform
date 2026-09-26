@@ -31,7 +31,7 @@ jobs:
           php-version: '8.3'
           extensions: mbstring, pdo_sqlite, sodium
           coverage: none
-      - uses: ramsey/composer-install@v3
+      - uses: ramsey/composer-install@v4
         with:
           working-directory: services/${{ matrix.service }}-service
       - run: composer validate --strict
