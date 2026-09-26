@@ -13,6 +13,7 @@ function anIntegrationEvent(): CustomerCreatedIntegrationEvent
 {
     return CustomerCreatedIntegrationEvent::fromDomainEvent(new CustomerCreated(
         CustomerId::generate(),
+        aMerchantId(),
         Email::fromString('jane@example.com'),
         CustomerName::fromString('Jane Doe'),
     ));

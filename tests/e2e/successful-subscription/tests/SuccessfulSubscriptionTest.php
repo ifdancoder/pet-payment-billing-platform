@@ -31,18 +31,23 @@ use Tests\Support\Services;
  * Run: docker compose up -d --build; composer install; composer test
  */
 test('a customer can purchase a subscription and it goes all the way to active', function () {
-    $merchant = Services::identity()->post('/api/v1/merchants', [
-        'json' => ['name' => 'E2E Successful Subscription Merchant'],
+    $registration = Services::identity()->post('/api/v1/auth/register', [
+        'json' => [
+            'email' => 'owner-success-'.Uuid::uuid4()->toString().'@example.com',
+            'password' => 'correct horse battery staple',
+            'merchant_name' => 'E2E Successful Subscription Merchant',
+        ],
     ]);
-    expect($merchant->getStatusCode())->toBe(201);
-    $merchantId = json_decode($merchant->getBody()->getContents(), true)['data']['id'];
+    expect($registration->getStatusCode())->toBe(201);
+    $registrationBody = json_decode($registration->getBody()->getContents(), true);
+    $merchantId = $registrationBody['merchant_id'];
+    Services::authenticate($registrationBody['access_token']);
 
     $customerEmail = 'e2e-successful-subscription-'.Uuid::uuid4()->toString().'@example.com';
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => $customerEmail,
             'name' => 'E2E Successful Subscription Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     expect($customer->getStatusCode())->toBe(201);

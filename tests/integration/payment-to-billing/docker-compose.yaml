@@ -16,28 +16,30 @@ name: billing-platform-test-payment-to-billing
 
 x-app-env: &app_env
   APP_ENV: production
-  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_KEY: ${APP_KEY:?generated test env required}
+  AUTH_ED25519_PUBLIC_KEY_BASE64: ${AUTH_ED25519_PUBLIC_KEY_BASE64:?generated test env required}
+  INTERNAL_SERVICE_ACCESS_TOKEN: ${INTERNAL_SERVICE_ACCESS_TOKEN:?generated test env required}
   APP_DEBUG: "false"
   LOG_CHANNEL: stderr
   DB_CONNECTION: pgsql
   DB_HOST: postgres
   DB_PORT: "5432"
   DB_USERNAME: billing
-  DB_PASSWORD: billing
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?generated test env required}
   SESSION_DRIVER: array
   CACHE_STORE: array
   QUEUE_CONNECTION: sync
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: "5672"
   RABBITMQ_DEFAULT_USER: billing
-  RABBITMQ_DEFAULT_PASS: billing
+  RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?generated test env required}
 
 services:
   postgres:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: billing
-      POSTGRES_PASSWORD: billing
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?generated test env required}
       POSTGRES_DB: postgres
     volumes:
       - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
@@ -54,7 +56,7 @@ services:
     image: rabbitmq:4-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: billing
-      RABBITMQ_DEFAULT_PASS: billing
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?generated test env required}
     ports:
       - "26672:5672"
     healthcheck:
@@ -64,7 +66,9 @@ services:
       retries: 30
 
   billing-api:
-    build: ../../../services/billing-service
+    build:
+      context: ../../..
+      dockerfile: services/billing-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment:
       <<: *app_env
@@ -79,7 +83,9 @@ services:
   # Invoice) and the real payment.succeeded.v1 payment-outbox publishes
   # further down this chain (marks it Paid, republishes invoice.paid.v1).
   billing-consumer:
-    build: ../../../services/billing-service
+    build:
+      context: ../../..
+      dockerfile: services/billing-service/Dockerfile
     command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan billing-events:consume; sleep 1 & wait $$!; done"
     environment:
       <<: *app_env
@@ -89,7 +95,9 @@ services:
       rabbitmq: {condition: service_healthy}
 
   billing-outbox:
-    build: ../../../services/billing-service
+    build:
+      context: ../../..
+      dockerfile: services/billing-service/Dockerfile
     command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
     environment:
       <<: *app_env
@@ -99,7 +107,9 @@ services:
       rabbitmq: {condition: service_healthy}
 
   payment-api:
-    build: ../../../services/payment-service
+    build:
+      context: ../../..
+      dockerfile: services/payment-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment:
       <<: *app_env
@@ -114,7 +124,9 @@ services:
   # and auto-creates + processes a Payment (the fake gateway always
   # succeeds today).
   payment-consumer:
-    build: ../../../services/payment-service
+    build:
+      context: ../../..
+      dockerfile: services/payment-service/Dockerfile
     command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan invoice-created:consume; sleep 1 & wait $$!; done"
     environment:
       <<: *app_env
@@ -126,7 +138,9 @@ services:
   # Publishes payment.succeeded.v1 for real — the thing this whole
   # scenario is actually verifying reaches Billing.
   payment-outbox:
-    build: ../../../services/payment-service
+    build:
+      context: ../../..
+      dockerfile: services/payment-service/Dockerfile
     command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
     environment:
       <<: *app_env

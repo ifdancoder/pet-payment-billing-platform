@@ -15,28 +15,30 @@ name: billing-platform-test-subscription-to-billing
 
 x-app-env: &app_env
   APP_ENV: production
-  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_KEY: ${APP_KEY:?generated test env required}
+  AUTH_ED25519_PUBLIC_KEY_BASE64: ${AUTH_ED25519_PUBLIC_KEY_BASE64:?generated test env required}
+  INTERNAL_SERVICE_ACCESS_TOKEN: ${INTERNAL_SERVICE_ACCESS_TOKEN:?generated test env required}
   APP_DEBUG: "false"
   LOG_CHANNEL: stderr
   DB_CONNECTION: pgsql
   DB_HOST: postgres
   DB_PORT: "5432"
   DB_USERNAME: billing
-  DB_PASSWORD: billing
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?generated test env required}
   SESSION_DRIVER: array
   CACHE_STORE: array
   QUEUE_CONNECTION: sync
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: "5672"
   RABBITMQ_DEFAULT_USER: billing
-  RABBITMQ_DEFAULT_PASS: billing
+  RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?generated test env required}
 
 services:
   postgres:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: billing
-      POSTGRES_PASSWORD: billing
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?generated test env required}
       POSTGRES_DB: postgres
     volumes:
       - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
@@ -50,7 +52,7 @@ services:
     image: rabbitmq:4-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: billing
-      RABBITMQ_DEFAULT_PASS: billing
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?generated test env required}
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 2s
@@ -58,7 +60,9 @@ services:
       retries: 30
 
   customer-service:
-    build: ../../../services/customer-service
+    build:
+      context: ../../..
+      dockerfile: services/customer-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment:
       <<: *app_env
@@ -69,7 +73,9 @@ services:
       postgres: {condition: service_healthy}
 
   catalog-service:
-    build: ../../../services/catalog-service
+    build:
+      context: ../../..
+      dockerfile: services/catalog-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment:
       <<: *app_env
@@ -80,7 +86,9 @@ services:
       postgres: {condition: service_healthy}
 
   subscription-api:
-    build: ../../../services/subscription-service
+    build:
+      context: ../../..
+      dockerfile: services/subscription-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment:
       <<: *app_env
@@ -101,7 +109,9 @@ services:
   # instead of Laravel's scheduler, so this test exercises the actual
   # publish path rather than a shortcut.
   subscription-outbox:
-    build: ../../../services/subscription-service
+    build:
+      context: ../../..
+      dockerfile: services/subscription-service/Dockerfile
     command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
     environment:
       <<: *app_env
@@ -111,7 +121,9 @@ services:
       rabbitmq: {condition: service_healthy}
 
   billing-api:
-    build: ../../../services/billing-service
+    build:
+      context: ../../..
+      dockerfile: services/billing-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment:
       <<: *app_env
@@ -125,7 +137,9 @@ services:
   # Consumes subscription.created.v1 and creates the Invoice — the
   # thing this whole scenario is actually verifying.
   billing-consumer:
-    build: ../../../services/billing-service
+    build:
+      context: ../../..
+      dockerfile: services/billing-service/Dockerfile
     command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan billing-events:consume; sleep 1 & wait $$!; done"
     environment:
       <<: *app_env

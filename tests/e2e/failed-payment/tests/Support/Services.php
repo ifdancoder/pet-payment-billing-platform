@@ -14,6 +14,13 @@ use GuzzleHttp\RequestOptions;
  */
 final class Services
 {
+    private static ?string $accessToken = null;
+
+    public static function authenticate(string $accessToken): void
+    {
+        self::$accessToken = $accessToken;
+    }
+
     public static function identity(): Client
     {
         return self::client('IDENTITY_SERVICE_URL', 'http://localhost:18000');
@@ -53,6 +60,7 @@ final class Services
     {
         return new Client([
             'base_uri' => getenv($envVar) ?: $default,
+            'headers' => ['Authorization' => 'Bearer '.(self::$accessToken ?? \BillingPlatform\TestSupport\TestAccessToken::value())],
             'http_errors' => false,
             RequestOptions::CONNECT_TIMEOUT => 2,
             RequestOptions::TIMEOUT => 5,

@@ -28,18 +28,24 @@ use Tests\Support\Api;
 test('a customer can purchase a subscription through the real Ingress and it goes all the way to active', function () {
     $api = Api::client();
 
-    $merchant = $api->post('/v1/merchants', [
-        'json' => ['name' => 'kind smoke: successful subscription'],
+    $registered = $api->post('/v1/auth/register', [
+        'json' => [
+            'email' => 'kind-smoke-'.Uuid::uuid4()->toString().'@example.com',
+            'password' => 'correct horse battery staple',
+            'merchant_name' => 'kind smoke: successful subscription',
+        ],
     ]);
-    expect($merchant->getStatusCode())->toBe(201);
-    $merchantId = json_decode($merchant->getBody()->getContents(), true)['data']['id'];
+    expect($registered->getStatusCode())->toBe(201);
+    $account = json_decode($registered->getBody()->getContents(), true);
+    $merchantId = $account['merchant_id'];
+    Api::authenticate($account['access_token']);
+    $api = Api::client();
 
     $customerEmail = 'kind-smoke-'.Uuid::uuid4()->toString().'@example.com';
-    $customer = $api->post('/v1/customers', [
+    $customer = $api->post("/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => $customerEmail,
             'name' => 'kind Smoke Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     expect($customer->getStatusCode())->toBe(201);

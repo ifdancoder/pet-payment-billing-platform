@@ -28,11 +28,10 @@ test('payment.succeeded.v1 eventually delivers an email receipt', function () {
     $merchantId = Uuid::uuid4()->toString();
     $customerEmail = 'payment-to-notification-'.Uuid::uuid4()->toString().'@example.com';
 
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => $customerEmail,
             'name' => 'Payment To Notification Test Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     expect($customer->getStatusCode())->toBe(201);

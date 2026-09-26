@@ -21,7 +21,16 @@ use Tests\Support\Api;
  */
 test('the Ingress routes each public path prefix to its own backend service', function () {
     $api = Api::client();
-    $merchantId = Uuid::uuid4()->toString();
+    $registration = $api->post('/v1/auth/register', ['json' => [
+        'email' => 'kind-routing-'.Uuid::uuid4()->toString().'@example.com',
+        'password' => 'correct horse battery staple',
+        'merchant_name' => 'kind smoke: ingress routing',
+    ]]);
+    expect($registration->getStatusCode())->toBe(201);
+    $account = json_decode($registration->getBody()->getContents(), true);
+    $merchantId = $account['merchant_id'];
+    Api::authenticate($account['access_token']);
+    $api = Api::client();
 
     // One no-precondition GET per backend service that has one — proof
     // each of these six distinct path families actually reaches a
@@ -32,7 +41,7 @@ test('the Ingress routes each public path prefix to its own backend service', fu
         "/v1/merchants/{$merchantId}/invoices" => 'billing-service',
         "/v1/merchants/{$merchantId}/payments" => 'payment-service',
         "/v1/merchants/{$merchantId}/notifications" => 'notification-service',
-        '/v1/customers' => 'customer-service',
+        "/v1/merchants/{$merchantId}/customers" => 'customer-service',
     ];
 
     foreach ($routes as $path => $expectedBackend) {
@@ -40,11 +49,6 @@ test('the Ingress routes each public path prefix to its own backend service', fu
         expect($response->getStatusCode())->toBe(200, "GET {$path} (expected to reach {$expectedBackend})");
         expect(json_decode($response->getBody()->getContents(), true))->toHaveKey('data');
     }
-
-    // identity-service's only route with no existing tenant context to
-    // scope it by (see infrastructure/nginx/nginx.conf's own comment).
-    $merchant = $api->post('/v1/merchants', ['json' => ['name' => 'kind smoke: ingress routing']]);
-    expect($merchant->getStatusCode())->toBe(201);
 
     // A path entirely outside the routing table — proves this is a
     // real allow-list keyed on specific resource paths, not a blanket

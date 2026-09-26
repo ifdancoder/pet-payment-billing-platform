@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  service-tests:
+    name: ${{ matrix.service }} tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [identity, customer, catalog, subscription, billing, payment, notification]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.service }}-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, sodium
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          working-directory: services/${{ matrix.service }}-service
+      - run: composer validate --strict
+      - run: composer test -- --compact
+
+  contracts:
+    name: Documentation and Compose contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: make test-docs
+      - name: Validate every Compose stack
+        run: |
+          set -eu
+          secrets_file="$(mktemp)"
+          trap 'rm -f "$secrets_file"' EXIT
+          php scripts/generate-env.php > "$secrets_file"
+          for file in docker-compose.yaml $(find tests -name docker-compose.yaml | sort); do
+            docker compose --env-file "$secrets_file" -f "$file" config --quiet
+          done
+
+  compose-tests:
+    name: Component, integration, E2E, and resilience
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sockets
+          coverage: none
+      - name: Install test harness dependencies
+        run: |
+          set -eu
+          for directory in $(find tests -name composer.json -printf '%h\n' | sort); do
+            composer install --working-dir="$directory" --no-interaction --no-progress
+          done
+      - run: make test-compose
+
+  load-smoke:
+    name: Bounded full-platform load smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sodium
+          coverage: none
+      - run: make test-load

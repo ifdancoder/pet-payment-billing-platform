@@ -23,6 +23,7 @@ final class Services
     {
         return new Client([
             'base_uri' => getenv($envVar) ?: $default,
+            'headers' => ['Authorization' => 'Bearer '.\BillingPlatform\TestSupport\TestAccessToken::value()],
             'http_errors' => false,
             RequestOptions::CONNECT_TIMEOUT => 2,
             RequestOptions::TIMEOUT => 5,

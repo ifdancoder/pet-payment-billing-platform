@@ -18,6 +18,13 @@ use Psr\Http\Message\RequestInterface;
  */
 final class Api
 {
+    private static ?string $accessToken = null;
+
+    public static function authenticate(string $accessToken): void
+    {
+        self::$accessToken = $accessToken;
+    }
+
     public static function client(): Client
     {
         $host = getenv('GATEWAY_HOST') ?: 'api.pet-payment-billing-platform.local';
@@ -30,7 +37,10 @@ final class Api
         // request instead of trusted to client config.
         $stack = HandlerStack::create();
         $stack->push(Middleware::mapRequest(
-            fn (RequestInterface $request): RequestInterface => $request->withHeader('Host', $host),
+            function (RequestInterface $request) use ($host): RequestInterface {
+                $request = $request->withHeader('Host', $host);
+                return self::$accessToken === null ? $request : $request->withHeader('Authorization', 'Bearer '.self::$accessToken);
+            },
         ));
 
         return new Client([

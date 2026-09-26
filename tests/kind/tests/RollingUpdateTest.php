@@ -23,6 +23,17 @@ test('a rolling restart of billing-api never drops a request through the gateway
     $kubectl = new Kubectl;
     $api = Api::client();
 
+    $registration = $api->post('/v1/auth/register', ['json' => [
+        'email' => 'kind-rollout-'.Uuid::uuid4()->toString().'@example.com',
+        'password' => 'correct horse battery staple',
+        'merchant_name' => 'kind smoke: rolling update',
+    ]]);
+    expect($registration->getStatusCode())->toBe(201);
+    $account = json_decode($registration->getBody()->getContents(), true);
+    $merchantId = $account['merchant_id'];
+    Api::authenticate($account['access_token']);
+    $api = Api::client();
+
     $before = $kubectl->podNames('app.kubernetes.io/name=billing,app.kubernetes.io/component=api');
 
     $kubectl->rolloutRestart('billing-api');
@@ -36,7 +47,7 @@ test('a rolling restart of billing-api never drops a request through the gateway
         // whether the gateway ever fails to reach *a* healthy
         // billing-api pod during the rollout, not about billing's own
         // business logic.
-        $response = $api->get('/v1/merchants/'.Uuid::uuid4()->toString().'/invoices');
+        $response = $api->get("/v1/merchants/{$merchantId}/invoices");
         $statuses[] = $response->getStatusCode();
 
         $status = $kubectl->replicaStatus('billing-api');

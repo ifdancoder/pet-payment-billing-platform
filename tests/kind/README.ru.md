@@ -42,6 +42,8 @@ NetworkPolicy и autoscaling здесь не заявлены: local overlay и�
 - `kubectl` указывает на него;
 - `infrastructure/kubernetes/overlays/local` применён, все workloads
   готовы;
+- нативные Secrets созданы из игнорируемого локального `.env` командой
+  `make kind-secrets`;
 - ingress-nginx опубликован на `localhost:8090`, как задано в
   `infrastructure/kubernetes/kind-cluster.yaml`.
 

@@ -28,6 +28,8 @@ final class AmqpTestClient
 {
     private const EXCHANGE = 'billing.events';
 
+    private const DEAD_LETTER_EXCHANGE = 'billing.events.dlx';
+
     private ?AMQPChannel $channel = null;
 
     public function __construct(
@@ -93,8 +95,17 @@ final class AmqpTestClient
      */
     public function ensureConsumerQueueBound(string $queueName, string $routingKey): void
     {
-        $this->channel()->queue_declare($queueName, false, true, false, false);
-        $this->channel()->queue_bind($queueName, self::EXCHANGE, $routingKey);
+        $channel = $this->channel();
+        $deadLetterQueue = $queueName.'.dlq';
+
+        $channel->exchange_declare(self::DEAD_LETTER_EXCHANGE, 'direct', false, true, false);
+        $channel->queue_declare($deadLetterQueue, false, true, false, false);
+        $channel->queue_bind($deadLetterQueue, self::DEAD_LETTER_EXCHANGE, $queueName);
+        $channel->queue_declare($queueName, false, true, false, false, false, new AMQPTable([
+            'x-dead-letter-exchange' => self::DEAD_LETTER_EXCHANGE,
+            'x-dead-letter-routing-key' => $queueName,
+        ]));
+        $channel->queue_bind($queueName, self::EXCHANGE, $routingKey);
     }
 
     /**

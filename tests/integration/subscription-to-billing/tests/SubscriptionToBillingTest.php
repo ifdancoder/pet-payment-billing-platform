@@ -16,11 +16,10 @@ use Tests\Support\Services;
 test('creating a subscription eventually opens an invoice in Billing', function () {
     $merchantId = Uuid::uuid4()->toString();
 
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => "svc-integration-{$merchantId}@example.com",
             'name' => 'Service Integration Test Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     expect($customer->getStatusCode())->toBe(201);

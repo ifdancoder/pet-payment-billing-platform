@@ -42,6 +42,8 @@ Prerequisites:
 - `kubectl` points at it;
 - `infrastructure/kubernetes/overlays/local` is applied and all
   workloads are ready;
+- native Secrets have been provisioned from the ignored local `.env` with
+  `make kind-secrets`;
 - ingress-nginx is exposed on `localhost:8090`, as configured by
   `infrastructure/kubernetes/kind-cluster.yaml`.
 

@@ -25,11 +25,10 @@ function createPendingSubscription(): array
 {
     $merchantId = Uuid::uuid4()->toString();
 
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => 'billing-to-subscription-'.Uuid::uuid4()->toString().'@example.com',
             'name' => 'Billing To Subscription Test Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     $customerId = json_decode($customer->getBody()->getContents(), true)['data']['id'];

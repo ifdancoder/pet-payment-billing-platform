@@ -32,11 +32,10 @@ test('creating a subscription survives a rabbitmq outage and the chain catches u
 
     $merchantId = Uuid::uuid4()->toString();
 
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => 'rabbitmq-outage-'.Uuid::uuid4()->toString().'@example.com',
             'name' => 'RabbitMQ Outage Test Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     $customerId = json_decode($customer->getBody()->getContents(), true)['data']['id'];

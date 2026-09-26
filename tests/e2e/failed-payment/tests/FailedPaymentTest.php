@@ -30,18 +30,23 @@ use Tests\Support\Services;
  * Run: docker compose up -d --build; composer install; composer test
  */
 test('a declined charge leaves the invoice open, the payment failed, and the subscription pending', function () {
-    $merchant = Services::identity()->post('/api/v1/merchants', [
-        'json' => ['name' => 'E2E Failed Payment Merchant'],
+    $registration = Services::identity()->post('/api/v1/auth/register', [
+        'json' => [
+            'email' => 'owner-failed-'.Uuid::uuid4()->toString().'@example.com',
+            'password' => 'correct horse battery staple',
+            'merchant_name' => 'E2E Failed Payment Merchant',
+        ],
     ]);
-    expect($merchant->getStatusCode())->toBe(201);
-    $merchantId = json_decode($merchant->getBody()->getContents(), true)['data']['id'];
+    expect($registration->getStatusCode())->toBe(201);
+    $registrationBody = json_decode($registration->getBody()->getContents(), true);
+    $merchantId = $registrationBody['merchant_id'];
+    Services::authenticate($registrationBody['access_token']);
 
     $customerEmail = 'e2e-failed-payment-'.Uuid::uuid4()->toString().'@example.com';
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => $customerEmail,
             'name' => 'E2E Failed Payment Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     expect($customer->getStatusCode())->toBe(201);

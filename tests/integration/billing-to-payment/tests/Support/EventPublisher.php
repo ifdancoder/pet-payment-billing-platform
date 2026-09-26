@@ -24,6 +24,8 @@ final class EventPublisher
 {
     private const EXCHANGE = 'billing.events';
 
+    private const DEAD_LETTER_EXCHANGE = 'billing.events.dlx';
+
     // Must match App\Shared\Presentation\Console\ConsumeBillingEventsCommand
     // exactly. Declaring and binding it here too — both idempotent — closes
     // a real race: a topic exchange silently drops a message published
@@ -70,7 +72,14 @@ final class EventPublisher
 
         $channel = $connection->channel();
         $channel->exchange_declare(self::EXCHANGE, 'topic', false, true, false);
-        $channel->queue_declare(self::BILLING_QUEUE, false, true, false, false);
+        $deadLetterQueue = self::BILLING_QUEUE.'.dlq';
+        $channel->exchange_declare(self::DEAD_LETTER_EXCHANGE, 'direct', false, true, false);
+        $channel->queue_declare($deadLetterQueue, false, true, false, false);
+        $channel->queue_bind($deadLetterQueue, self::DEAD_LETTER_EXCHANGE, self::BILLING_QUEUE);
+        $channel->queue_declare(self::BILLING_QUEUE, false, true, false, false, false, new AMQPTable([
+            'x-dead-letter-exchange' => self::DEAD_LETTER_EXCHANGE,
+            'x-dead-letter-routing-key' => self::BILLING_QUEUE,
+        ]));
         $channel->queue_bind(self::BILLING_QUEUE, self::EXCHANGE, 'subscription.created.v1');
 
         return self::$channel = $channel;

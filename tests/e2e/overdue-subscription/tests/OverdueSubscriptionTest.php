@@ -5,17 +5,22 @@ use Ramsey\Uuid\Uuid;
 use Tests\Support\Services;
 
 test('a failed renewal payment moves an active subscription to past due', function () {
-    $merchant = Services::identity()->post('/api/v1/merchants', [
-        'json' => ['name' => 'E2E Overdue Subscription Merchant'],
+    $registration = Services::identity()->post('/api/v1/auth/register', [
+        'json' => [
+            'email' => 'owner-overdue-'.Uuid::uuid4()->toString().'@example.com',
+            'password' => 'correct horse battery staple',
+            'merchant_name' => 'E2E Overdue Subscription Merchant',
+        ],
     ]);
-    expect($merchant->getStatusCode())->toBe(201);
-    $merchantId = json_decode($merchant->getBody()->getContents(), true)['data']['id'];
+    expect($registration->getStatusCode())->toBe(201);
+    $registrationBody = json_decode($registration->getBody()->getContents(), true);
+    $merchantId = $registrationBody['merchant_id'];
+    Services::authenticate($registrationBody['access_token']);
 
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => 'e2e-overdue-'.Uuid::uuid4()->toString().'@example.com',
             'name' => 'E2E Overdue Subscription Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     expect($customer->getStatusCode())->toBe(201);
