@@ -2,7 +2,7 @@
   "priority": 5,
   "request": {
     "method": "GET",
-    "urlPathPattern": "/api/v1/customers/.*"
+    "urlPathPattern": "/api/v1/merchants/[^/]+/customers/.*"
   },
   "response": {
     "status": 200,

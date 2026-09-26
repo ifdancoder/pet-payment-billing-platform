@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: weekly}
+  - package-ecosystem: docker
+    directory: /
+    schedule: {interval: weekly}
+  - package-ecosystem: composer
+    directories:
+      - /services/identity-service
+      - /services/customer-service
+      - /services/catalog-service
+      - /services/subscription-service
+      - /services/billing-service
+      - /services/payment-service
+      - /services/notification-service
+      - /tests/component/subscription-service
+      - /tests/component/notification-service
+      - /tests/integration/*
+      - /tests/e2e/*
+      - /tests/resilience/*
+      - /tests/kind
+    schedule: {interval: weekly}
+    groups:
+      safe-updates:
+        update-types: [minor, patch]

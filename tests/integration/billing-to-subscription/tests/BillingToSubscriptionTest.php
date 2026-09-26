@@ -4,32 +4,14 @@ use BillingPlatform\TestSupport\AmqpTestClient;
 use Ramsey\Uuid\Uuid;
 use Tests\Support\Services;
 
-/**
- * Service integration test, not an E2E: Subscription doing what's
- * actually theirs to verify — consuming invoice.paid.v1 and
- * invoice.payment_failed.v1, and applying the same guard conditions
- * HandleInvoicePaidHandler/HandleInvoicePaymentFailedHandler encode
- * (see their own docblocks in subscription-service). See
- * docs/architecture/testing-strategy.md.
- *
- * No billing-service in this stack: Billing publishing these two
- * events correctly is already covered by
- * tests/integration/payment-to-billing/. Unlike that slice and
- * billing-to-payment, Subscription DOES have a real "create" HTTP
- * endpoint, so seeding one is a real request through the real create
- * flow — no direct-publish trick needed for that part.
- *
- * Run: docker compose up -d --build; composer install; composer test
- */
 function createPendingSubscription(): array
 {
     $merchantId = Uuid::uuid4()->toString();
 
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => 'billing-to-subscription-'.Uuid::uuid4()->toString().'@example.com',
             'name' => 'Billing To Subscription Test Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     $customerId = json_decode($customer->getBody()->getContents(), true)['data']['id'];
@@ -75,7 +57,7 @@ function publishInvoicePaid(AmqpTestClient $amqp, string $merchantId, string $cu
         'payment_id' => Uuid::uuid4()->toString(),
         'amount_minor_units' => 1500,
         'currency' => 'USD',
-        'paid_at' => (new DateTimeImmutable())->format(DATE_ATOM),
+        'paid_at' => (new DateTimeImmutable)->format(DATE_ATOM),
     ]);
 }
 
@@ -103,10 +85,6 @@ test('invoice.payment_failed.v1 eventually marks an active subscription past due
 
     ['merchantId' => $merchantId, 'customerId' => $customerId, 'subscriptionId' => $subscriptionId] = createPendingSubscription();
 
-    // HandleInvoicePaymentFailedHandler only transitions Active ->
-    // PastDue — a Pending subscription's first-ever failed payment
-    // stays Pending (see its own docblock), so this must actually be
-    // Active first, not just any pre-existing subscription.
     publishInvoicePaid($amqp, $merchantId, $customerId, $subscriptionId);
     eventually(function () use ($merchantId, $subscriptionId): void {
         $response = Services::subscription()->get("/api/v1/merchants/{$merchantId}/subscriptions/{$subscriptionId}");

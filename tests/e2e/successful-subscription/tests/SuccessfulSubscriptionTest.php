@@ -3,46 +3,24 @@
 use Ramsey\Uuid\Uuid;
 use Tests\Support\Services;
 
-/**
- * The platform's first full end-to-end test: a customer purchases a
- * subscription, walking every real hop through real HTTP against all
- * seven real services — Merchant -> Customer -> Product/Price ->
- * Subscription -> Invoice -> Payment -> Notification. Unlike every
- * tests/integration/*\/ slice this composes, nothing here is
- * direct-published: every event on the wire is produced by the actual
- * service whose job that is. See
- * docs/architecture/testing-strategy.md.
- *
- * This is the composition, not new integration work — each hop was
- * already proven in isolation:
- * - tests/integration/subscription-to-billing/ (Subscription -> Billing)
- * - tests/integration/billing-to-payment/ (Billing -> Payment)
- * - tests/integration/payment-to-billing/ (Payment -> Billing, the
- *   invoice.paid.v1 translation)
- * - tests/integration/billing-to-subscription/ (Billing -> Subscription,
- *   activation)
- * What none of those slices could prove on their own is that the whole
- * chain holds together end to end with the system generating and
- * threading every ID itself, and that Notification — consuming
- * payment.succeeded.v1 independently of Billing's own consumption of
- * it — actually fires in parallel with the rest of the chain, not
- * after it.
- *
- * Run: docker compose up -d --build; composer install; composer test
- */
 test('a customer can purchase a subscription and it goes all the way to active', function () {
-    $merchant = Services::identity()->post('/api/v1/merchants', [
-        'json' => ['name' => 'E2E Successful Subscription Merchant'],
+    $registration = Services::identity()->post('/api/v1/auth/register', [
+        'json' => [
+            'email' => 'owner-success-'.Uuid::uuid4()->toString().'@example.com',
+            'password' => 'correct horse battery staple',
+            'merchant_name' => 'E2E Successful Subscription Merchant',
+        ],
     ]);
-    expect($merchant->getStatusCode())->toBe(201);
-    $merchantId = json_decode($merchant->getBody()->getContents(), true)['data']['id'];
+    expect($registration->getStatusCode())->toBe(201);
+    $registrationBody = json_decode($registration->getBody()->getContents(), true);
+    $merchantId = $registrationBody['merchant_id'];
+    Services::authenticate($registrationBody['access_token']);
 
     $customerEmail = 'e2e-successful-subscription-'.Uuid::uuid4()->toString().'@example.com';
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => $customerEmail,
             'name' => 'E2E Successful Subscription Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     expect($customer->getStatusCode())->toBe(201);
@@ -74,13 +52,6 @@ test('a customer can purchase a subscription and it goes all the way to active',
     expect($subscriptionBody['status'])->toBe('pending');
     $subscriptionId = $subscriptionBody['id'];
 
-    // Everything from here on is entirely async — subscription.created.v1
-    // -> Billing opens an Invoice -> invoice.created.v1 -> Payment
-    // processes it -> payment.succeeded.v1 fans out to both Billing
-    // (marks the Invoice Paid, republishes invoice.paid.v1 ->
-    // Subscription activates) and Notification (delivers a receipt) in
-    // parallel. None of it is observable from the 201 responses above.
-
     $invoiceId = null;
     eventually(function () use ($merchantId, $subscriptionId, &$invoiceId): void {
         $invoices = Services::billing()->get("/api/v1/merchants/{$merchantId}/invoices");
@@ -107,9 +78,6 @@ test('a customer can purchase a subscription and it goes all the way to active',
         expect($payment[0]['status'])->toBe('succeeded');
     });
 
-    // The thing the invoice.paid.v1 translation hop exists for: not
-    // just that Billing knows the Invoice is paid, but that Subscription
-    // — which never sees a payment event directly — ends up Active too.
     eventually(function () use ($merchantId, $subscriptionId): void {
         $response = Services::subscription()->get("/api/v1/merchants/{$merchantId}/subscriptions/{$subscriptionId}");
         expect($response->getStatusCode())->toBe(200);
@@ -118,10 +86,6 @@ test('a customer can purchase a subscription and it goes all the way to active',
         expect($body['status'])->toBe('active');
     }, timeoutSeconds: 15);
 
-    // Notification consumes payment.succeeded.v1 independently of
-    // Billing's own consumption of it — this proves that fan-out
-    // actually happens, not just that Billing's own branch of the chain
-    // completes.
     eventually(function () use ($merchantId, $customerEmail): void {
         $notifications = Services::notification()->get("/api/v1/merchants/{$merchantId}/notifications");
         expect($notifications->getStatusCode())->toBe(200);

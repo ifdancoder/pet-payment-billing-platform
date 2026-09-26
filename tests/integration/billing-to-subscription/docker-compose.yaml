@@ -1,47 +1,32 @@
 name: billing-platform-test-billing-to-subscription
 
-# Brings up Subscription (plus its two synchronous dependencies,
-# customer/catalog-service) — not billing-service. Billing publishing
-# invoice.paid.v1/invoice.payment_failed.v1 correctly is already
-# covered by tests/integration/payment-to-billing/, so this test
-# publishes them directly, standing in for Billing's own Outbox — same
-# reasoning as billing-to-payment standing in for Subscription's.
-#
-# Unlike the invoice/payment boundaries, Subscription DOES have a real
-# "create" HTTP endpoint (POST /subscriptions) — no direct-publish
-# trick is needed to seed one, just a real request through the real
-# create flow (which is why customer/catalog-service are here: that
-# flow calls them synchronously).
-#
-# Each app service runs its migration inline (`migrate --force` before
-# `frankenphp`) rather than as a separate Job — see
-# tests/integration/subscription-to-billing/docker-compose.yaml for why
-# that's fine here but not in Kubernetes.
 
 x-app-env: &app_env
   APP_ENV: production
-  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_KEY: ${APP_KEY:?generated test env required}
+  AUTH_ED25519_PUBLIC_KEY_BASE64: ${AUTH_ED25519_PUBLIC_KEY_BASE64:?generated test env required}
+  INTERNAL_SERVICE_ACCESS_TOKEN: ${INTERNAL_SERVICE_ACCESS_TOKEN:?generated test env required}
   APP_DEBUG: "false"
   LOG_CHANNEL: stderr
   DB_CONNECTION: pgsql
   DB_HOST: postgres
   DB_PORT: "5432"
   DB_USERNAME: billing
-  DB_PASSWORD: billing
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?generated test env required}
   SESSION_DRIVER: array
   CACHE_STORE: array
   QUEUE_CONNECTION: sync
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: "5672"
   RABBITMQ_DEFAULT_USER: billing
-  RABBITMQ_DEFAULT_PASS: billing
+  RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?generated test env required}
 
 services:
   postgres:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: billing
-      POSTGRES_PASSWORD: billing
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?generated test env required}
       POSTGRES_DB: postgres
     volumes:
       - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
@@ -51,14 +36,11 @@ services:
       timeout: 5s
       retries: 30
 
-  # AMQP port published to the host — this test publishes
-  # invoice.paid.v1/invoice.payment_failed.v1 directly, standing in for
-  # Billing's own Outbox.
   rabbitmq:
     image: rabbitmq:4-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: billing
-      RABBITMQ_DEFAULT_PASS: billing
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?generated test env required}
     ports:
       - "27672:5672"
     healthcheck:
@@ -68,7 +50,9 @@ services:
       retries: 30
 
   customer-service:
-    build: ../../../services/customer-service
+    build:
+      context: ../../..
+      dockerfile: services/customer-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment:
       <<: *app_env
@@ -79,7 +63,9 @@ services:
       postgres: {condition: service_healthy}
 
   catalog-service:
-    build: ../../../services/catalog-service
+    build:
+      context: ../../..
+      dockerfile: services/catalog-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment:
       <<: *app_env
@@ -90,7 +76,9 @@ services:
       postgres: {condition: service_healthy}
 
   subscription-api:
-    build: ../../../services/subscription-service
+    build:
+      context: ../../..
+      dockerfile: services/subscription-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment:
       <<: *app_env
@@ -105,10 +93,10 @@ services:
       customer-service: {condition: service_started}
       catalog-service: {condition: service_started}
 
-  # Consumes the test-published invoice.paid.v1/invoice.payment_failed.v1
-  # — the thing this whole scenario is actually verifying.
   subscription-consumer:
-    build: ../../../services/subscription-service
+    build:
+      context: ../../..
+      dockerfile: services/subscription-service/Dockerfile
     command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan subscription-events:consume; sleep 1 & wait $$!; done"
     environment:
       <<: *app_env
@@ -117,10 +105,6 @@ services:
       postgres: {condition: service_healthy}
       rabbitmq: {condition: service_healthy}
 
-# An explicit subnet, not Docker's auto-assigned pool — see
-# tests/integration/subscription-to-billing/docker-compose.yaml for
-# why. A different /24 than the other integration stacks', so all can
-# run at once.
 networks:
   default:
     driver: bridge

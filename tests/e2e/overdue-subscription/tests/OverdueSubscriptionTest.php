@@ -5,17 +5,22 @@ use Ramsey\Uuid\Uuid;
 use Tests\Support\Services;
 
 test('a failed renewal payment moves an active subscription to past due', function () {
-    $merchant = Services::identity()->post('/api/v1/merchants', [
-        'json' => ['name' => 'E2E Overdue Subscription Merchant'],
+    $registration = Services::identity()->post('/api/v1/auth/register', [
+        'json' => [
+            'email' => 'owner-overdue-'.Uuid::uuid4()->toString().'@example.com',
+            'password' => 'correct horse battery staple',
+            'merchant_name' => 'E2E Overdue Subscription Merchant',
+        ],
     ]);
-    expect($merchant->getStatusCode())->toBe(201);
-    $merchantId = json_decode($merchant->getBody()->getContents(), true)['data']['id'];
+    expect($registration->getStatusCode())->toBe(201);
+    $registrationBody = json_decode($registration->getBody()->getContents(), true);
+    $merchantId = $registrationBody['merchant_id'];
+    Services::authenticate($registrationBody['access_token']);
 
-    $customer = Services::customer()->post('/api/v1/customers', [
+    $customer = Services::customer()->post("/api/v1/merchants/{$merchantId}/customers", [
         'json' => [
             'email' => 'e2e-overdue-'.Uuid::uuid4()->toString().'@example.com',
             'name' => 'E2E Overdue Subscription Customer',
-            'merchant_id' => $merchantId,
         ],
     ]);
     expect($customer->getStatusCode())->toBe(201);
@@ -27,14 +32,11 @@ test('a failed renewal payment moves an active subscription to past due', functi
     expect($product->getStatusCode())->toBe(201);
     $productId = json_decode($product->getBody()->getContents(), true)['data']['id'];
 
-    // This reserved fake-provider amount succeeds for subscription_create
-    // and declines only subscription_cycle, so the first payment genuinely
-    // activates the subscription before its renewal genuinely fails.
     $price = Services::catalog()->post("/api/v1/merchants/{$merchantId}/products/{$productId}/prices", [
         'json' => [
             'amount_minor_units' => 77770000,
             'currency' => 'USD',
-            'type' => 2,
+            'type' => 2, // recurring
             'billing_interval' => 1, // day
             'billing_interval_count' => 1,
         ],
@@ -109,8 +111,6 @@ test('a failed renewal payment moves an active subscription to past due', functi
         expect(json_decode($response->getBody()->getContents(), true)['data']['status'])->toBe('past_due');
     }, timeoutSeconds: 20);
 
-    // PastDue is not eligible for another cycle, even if the scheduler
-    // clock moves much farther forward.
     $output = $compose->exec('subscription-api', [
         'php', 'artisan', 'subscriptions:renew', '--as-of=2030-01-01T00:00:00+00:00',
     ]);

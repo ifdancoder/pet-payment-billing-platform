@@ -2,18 +2,19 @@
 
 namespace Tests\Support;
 
+use BillingPlatform\TestSupport\TestAccessToken;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 
-/**
- * Thin HTTP clients for all seven services. No assertions live here —
- * just "make the call, return the decoded body" — so the test itself
- * reads as the business scenario, not as HTTP plumbing. Base URLs are
- * the docker-compose.yaml port mappings, overridable via env for a CI
- * runner that publishes different ports.
- */
 final class Services
 {
+    private static ?string $accessToken = null;
+
+    public static function authenticate(string $accessToken): void
+    {
+        self::$accessToken = $accessToken;
+    }
+
     public static function identity(): Client
     {
         return self::client('IDENTITY_SERVICE_URL', 'http://localhost:18000');
@@ -53,6 +54,7 @@ final class Services
     {
         return new Client([
             'base_uri' => getenv($envVar) ?: $default,
+            'headers' => ['Authorization' => 'Bearer '.(self::$accessToken ?? TestAccessToken::value())],
             'http_errors' => false,
             RequestOptions::CONNECT_TIMEOUT => 2,
             RequestOptions::TIMEOUT => 5,

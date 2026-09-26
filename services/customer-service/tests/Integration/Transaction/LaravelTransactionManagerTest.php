@@ -18,7 +18,7 @@ test('run commits every write performed inside the callback', function () {
     $id = (string) Str::uuid();
 
     $manager->run(function () use ($id) {
-        CustomerModel::query()->create(['id' => $id, 'email' => 'jane@example.com', 'name' => 'Jane Doe']);
+        CustomerModel::query()->create(['id' => $id, 'merchant_id' => aMerchantId()->toString(), 'email' => 'jane@example.com', 'name' => 'Jane Doe']);
     });
 
     expect(CustomerModel::query()->where('id', $id)->exists())->toBeTrue();
@@ -30,12 +30,12 @@ test('run rolls back every write performed inside the callback when it throws', 
 
     try {
         $manager->run(function () use ($id) {
-            CustomerModel::query()->create(['id' => $id, 'email' => 'jane@example.com', 'name' => 'Jane Doe']);
+            CustomerModel::query()->create(['id' => $id, 'merchant_id' => aMerchantId()->toString(), 'email' => 'jane@example.com', 'name' => 'Jane Doe']);
 
             throw new RuntimeException('boom');
         });
     } catch (RuntimeException) {
-        // expected
+
     }
 
     expect(CustomerModel::query()->where('id', $id)->exists())->toBeFalse();

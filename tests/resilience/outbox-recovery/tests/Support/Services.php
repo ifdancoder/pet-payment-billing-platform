@@ -2,16 +2,10 @@
 
 namespace Tests\Support;
 
+use BillingPlatform\TestSupport\TestAccessToken;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 
-/**
- * Thin HTTP client for the one service this scenario touches. No
- * assertions live here — just "make the call, return the decoded
- * body" — so the test itself reads as the scenario, not as HTTP
- * plumbing. Base URL is the docker-compose.yaml port mapping,
- * overridable via env for a CI runner that publishes a different port.
- */
 final class Services
 {
     public static function billing(): Client
@@ -23,6 +17,7 @@ final class Services
     {
         return new Client([
             'base_uri' => getenv($envVar) ?: $default,
+            'headers' => ['Authorization' => 'Bearer '.TestAccessToken::value()],
             'http_errors' => false,
             RequestOptions::CONNECT_TIMEOUT => 2,
             RequestOptions::TIMEOUT => 5,

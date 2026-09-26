@@ -1,20 +1,11 @@
 name: billing-platform-component-subscription-service
 
-# The platform's first Component test: exactly one real service, its
-# own real Postgres and real RabbitMQ, and a stub server standing in
-# for its two synchronous HTTP dependencies (customer-service,
-# catalog-service) — not the real services, unlike every
-# tests/integration/*/ stack. See
-# docs/architecture/testing-strategy.md.
-#
-# subscription-service's own process runs its migration inline
-# (`migrate --force` before `frankenphp`), same reasoning as every
-# other disposable single-replica compose stack in this repo — see
-# tests/integration/subscription-to-billing/docker-compose.yaml.
 
 x-app-env: &app_env
   APP_ENV: production
-  APP_KEY: base64:v5KVb+Iv/5UxJOwvOcCzm+9SjuY3diHhs71/JXj6G90=
+  APP_KEY: ${APP_KEY:?generated test env required}
+  AUTH_ED25519_PUBLIC_KEY_BASE64: ${AUTH_ED25519_PUBLIC_KEY_BASE64:?generated test env required}
+  INTERNAL_SERVICE_ACCESS_TOKEN: ${INTERNAL_SERVICE_ACCESS_TOKEN:?generated test env required}
   APP_DEBUG: "false"
   LOG_CHANNEL: stderr
   DB_CONNECTION: pgsql
@@ -22,14 +13,14 @@ x-app-env: &app_env
   DB_PORT: "5432"
   DB_DATABASE: subscription
   DB_USERNAME: billing
-  DB_PASSWORD: billing
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?generated test env required}
   SESSION_DRIVER: array
   CACHE_STORE: array
   QUEUE_CONNECTION: sync
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: "5672"
   RABBITMQ_DEFAULT_USER: billing
-  RABBITMQ_DEFAULT_PASS: billing
+  RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?generated test env required}
   CUSTOMER_SERVICE_URL: http://customer-catalog-stub:8080
   CATALOG_SERVICE_URL: http://customer-catalog-stub:8080
 
@@ -38,7 +29,7 @@ services:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: billing
-      POSTGRES_PASSWORD: billing
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?generated test env required}
       POSTGRES_DB: postgres
     volumes:
       - ./init-databases.sql:/docker-entrypoint-initdb.d/01-databases.sql:ro
@@ -52,7 +43,7 @@ services:
     image: rabbitmq:4-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: billing
-      RABBITMQ_DEFAULT_PASS: billing
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?generated test env required}
     ports:
       - "33672:5672"
     healthcheck:
@@ -61,26 +52,21 @@ services:
       timeout: 5s
       retries: 30
 
-  # One stub standing in for both customer-service and catalog-service
-  # — both are just "look up a resource by ID over HTTP", so one
-  # WireMock instance routing by path is simpler than two. Declarative
-  # mappings in ./wiremock/mappings/, loaded at container start; see
-  # README.md for why WireMock over a hand-rolled script.
   customer-catalog-stub:
     image: wiremock/wiremock:3.9.1
     command: ["--global-response-templating", "--verbose"]
     volumes:
       - ./wiremock/mappings:/home/wiremock/mappings:ro
     healthcheck:
-      # A plain GET, not `wget --spider` (HEAD) — WireMock's admin API
-      # doesn't answer HEAD requests.
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/__admin/mappings"]
       interval: 2s
       timeout: 5s
       retries: 30
 
   subscription-api:
-    build: ../../../services/subscription-service
+    build:
+      context: ../../..
+      dockerfile: services/subscription-service/Dockerfile
     command: sh -c "php artisan migrate --force && frankenphp php-server --listen :8080 --root /app/public"
     environment: *app_env
     ports:
@@ -91,30 +77,25 @@ services:
       customer-catalog-stub: {condition: service_healthy}
 
   subscription-outbox:
-    build: ../../../services/subscription-service
+    build:
+      context: ../../..
+      dockerfile: services/subscription-service/Dockerfile
     command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan outbox:publish; sleep 1 & wait $$!; done"
     environment: *app_env
     depends_on:
       postgres: {condition: service_healthy}
       rabbitmq: {condition: service_healthy}
 
-  # Consumes invoice.paid.v1/invoice.payment_failed.v1 — published
-  # directly by the test itself, standing in for billing-service, which
-  # isn't part of this stack at all. Billing actually publishing those
-  # two events is already covered by tests/integration/payment-to-billing/;
-  # this Component test's job is only subscription-service's own
-  # reaction to them.
   subscription-consumer:
-    build: ../../../services/subscription-service
+    build:
+      context: ../../..
+      dockerfile: services/subscription-service/Dockerfile
     command: sh -c "trap 'exit 0' TERM INT; while true; do php artisan subscription-events:consume; sleep 1 & wait $$!; done"
     environment: *app_env
     depends_on:
       postgres: {condition: service_healthy}
       rabbitmq: {condition: service_healthy}
 
-# An explicit subnet, not Docker's auto-assigned pool — same reasoning
-# as every other stack in this repo; the next free /24 after
-# tests/e2e/failed-payment/'s 172.41.0.0/24.
 networks:
   default:
     driver: bridge
