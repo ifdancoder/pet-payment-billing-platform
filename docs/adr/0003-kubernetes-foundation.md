@@ -90,13 +90,18 @@ than a pod flapping).
 
 ### Manifests: Kustomize, not Helm, for application workloads
 
-`infrastructure/kubernetes/base/<service>/` holds the bare manifests
+`infrastructure/kubernetes/base/<service>/` holds the non-secret manifests
 per service (`deployment.yaml`, `service.yaml`, `configmap.yaml`,
-`secret.yaml`, `kustomization.yaml`); `infrastructure/kubernetes/
+`kustomization.yaml`); `infrastructure/kubernetes/
 overlays/{local,staging,production}/` layers environment-specific
 values (replica count, resource sizing, image tag) on top via
 Kustomize patches — no templating language, no values-schema to
 maintain in parallel with the base manifests themselves.
+
+No Kubernetes `Secret` payload is tracked. Local values are generated into
+the Git-ignored `.env` by `make init` and applied with `make kind-secrets`;
+shared environments obtain the same named Secret objects from External
+Secrets. Deployments only reference those names.
 
 Helm stays reserved for third-party infrastructure this repo doesn't
 author (already the case for RabbitMQ, Prometheus, Grafana, Loki,

@@ -30,10 +30,9 @@ gateway itself never authenticates a request.
 | Payment Service | Payments, refunds and payment providers |
 | Notification Service | Asynchronous customer notifications |
 
-All seven exist under `services/`, each an independently runnable
-Laravel app with its own database, not yet containerized (see
-[`kubernetes.md`](kubernetes.md) and the root README's roadmap for
-where Docker/Kubernetes land relative to everything else).
+All seven exist under `services/`, each an independently runnable and
+containerized Laravel app with its own logical PostgreSQL database. They run
+both in the root Compose stack and through the Kubernetes manifests.
 
 ## Data ownership
 

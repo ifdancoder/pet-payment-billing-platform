@@ -9,10 +9,9 @@
 практике: Clean Architecture, Hexagonal Architecture, DDD,
 event-driven взаимодействие между сервисами.
 
-> Все семь сервисов построены. Сейчас они превращаются в настоящую
-> production-style платформу: gateway, messaging topology, надёжность,
-> observability, Docker, Kubernetes, CI/CD, затем end-to-end/load
-> тестирование. См. «Статус» ниже.
+> Реализованы все семь сервисов, authentication, tenant isolation,
+> надёжный messaging, локальный Docker Compose, Kubernetes-манифесты,
+> CI/CD и полная тестовая пирамида. Оговорки для production — в «Статусе».
 
 ## Цели
 
@@ -105,9 +104,8 @@ pet-payment-billing-platform/
 ### services
 
 Все семь Laravel-сервисов. Каждый независимо запускаем и со своей
-базой данных. У каждого теперь также есть Dockerfile, и каждый
-работает в кластере `kind` под `infrastructure/kubernetes/`; ни один
-пока не подключён к локальному `docker-compose.yaml` (см. «Статус»).
+базой данных. У каждого есть Dockerfile, каждый работает в `kind` под
+`infrastructure/kubernetes/` и подключён к локальному `docker-compose.yaml`.
 
 ### packages
 
@@ -119,8 +117,7 @@ SDK. Доменные модели остаются внутри каждого 
 
 Конфигурация локальной и платформенной инфраструктуры.
 
-Локальная разработка (docker-compose) поднимает Nginx, PostgreSQL и
-RabbitMQ.
+Локальная разработка поднимает всю платформу через Docker Compose.
 
 `infrastructure/kubernetes/` — отдельный, ориентированный на кластер
 слой:
@@ -131,8 +128,8 @@ RabbitMQ.
   Tempo, Loki). Подробности в
   `infrastructure/kubernetes/platform/README.md`.
 
-Ничего из этого пока не подключено к `make up`. Это отдельный трек от
-локальной разработки.
+`make up` использует локальный Compose-стек; cluster workloads остаются
+отдельной целью развёртывания под `infrastructure/kubernetes/`.
 
 ### docs
 
@@ -207,11 +204,18 @@ PostgreSQL или платёжных провайдерах. Зависимос�
 
 ### Настройка
 
-Скопировать env-файл:
+Сгенерировать приватный локальный `.env` со случайными application keys,
+Ed25519-ключами подписи, паролями инфраструктуры и короткоживущим внутренним
+service token:
 
 ```bash
 make init
 ```
+
+Сгенерированный файл игнорируется Git. В `.env.example` оставлены только
+имена переменных, а в Compose нет fallback-учётных данных. Чтобы создать из
+тех же значений нативные Secrets локального kind-кластера, выполните
+`make kind-secrets`.
 
 Запустить всё:
 
@@ -255,6 +259,7 @@ flowchart LR
     B --> C[make test-compose<br/>Component + Integration]
     C --> D[E2E + Resilience]
     D --> E[make test-kind<br/>развёрнутая платформа]
+    E --> F[make test-load<br/>ограниченный k6 smoke]
     All[make test-all] -. запускает все этапы .-> A
 ```
 
@@ -293,6 +298,13 @@ make test-kind
 make test-kind KIND_CONTEXT=my-kind-context
 ```
 
+Запустить ограниченный нагрузочный k6 smoke-тест в изолированном временном
+Compose-стеке:
+
+```bash
+make test-load
+```
+
 Запустить весь quality gate в указанном порядке:
 
 ```bash
@@ -302,7 +314,9 @@ make test-all
 Для `make test` и `make test-docs` нужны PHP 8.5, Composer и установленные
 зависимости сервисов. Для Compose- и kind-команд дополнительно требуются
 Docker и `kubectl`; `test-kind` ожидает уже развёрнутый готовый кластер и
-выполняет предусмотренный тестом rolling restart `billing-api`.
+выполняет предусмотренный тестом rolling restart `billing-api`. `test-load`
+запускает k6 в контейнере, после чего удаляет изолированный Compose-стек и
+его volumes.
 
 ## Локальные адреса
 
@@ -316,11 +330,10 @@ Docker и `kubectl`; `test-kind` ожидает уже развёрнутый г
 
 Учётные данные — в `.env`.
 
-Публичная таблица роутинга gateway (`/v1/...` → каждый сервис, см.
-[ADR 0001](docs/adr/0001-api-gateway-routing.md)) пока не доступна
-через `make up` — роутит корректно, но ни один из семи сервисов ещё не
-контейнеризован и не добавлен в `docker-compose.yaml` (шаг 5 роадмапа
-ниже).
+`make up` запускает gateway, все семь API, PostgreSQL, RabbitMQ,
+outbox-relay, event consumers, доставку уведомлений и renewal подписок.
+Зарегистрируйтесь через `POST /v1/auth/register`, затем передавайте bearer
+access token в tenant-scoped маршруты `/v1/merchants/{merchant}/...`.
 
 ## Технологический роадмап
 
@@ -371,7 +384,9 @@ Observability:
 
 ## Статус
 
-Активно в разработке.
+Функционально завершено как production-style reference implementation;
+для настоящего production нужны внешнее управление секретами, реальные
+provider adapters и настройка capacity/SLO под конкретное окружение.
 
 Все семь сервисов существуют (Identity, Customer, Catalog, Subscription,
 Billing, Payment, Notification), каждый — полностью рабочее
@@ -383,9 +398,7 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
 1. **API Gateway / Ingress** — дизайн роутинга/auth-границы завершён
    (см. [ADR 0001](docs/adr/0001-api-gateway-routing.md)) и доступен
    end-to-end в кластере `kind` (Ingress → gateway → каждый сервис);
-   через локальный `docker-compose` (`make up`) пока всё ещё
-   недоступен, поскольку ни один сервис не подключён к этому
-   compose-файлу (шаг 5).
+   и через локальный Docker Compose (`make up`).
 2. RabbitMQ-топология — контракт messaging, конвенции именования,
    envelope и правила топологии очередей зафиксированы
    ([ADR 0002](docs/adr/0002-rabbitmq-messaging.md) +
@@ -396,20 +409,16 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    трансляцию Billing исходов платежей в события с `subscription_id`
    для Subscription, и Outbox catalog-service, реально доходящий до
    RabbitMQ (раньше упирался в publisher, который только логировал).
-   Retry/DLQ policy, publisher confirms и prefetch ещё не построены.
-3. Distributed reliability — собрать уже используемые по сервисам
-   паттерны Outbox/Inbox/idempotency в единый набор платформенных
-   правил, и реально протестировать crash-сценарии (падение до ack,
-   падение до отметки outbox, повторная доставка, недоступность
-   брокера/БД, таймаут провайдера).
-4. Observability — трейсы/метрики/логи OpenTelemetry, correlation ID,
-   прокидываемые через заголовки RabbitMQ, Grafana/Tempo/Prometheus/Loki.
-5. Docker / локальное окружение — Dockerfile готовы для всех семи
-   сервисов; записи в `docker-compose.yaml` (чтобы `make up` реально
-   было куда роутить с gateway) ещё не написаны. Два тестовых
-   compose-стека под `tests/integration/*/docker-compose.yaml` — не
-   замена: они существуют, чтобы гонять один конкретный тестовый сьют,
-   а не для повседневной локальной разработки.
+   Консьюмеры используют ограниченные retries, durable DLQ и prefetch=1;
+   outbox publishers ждут RabbitMQ confirms до отметки строки published.
+3. Distributed reliability — transactional Outbox/Inbox, идемпотентные
+   консьюмеры, восстановление после outage брокера, duplicate delivery и
+   crash-before-ack реализованы и проверяются на реальных PostgreSQL/RabbitMQ.
+4. Observability — correlation ID создаются/сохраняются в HTTP и messaging;
+   Prometheus/Grafana/Tempo/Loki/OTel Collector лежат в
+   `infrastructure/kubernetes/platform/observability/`.
+5. Docker / локальное окружение — готово: `docker-compose.yaml` запускает
+   платформу, а изолированные стеки в `tests/` проверяют отдельные границы.
 6. Kubernetes — сделано для основного вертикального среза RabbitMQ:
    все семь сервисов работают в локальном кластере `kind`
    (`infrastructure/kubernetes/`), каждый разбит на правильные workload
@@ -419,9 +428,9 @@ Clean/Hexagonal Laravel-приложение со своими тестами. �
    HPA/KEDA существуют, но локально не применяются (CNI в `kind` не
    умеет NetworkPolicy, а metrics-server отсутствует) — см.
    `infrastructure/kubernetes/platform/README.md`.
-7. CI/CD — pipeline на сервис в monorepo-aware сборке (lint,
-   статический анализ, слои тестов, build, scan, deploy, migrate, smoke
-   test), запускается только для реально изменившихся сервисов.
+7. CI/CD — GitHub Actions запускает матрицу семи сервисов, contract/Compose
+   checks, настоящие component/integration/E2E/resilience suites, dependency
+   и secret scans, а также сборку/publish SBOM-backed образов в GHCR.
 8. Contract + end-to-end тестирование — полная пирамида, а не один
    большой E2E-сьют: Unit/Application/Integration на сервис (уже есть),
    плюс новые уровни Component, Contract, Service integration, E2E и

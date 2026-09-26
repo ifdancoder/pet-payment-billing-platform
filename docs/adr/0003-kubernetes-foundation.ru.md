@@ -87,14 +87,19 @@ Liveness намеренно **не** проверяет базу данных. �
 
 ### Манифесты: Kustomize, а не Helm, для application workloads
 
-`infrastructure/kubernetes/base/<service>/` содержит базовые манифесты
-сервиса (`deployment.yaml`, `service.yaml`, `configmap.yaml`,
-`secret.yaml`, `kustomization.yaml`). Каталоги
+`infrastructure/kubernetes/base/<service>/` содержит базовые несекретные
+манифесты сервиса (`deployment.yaml`, `service.yaml`, `configmap.yaml`,
+`kustomization.yaml`). Каталоги
 `infrastructure/kubernetes/overlays/{local,staging,production}/`
 накладывают environment-specific значения — число реплик, ресурсы и
 тег образа — через Kustomize patches. Не появляется язык шаблонов и
 values schema, которую пришлось бы сопровождать параллельно с самими
 базовыми манифестами.
+
+Payload Kubernetes `Secret` не хранится в Git. Для локальной среды
+`make init` генерирует значения в игнорируемый `.env`, а
+`make kind-secrets` создаёт одноимённые Secret-объекты. В общих окружениях
+их создаёт External Secrets; Deployment-манифесты только ссылаются на имена.
 
 Helm остаётся для сторонней инфраструктуры, которую репозиторий не
 разрабатывает: это уже верно для RabbitMQ, Prometheus, Grafana, Loki и

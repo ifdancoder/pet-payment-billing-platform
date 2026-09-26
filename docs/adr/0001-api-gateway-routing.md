@@ -62,10 +62,10 @@ resource:
 | --- | --- | --- |
 | `POST /v1/merchants` | identity-service | Exact match — creating a Merchant has no tenant context to nest under |
 | `POST /v1/users` | identity-service | Same reasoning |
-| `/v1/auth/*` | identity-service | Not implemented yet (Login/Refresh/Logout land with the TokenIssuer slice) — routed now so the contract doesn't shift later |
-| `/v1/merchants/{merchant}/members*` | identity-service | Not implemented yet (waits on Authorization) |
-| `/v1/merchants/{merchant}/api-keys*` | identity-service | Not implemented yet (ApiKey aggregate doesn't exist yet) |
-| `/v1/customers*` | customer-service | **Not** nested under `/merchants/{merchant}/...` — customer-service predates the tenant-context convention and still takes `merchant_id` from the request body. Left as-is; fixing it is a customer-service change, not a gateway one. |
+| `/v1/auth/*` | identity-service | Registration, login, refresh-token rotation/logout, and API-key exchange |
+| `/v1/merchants/{merchant}/memberships*` | identity-service | Owner/admin membership administration |
+| `/v1/merchants/{merchant}/api-keys*` | identity-service | Hashed, revocable API-key lifecycle |
+| `/v1/merchants/{merchant}/customers*` | customer-service | Tenant is taken exclusively from the authenticated path context |
 | `/v1/merchants/{merchant}/products*` | catalog-service | |
 | `/v1/merchants/{merchant}/prices*` | catalog-service | |
 | `/v1/merchants/{merchant}/subscriptions*` | subscription-service | |
@@ -79,22 +79,17 @@ that some other path *would* have worked.
 
 **The gateway does not authenticate.** It forwards the `Authorization`
 header untouched and never inspects, verifies, or strips it. Every
-service is responsible for verifying its own requests locally (once
-identity-service's TokenIssuer and each service's own verification
-middleware exist — neither does yet). This is the direct consequence of
+service is responsible for verifying its own requests locally with the
+shared Ed25519 verification middleware. This is the direct consequence of
 the "Identity is not a SPOF" decision above: an authenticating gateway
 would just be Identity-in-the-critical-path wearing a different name.
 
 **Upstream hostnames are resolved at request time, not at Nginx
 startup**, via `resolver 127.0.0.11` (Docker Compose's embedded DNS) and
 `set $upstream ...; proxy_pass http://$upstream;` rather than a bare
-`proxy_pass http://identity-service:8000;`. None of the seven services
-are in `docker-compose.yaml` yet — that's a later phase (see the root
-README's roadmap) — so a startup-time resolution would make the gateway
-itself fail to boot. Request-time resolution means the gateway starts
-cleanly today and a request to a not-yet-deployed service fails with a
-clean `502`, which is exactly the behavior wanted once services really
-do come and go (rolling deploys, autoscaling to zero, etc.).
+`proxy_pass http://identity-service:8000;`. Request-time resolution keeps
+the gateway available while services start, restart, roll or scale to zero;
+only a request to the unavailable upstream fails with `502`.
 
 ## Consequences
 
@@ -106,10 +101,8 @@ do come and go (rolling deploys, autoscaling to zero, etc.).
 - The exact same routing config works locally (docker-compose) and in
   the cluster (behind ingress-nginx), so there's one source of truth
   for "what's public," not two configs to keep in sync.
-- Adding a route for an endpoint that doesn't exist yet
-  (`/v1/auth/*`, members, api-keys) is free — it 404s from the
-  right service instead of needing a gateway change the day the
-  endpoint ships.
+- OpenAPI-to-Laravel parity checks catch drift between public contracts and
+  implemented service routes.
 
 **Harder / follow-up work:**
 - The gateway config has to be hand-maintained in parallel with each
@@ -117,18 +110,7 @@ do come and go (rolling deploys, autoscaling to zero, etc.).
   service without a matching gateway `location` block is unreachable
   from outside — silently, since the catch-all just returns a generic
   503.
-- `customer-service`'s routing exception (`/v1/customers` un-nested)
-  is now baked into the gateway too. If/when customer-service's routes
-  get a `/merchants/{merchant}/customers` prefix to match the rest of
-  the platform, both the service and this file need to change together.
-- The gateway is unauthenticated by design, which means every service
-  behind it currently has **no request-level authentication at all**
-  yet — none of the seven services verify anything about the caller
-  today. That gap gets closed by identity-service's still-pending
-  TokenIssuer + per-service verification middleware, not by this ADR.
-- This can't be exercised end-to-end yet: none of the seven services
-  are dockerized, so the gateway can start and route correctly (matched
-  paths 502, unmatched paths 503 — verified manually against throwaway
-  stand-in containers on the compose network) but can't actually reach
-  a real service until the "Docker / local environment" phase adds them
-  to `docker-compose.yaml`.
+- The gateway remains intentionally unauthenticated, so every new service
+  route must attach the shared access-token, tenant and role middleware.
+- The routing table is exercised both by local Docker Compose and by the
+  real Ingress smoke suite in `tests/kind/`.

@@ -9,8 +9,8 @@ render/apply things), see
 
 ## Why this is separate from Docker Compose
 
-`docker-compose.yaml` at the repo root is the local dev environment: the
-gateway, PostgreSQL and RabbitMQ containers you develop against.
+`docker-compose.yaml` at the repo root is the complete local environment:
+gateway, seven APIs, workers, PostgreSQL and RabbitMQ.
 `infrastructure/kubernetes/` targets an actual cluster and isn't part of
 local development at all. Keeping them apart means local dev stays fast
 and dependency-free while the cluster manifests can evolve toward a real
@@ -31,24 +31,17 @@ deployment on their own timeline.
   | `external-secrets/` | Syncs secrets from an external store into native `Secret` objects | Keeps credentials out of the manifests |
   | `observability/` | OpenTelemetry Collector, Prometheus, Grafana, Tempo, Loki | Where every service's traces/metrics/logs land, see `overview.md`'s Observability section |
 
-Application services aren't part of the Kubernetes manifests yet, even
-though all seven now exist under `services/` — they're only dockerized
-and deployed once the roadmap actually reaches that phase (see the root
-README, "Status"). Each service gets its own deployment manifests then;
-`platform/` only covers the shared, platform-owned pieces.
+Application workloads for all seven services live in `base/`, including API,
+migration, outbox, consumer, delivery and renewal workloads as appropriate.
+`platform/` contains only shared, platform-owned components.
 
 ## Current status
 
-- `ingress/` and `observability/` have manifests you can actually render
-  and apply today.
-- `rabbitmq/`, `keda/` and `external-secrets/` are placeholders. The
-  operators/controllers they need aren't installed, and there's nothing
-  downstream yet (no services, no queues, no secrets to sync). Each one
-  documents its own plan for later.
-
-The Kubernetes layer is still scaffolded ahead of the services it'll
-eventually host — the platform-level manifests exist, but nothing here
-is deployed anywhere yet.
+- The local overlay runs all seven services plus PostgreSQL and single-node
+  RabbitMQ and is exercised by `tests/kind/`.
+- Ingress and observability manifests are renderable today. Operator-backed
+  RabbitMQ, KEDA and External Secrets remain optional production overlays and
+  document their controller prerequisites.
 
 ## Related docs
 

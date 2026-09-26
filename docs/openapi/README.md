@@ -7,17 +7,14 @@ the platform's currently implemented public HTTP API through the gateway.
 Its paths use the public `/v1/...` form; the gateway rewrites those paths
 to each service's internal `/api/v1/...` routes.
 
-The contract is derived from the Laravel route files, Form Request
-validation rules, JSON Resources, exception renderers, and the Nginx
-gateway table. It intentionally excludes the reserved but unimplemented
-`/v1/auth/*`, membership, and API-key routes.
-
-No security scheme is declared because authentication and authorization
-are not wired into the current HTTP routes. Adding a scheme before the
-middleware exists would make the contract stronger than the implementation.
+The contract is derived from Laravel route files, Form Request validation,
+JSON Resources, exception renderers, and the Nginx routing table. It includes
+registration/login/refresh/logout, API-key exchange, membership management,
+API-key lifecycle, and every tenant-scoped business endpoint. `bearerAuth`
+matches the Ed25519 access-token middleware; only health and `/v1/auth/*`
+bootstrap operations are public.
 
 ## Validation
 
-The file is valid YAML and contains unique `operationId` values for every
-operation. Use any OpenAPI 3.1-compatible validator or viewer, for example
-Redocly CLI or Swagger Editor, for full schema validation and rendering.
+Run `make test-docs`: it validates YAML/references/operation IDs and proves
+bidirectional parity between OpenAPI operations and all Laravel route tables.

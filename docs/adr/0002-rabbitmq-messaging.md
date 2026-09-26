@@ -82,12 +82,11 @@ have to reverse-engineer it:
   the actual business key does (already the pattern:
   `invoices.billing_cycle_id` unique in billing-service,
   `notifications.deduplication_key` unique in notification-service).
-- **Retries are bounded.** No consumer sleeps, spins, or retries
-  forever, and no infinite `requeue=true` loop. (Retry queues, backoff,
-  and DLQ are their own follow-up phase — not built yet; every consumer
-  today does a single `basic_get` per invocation with no retry logic at
-  all, which is a fine starting point but isn't itself the retry
-  policy.)
+- **Retries are bounded.** A failed delivery is republished with an
+  incremented `delivery_attempt`; after three attempts it is rejected into
+  the service queue's durable `.dlq`. Republishing is confirmed before the
+  original delivery is acknowledged, avoiding an infinite `requeue=true`
+  loop or a retry-loss window.
 - **ACK only after durable processing.** A message is acknowledged
   after the DB transaction that recorded its effects has committed —
   never ack-then-process. If the transaction fails, the message is not
@@ -205,25 +204,11 @@ consumer each.
   predictable as the event catalog grows.
 
 **Harder / follow-up work, explicitly not resolved by this ADR:**
-- catalog-service's publisher gap (stuck on `LogEventPublisher`) is
-  now a documented, deliberate finding, not a silent one — but it's
-  still broken until someone gives it a real `RabbitMqEventPublisher`.
-- The `payment.succeeded.v1` / `payment.failed.v1` → Billing/Subscription
-  consumers are the next concrete implementation slice, not a
-  consequence of writing this document.
-- No `basic_qos`/prefetch is configured anywhere yet. Fine at today's
-  scale (every consumer does one bounded `basic_get` per invocation,
-  not a long-lived `basic_consume`), but has to be revisited before any
-  consumer moves to a long-lived consume loop or before load testing.
-- Retry queues, backoff, and DLQ don't exist yet — today a failed
-  message handling attempt has no defined outcome at all beyond "the
-  exception propagates." That's the next reliability phase after the
-  Billing/Subscription payment consumers land.
-- The envelope's target header fields (`correlation_id`, `causation_id`,
-  `producer`) are decided but not implemented — every service's
-  publisher and consumer needs updating together when that phase
-  starts, since a header only one side understands is worse than one
-  neither side has.
+- All five publishers use RabbitMQ confirms, and all consuming queues use
+  `basic_qos(..., 1, ...)` before a delivery is read.
+- `correlation_id`, `causation_id`, `message_id`, timestamps and delivery
+  attempts are carried as transport metadata. Backoff queues remain a valid
+  future refinement; current retries are immediate and intentionally bounded.
 
 ## Related docs
 

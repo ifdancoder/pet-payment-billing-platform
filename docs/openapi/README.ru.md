@@ -7,17 +7,13 @@
 используется публичная форма `/v1/...`; gateway преобразует эти пути во
 внутренние маршруты сервисов `/api/v1/...`.
 
-Контракт составлен по Laravel-маршрутам, правилам валидации Form Request,
-JSON Resources, exception renderers и таблице маршрутизации Nginx. Пока не
-реализованные, но зарезервированные маршруты `/v1/auth/*`, membership и
-API keys намеренно не включены.
-
-Security scheme не объявлена, потому что authentication и authorization
-ещё не подключены к текущим HTTP-маршрутам. Если добавить схему раньше
-middleware, контракт будет обещать больше, чем реализовано.
+Контракт составлен по Laravel-маршрутам, Form Request, JSON Resources,
+exception renderers и таблице Nginx. Он включает register/login/refresh/logout,
+обмен API key, управление memberships и API keys, а также все tenant-scoped
+business endpoints. `bearerAuth` соответствует middleware с Ed25519 access
+token; публичны только health и bootstrap-операции `/v1/auth/*`.
 
 ## Проверка
 
-Файл является корректным YAML и содержит уникальные `operationId` для всех
-операций. Для полной проверки схемы и визуализации можно использовать любой
-валидатор OpenAPI 3.1, например Redocly CLI или Swagger Editor.
+Запустите `make test-docs`: команда проверяет YAML, ссылки и operation IDs,
+а также двустороннее совпадение операций OpenAPI со всеми Laravel routes.

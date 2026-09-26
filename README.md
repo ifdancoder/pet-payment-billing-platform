@@ -9,10 +9,9 @@ This is a project for working through distributed billing systems in
 practice: Clean Architecture, Hexagonal Architecture, DDD, event-driven
 communication between services.
 
-> All seven services are built. Now turning them into a real
-> production-style platform: gateway, messaging topology, reliability,
-> observability, Docker, Kubernetes, CI/CD, then end-to-end/load
-> testing. See "Status" below.
+> All seven services, authentication, tenant isolation, reliable messaging,
+> local Docker Compose, Kubernetes manifests, CI/CD and the full test pyramid
+> are implemented. See "Status" for the remaining production caveats.
 
 ## Goals
 
@@ -105,9 +104,8 @@ pet-payment-billing-platform/
 ### services
 
 All seven Laravel services. Each is independently runnable with its own
-database. Each also has a Dockerfile now and runs in the `kind` cluster
-under `infrastructure/kubernetes/`; none are wired into the local
-`docker-compose.yaml` yet (see "Status").
+database. Each has a Dockerfile, runs in the `kind` cluster under
+`infrastructure/kubernetes/`, and is wired into local `docker-compose.yaml`.
 
 ### packages
 
@@ -118,7 +116,7 @@ client SDKs. Domain models stay inside each service, never shared.
 
 Local and platform-level infra config.
 
-Local dev (docker-compose) runs Nginx, PostgreSQL and RabbitMQ.
+Local dev runs the complete platform through Docker Compose.
 
 `infrastructure/kubernetes/` is a separate, cluster-facing layer:
 
@@ -127,8 +125,8 @@ Local dev (docker-compose) runs Nginx, PostgreSQL and RabbitMQ.
   observability stack (OpenTelemetry Collector, Prometheus, Grafana,
   Tempo, Loki). Details in `infrastructure/kubernetes/platform/README.md`.
 
-None of this is wired into `make up` yet. It's a separate track from
-local dev.
+`make up` uses the local Compose stack; cluster workloads remain a separate
+deployment target under `infrastructure/kubernetes/`.
 
 ### docs
 
@@ -200,11 +198,16 @@ calling each other directly.
 
 ### Setup
 
-Copy the env file:
+Generate a private local `.env` (random application keys, Ed25519 signing
+keys, infrastructure passwords and a short-lived internal service token):
 
 ```bash
 make init
 ```
+
+The generated file is ignored by Git. `.env.example` contains names only;
+the Compose file has no credential fallbacks. To provision the same values
+as native Secrets in the local kind cluster, run `make kind-secrets`.
 
 Start everything:
 
@@ -248,6 +251,7 @@ flowchart LR
     B --> C[make test-compose<br/>Component + Integration]
     C --> D[E2E + Resilience]
     D --> E[make test-kind<br/>deployed platform]
+    E --> F[make test-load<br/>bounded k6 smoke]
     All[make test-all] -. runs every stage .-> A
 ```
 
@@ -286,6 +290,12 @@ Override the context when necessary:
 make test-kind KIND_CONTEXT=my-kind-context
 ```
 
+Run the bounded k6 load smoke against an isolated disposable Compose stack:
+
+```bash
+make test-load
+```
+
 Run the complete quality gate in that order:
 
 ```bash
@@ -296,7 +306,8 @@ make test-all
 service dependencies installed. The Compose and kind targets additionally
 require Docker and `kubectl`; `test-kind` expects an already deployed,
 ready cluster and performs the suite's intentional `billing-api` rolling
-restart.
+restart. `test-load` runs k6 in a container and removes its isolated Compose
+stack and volumes afterward.
 
 ## Local endpoints
 
@@ -310,11 +321,10 @@ restart.
 
 Credentials live in `.env`.
 
-The gateway's public routing table (`/v1/...` → each service, see
-[ADR 0001](docs/adr/0001-api-gateway-routing.md)) isn't reachable
-through `make up` yet — it routes correctly, but none of the seven
-services are containerized and added to `docker-compose.yaml` yet
-(step 5 of the roadmap above).
+`make up` starts the gateway, all seven APIs, PostgreSQL, RabbitMQ,
+outbox relays, event consumers, notification delivery and subscription
+renewal. Register through `POST /v1/auth/register`, then send the returned
+bearer access token to tenant-scoped `/v1/merchants/{merchant}/...` routes.
 
 ## Technology roadmap
 
@@ -365,7 +375,9 @@ Deployment:
 
 ## Status
 
-Actively in progress.
+Feature-complete as a production-style reference implementation; production
+deployment still requires external secret management, real provider adapters
+and environment-specific capacity/SLO tuning.
 
 All seven services exist (Identity, Customer, Catalog, Subscription,
 Billing, Payment, Notification), each a fully working Clean/Hexagonal
@@ -377,8 +389,7 @@ order:
 1. **API Gateway / Ingress** — done for the routing/auth-boundary design
    (see [ADR 0001](docs/adr/0001-api-gateway-routing.md)) and reachable
    end-to-end in the `kind` cluster (Ingress → gateway → each service);
-   still not reachable through local `docker-compose` (`make up`) since
-   no service is wired into that compose file yet (step 5).
+   and through local Docker Compose (`make up`).
 2. RabbitMQ topology — messaging contract, naming, envelope and queue
    topology rules are written down
    ([ADR 0002](docs/adr/0002-rabbitmq-messaging.md) +
@@ -389,20 +400,16 @@ order:
    Billing translating payment outcomes into `subscription_id`-bearing
    events for Subscription to consume, and catalog-service's Outbox
    actually reaching RabbitMQ (was stuck on a log-only publisher).
-   Retry/DLQ policy, publisher confirms and prefetch aren't built yet.
-3. Distributed reliability — collect the Outbox/Inbox/idempotency
-   patterns already used per-service into one set of platform rules, and
-   actually test the crash scenarios (crash before ack, crash before
-   outbox marked, duplicate delivery, broker/DB unavailable, provider
-   timeout).
-4. Observability — OpenTelemetry traces/metrics/logs, correlation IDs
-   propagated through RabbitMQ headers, Grafana/Tempo/Prometheus/Loki.
-5. Docker / local environment — Dockerfiles done for all seven
-   services; `docker-compose.yaml` entries (so `make up` actually has
-   something for the gateway to route to) aren't written yet. The two
-   test-only compose stacks under `tests/integration/*/docker-compose.yaml`
-   aren't a substitute — they exist to run one test suite, not for
-   day-to-day local dev.
+   Consumers use bounded retries, durable DLQs and prefetch=1; outbox
+   publishers wait for RabbitMQ confirms before marking rows published.
+3. Distributed reliability — transactional Outbox/Inbox, idempotent
+   consumers, broker outage recovery, duplicate delivery and crash-before-ack
+   are implemented and exercised by real PostgreSQL/RabbitMQ suites.
+4. Observability — correlation IDs are generated/preserved across HTTP and
+   messaging headers; deployable Prometheus/Grafana/Tempo/Loki/OTel Collector
+   manifests live under `infrastructure/kubernetes/platform/observability/`.
+5. Docker / local environment — complete: `docker-compose.yaml` runs the
+   platform, while isolated stacks under `tests/` prove specific boundaries.
 6. Kubernetes — done for the core RabbitMQ vertical slice: all seven
    services run in a local `kind` cluster (`infrastructure/kubernetes/`),
    each split into the right workloads (API Deployment, plus a Consumer
@@ -412,9 +419,9 @@ order:
    aren't applied locally (`kind`'s CNI doesn't enforce NetworkPolicy,
    and there's no metrics-server) — see
    `infrastructure/kubernetes/platform/README.md`.
-7. CI/CD — per-service pipelines in a monorepo-aware build (lint,
-   static analysis, test layers, build, scan, deploy, migrate, smoke
-   test), only running for services that actually changed.
+7. CI/CD — GitHub Actions run a seven-service test matrix, contract/Compose
+   checks, real component/integration/E2E/resilience suites, dependency and
+   secret scans, and build/publish SBOM-backed service images to GHCR.
 8. Contract + end-to-end testing — a full pyramid, not one big E2E
    suite: Unit/Application/Integration per service (exists already),
    plus new Component, Contract, Service integration, E2E and

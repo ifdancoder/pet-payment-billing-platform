@@ -59,10 +59,10 @@
 | --- | --- | --- |
 | `POST /v1/merchants` | identity-service | Точное совпадение: у создания Merchant ещё нет tenant context для вложенного пути |
 | `POST /v1/users` | identity-service | Та же причина |
-| `/v1/auth/*` | identity-service | Пока не реализовано (Login/Refresh/Logout появятся со срезом TokenIssuer), но маршрут задан заранее, чтобы контракт потом не менялся |
-| `/v1/merchants/{merchant}/members*` | identity-service | Пока не реализовано, ожидает Authorization |
-| `/v1/merchants/{merchant}/api-keys*` | identity-service | Пока не реализовано, aggregate ApiKey ещё не существует |
-| `/v1/customers*` | customer-service | **Не** вложено в `/merchants/{merchant}/...`: customer-service появился раньше tenant-context соглашения и принимает `merchant_id` в теле запроса. Исправление относится к customer-service, а не к gateway |
+| `/v1/auth/*` | identity-service | Registration, login, refresh rotation/logout и обмен API key |
+| `/v1/merchants/{merchant}/memberships*` | identity-service | Управление memberships для owner/admin |
+| `/v1/merchants/{merchant}/api-keys*` | identity-service | Жизненный цикл хешированных, отзываемых API keys |
+| `/v1/merchants/{merchant}/customers*` | customer-service | Tenant берётся только из аутентифицированного path context |
 | `/v1/merchants/{merchant}/products*` | catalog-service | |
 | `/v1/merchants/{merchant}/prices*` | catalog-service | |
 | `/v1/merchants/{merchant}/subscriptions*` | subscription-service | |
@@ -77,22 +77,17 @@ gateway не подтверждал и не опровергал существ�
 
 **Gateway не выполняет аутентификацию.** Он передаёт заголовок
 `Authorization` без изменений и никогда не проверяет и не удаляет его.
-Каждый сервис отвечает за локальную проверку собственных запросов —
-после появления TokenIssuer в identity-service и middleware проверки в
-каждом сервисе; пока нет ни того, ни другого. Это прямое следствие
+Каждый сервис локально проверяет запросы общим Ed25519 middleware. Это
+прямое следствие
 решения «Identity не является SPOF»: аутентифицирующий gateway оказался
 бы тем же Identity в critical path под другим именем.
 
 **Имена upstream разрешаются во время запроса, а не при запуске
 Nginx**, через `resolver 127.0.0.11` (встроенный DNS Docker Compose) и
 `set $upstream ...; proxy_pass http://$upstream;`, а не прямой
-`proxy_pass http://identity-service:8000;`. Ни один из семи сервисов
-пока не добавлен в `docker-compose.yaml`: это следующая фаза roadmap.
-Разрешение при старте не позволило бы запустить сам gateway. При
-разрешении во время запроса gateway запускается уже сейчас, а обращение
-к ещё не развёрнутому сервису корректно завершается `502`. То же
-поведение нужно при появлении и исчезновении сервисов во время rolling
-deploy или autoscaling to zero.
+`proxy_pass http://identity-service:8000;`. Разрешение во время запроса
+сохраняет gateway доступным при старте, рестарте, rolling deploy и
+autoscaling to zero; только запрос к недоступному upstream получает `502`.
 
 ## Последствия
 
@@ -105,9 +100,8 @@ deploy или autoscaling to zero.
 - Одинаковая конфигурация маршрутизации работает локально через Docker
   Compose и в кластере за ingress-nginx. Источник истины о публичных
   путях один, а не два.
-- Маршруты для ещё не реализованных endpoints (`/v1/auth/*`, members,
-  api-keys) ничего не стоят: нужный сервис возвращает 404, а в день
-  выпуска endpoint менять gateway не потребуется.
+- Проверка parity OpenAPI ↔ Laravel обнаруживает drift публичного контракта
+  и фактических service routes.
 
 **Сложнее / дальнейшая работа:**
 
@@ -115,17 +109,7 @@ deploy или autoscaling to zero.
   сервисов; генератора нет. Endpoint без соответствующего блока
   `location` будет недоступен извне, причём незаметно: catch-all вернёт
   общий 503.
-- Исключение customer-service (`/v1/customers` без вложенности) теперь
-  закреплено и в gateway. При переходе сервиса на
-  `/merchants/{merchant}/customers` сервис и этот файл нужно менять
-  одновременно.
-- Gateway намеренно не аутентифицирует, поэтому сейчас у семи сервисов
-  **вообще нет request-level authentication**. Этот пробел закроют
-  будущие TokenIssuer identity-service и middleware каждого сервиса, а
-  не gateway.
-- End-to-end проверка пока невозможна: сервисы ещё не
-  контейнеризованы. Gateway уже запускается и правильно маршрутизирует
-  запросы — совпавшие пути дают 502, неизвестные 503, что вручную
-  проверено с временными контейнерами в compose-сети, — но сможет
-  достичь настоящих сервисов только после фазы «Docker / local
-  environment».
+- Gateway остаётся намеренно неаутентифицирующим, поэтому каждый новый
+  service route обязан подключать общие access-token, tenant и role middleware.
+- Таблица маршрутов проверяется локальным Docker Compose и настоящим
+  Ingress smoke suite в `tests/kind/`.
