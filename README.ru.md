@@ -2,499 +2,115 @@
 
 *[English version](README.md)*
 
-Платформа для биллинга и подписок, построенная как набор независимо
-разворачиваемых PHP/Laravel сервисов.
+Платформа биллинга и подписок из семи сервисов на PHP 8.3+/Laravel. В
+репозитории находятся локальный стек Docker Compose, Kubernetes-манифесты,
+OpenAPI-контракт и межсервисные тесты.
 
-Это проект для отработки распределённых биллинговых систем на
-практике: Clean Architecture, Hexagonal Architecture, DDD,
-event-driven взаимодействие между сервисами.
-
-> Все семь сервисов построены. Сейчас они превращаются в настоящую
-> production-style платформу: gateway, messaging topology, надёжность,
-> observability, Docker, Kubernetes, CI/CD, затем end-to-end/load
-> тестирование. См. «Статус» ниже.
-
-## Цели
-
-Что должна делать платформа:
-
-- управление клиентами
-- каталоги продуктов и цен
-- подписки и recurring billing
-- генерация инвойсов
-- обработка платежей и возвраты
-- интеграции с платёжными провайдерами
-- асинхронные уведомления
-
-И надёжность, неотделимая от любой распределённой системы:
-
-- каждый сервис владеет своими данными
-- eventual consistency
-- идемпотентность (ключи, идемпотентные консьюмеры/inbox)
-- transactional outbox
-- retries и dead-letter queues
-- distributed tracing и observability
-
-## Архитектура
-
-Микросервисы, каждый — независимо исполняемое Laravel-приложение со
-своей базой данных.
-
-Сервисы:
+## Сервисы
 
 | Сервис | Ответственность |
 | --- | --- |
-| Identity Service | Аутентификация и авторизация мерчантов |
-| Customer Service | Клиенты и их billing-профили |
-| Catalog Service | Продукты, цены и скидки |
-| Subscription Service | Жизненный цикл подписки |
-| Billing Service | Инвойсы и billing-циклы |
-| Payment Service | Платежи, возвраты и платёжные провайдеры |
-| Notification Service | Асинхронные уведомления клиентов |
+| Identity | Учётные записи, мерчанты, участники, API-ключи и токены доступа |
+| Customer | Клиенты и платёжные контакты |
+| Catalog | Продукты и периодические тарифы |
+| Subscription | Жизненный цикл подписки и планирование продлений |
+| Billing | Инвойсы и биллинговые циклы |
+| Payment | Попытки оплаты и результаты провайдера |
+| Notification | Уведомления об успешной оплате |
 
-Сервисы общаются друг с другом по HTTP, когда нужен ответ сразу же, и
-через события RabbitMQ для всего остального (большинство
-межсервисных workflow).
-
-Основной успешный сценарий подписки показывает, где заканчивается
-синхронная валидация и начинается event-driven цепочка:
+Каждый сервис владеет своей логической базой PostgreSQL. Синхронные запросы
+выполняются по HTTP, изменения состояния распространяются через RabbitMQ.
+Локальные изменения и исходящие события фиксируются одной транзакцией через
+outbox. Inbox защищает консьюмеры от повторной обработки события.
 
 ```mermaid
 flowchart LR
-    Client([Клиент]) -->|HTTP| Gateway[API Gateway]
-    Gateway --> Subscription[Subscription Service]
-    Subscription -->|проверить клиента| Customer[Customer Service]
-    Subscription -->|проверить цену| Catalog[Catalog Service]
-    Subscription -->|subscription.created.v1| MQ[(RabbitMQ)]
-    MQ --> Billing[Billing Service]
-    Billing -->|invoice.created.v1| MQ
-    MQ --> Payment[Payment Service]
-    Payment -->|payment.succeeded.v1| MQ
-    MQ --> Billing
-    MQ --> Notification[Notification Service]
-    Notification -->|email-чек| Provider[Email-провайдер]
+    Client --> Gateway[API gateway]
+    Gateway --> Subscription
+    Subscription -->|customer lookup| Customer
+    Subscription -->|price lookup| Catalog
+    Subscription -->|subscription.created.v1| RabbitMQ
+    RabbitMQ --> Billing
+    Billing -->|invoice.created.v1| RabbitMQ
+    RabbitMQ --> Payment
+    Payment -->|payment result| RabbitMQ
+    RabbitMQ --> Billing
+    RabbitMQ --> Notification
+    Billing -->|invoice result| RabbitMQ
+    RabbitMQ --> Subscription
 ```
 
-## Структура репозитория
-
-```text
-pet-payment-billing-platform/
-├── services/
-├── packages/
-├── infrastructure/
-│   ├── nginx/
-│   ├── postgres/
-│   ├── rabbitmq/
-│   └── kubernetes/
-│       ├── base/
-│       └── platform/
-├── docs/
-│   ├── architecture/
-│   └── adr/
-├── scripts/
-├── tests/
-│   ├── component/
-│   ├── integration/
-│   ├── e2e/
-│   ├── resilience/
-│   └── kind/
-├── docker-compose.yaml
-└── Makefile
-```
-
-### services
-
-Все семь Laravel-сервисов. Каждый независимо запускаем и со своей
-базой данных. У каждого теперь также есть Dockerfile, и каждый
-работает в кластере `kind` под `infrastructure/kubernetes/`; ни один
-пока не подключён к локальному `docker-compose.yaml` (см. «Статус»).
-
-### packages
-
-Только общие технические контракты — определения протоколов, клиентские
-SDK. Доменные модели остаются внутри каждого сервиса, никогда не
-шарятся.
-
-### infrastructure
-
-Конфигурация локальной и платформенной инфраструктуры.
-
-Локальная разработка (docker-compose) поднимает Nginx, PostgreSQL и
-RabbitMQ.
-
-`infrastructure/kubernetes/` — отдельный, ориентированный на кластер
-слой:
-
-- `base/` настраивает namespace и другие общекластерные вещи
-- `platform/` покрывает ingress, RabbitMQ, KEDA, External Secrets и
-  observability-стек (OpenTelemetry Collector, Prometheus, Grafana,
-  Tempo, Loki). Подробности в
-  `infrastructure/kubernetes/platform/README.md`.
-
-Ничего из этого пока не подключено к `make up`. Это отдельный трек от
-локальной разработки.
-
-### docs
-
-Заметки по архитектуре и ADR. Английский — канонический язык; у каждого
-пользовательского Markdown-документа рядом лежит русский перевод
-`*.ru.md`, а в начале обеих версий есть переключатель языка. Реализованный
-публичный HTTP-контракт опубликован как
-[спецификация OpenAPI 3.1](docs/openapi/openapi.yaml).
-
-### tests
-
-Межсервисные тесты, не принадлежащие ни одному конкретному сервису —
-см.
-[`docs/architecture/testing-strategy.ru.md`](docs/architecture/testing-strategy.ru.md)
-про полную пирамиду (собственные `tests/Unit`, `Integration` и
-`Feature` каждого сервиса покрывают всё, что ниже этого уровня):
-
-- `integration/` — 2-3 реальных сервиса через реальный RabbitMQ,
-  каждый — свой Docker Compose стек + самостоятельный Pest-проект.
-- `component/` — один реальный сервис с WireMock вместо его исходящих
-  HTTP-зависимостей.
-- `e2e/` — полные бизнес-флоу через все сервисы, fake-провайдеры
-  платежей/email.
-- `resilience/` — failure-сценарии (повторная доставка, падение
-  консьюмера, недоступность брокера), не бизнес-сценарии.
-- `kind/` — platform smoke tests против живого Kubernetes deployment:
-  маршрутизация Ingress, rolling update без простоя и один
-  бизнес-canary.
-
-## Принципы
-
-### Владение сервисом
-
-Каждый сервис владеет своей логикой и своими данными. Ни один сервис не
-лезет напрямую в базу данных другого.
-
-### База данных на сервис
-
-Данные каждого сервиса логически изолированы, даже если локально все
-они сидят на одном инстансе PostgreSQL ради удобства. Владение остаётся
-раздельным независимо от того, где физически лежат байты.
-
-### Clean Architecture
-
-Бизнес-правила ничего не знают о Laravel, Eloquent, RabbitMQ,
-PostgreSQL или платёжных провайдерах. Зависимости направлены внутрь, к
-домену.
-
-### Hexagonal Architecture
-
-Всё внешнее (базы данных, платёжные провайдеры, брокеры сообщений,
-другие API) проходит через ports и adapters, а не вызывается напрямую
-из бизнес-логики.
-
-### Domain-Driven Design
-
-Используется там, где это реально окупается, а не насильно
-натягивается на каждый угол системы.
-
-### Event-driven взаимодействие
-
-Сервисы объявляют об изменениях состояния как события через RabbitMQ,
-вместо того чтобы вызывать друг друга напрямую.
+Подробные контракты описаны в
+[архитектурной документации](docs/architecture/overview.ru.md),
+[индексе ADR](docs/adr/README.ru.md) и
+[каталоге событий](docs/architecture/event-catalog.ru.md). Реализованный
+публичный HTTP API зафиксирован в
+[OpenAPI 3.1](docs/openapi/openapi.yaml).
 
 ## Локальная разработка
 
-### Требования
+Требования: Docker, Docker Compose, GNU Make, PHP 8.3 или новее и Composer.
 
-- Docker
-- Docker Compose
-- GNU Make
-
-### Настройка
-
-Скопировать env-файл:
+Создайте `.env` с локальными ключами приложений, ключами подписи, сервисными
+учётными данными и паролями инфраструктуры:
 
 ```bash
 make init
 ```
 
-Запустить всё:
+Запустите платформу и проверьте шлюз:
 
 ```bash
 make up
-```
-
-Посмотреть, что запущено:
-
-```bash
-make ps
-```
-
-Проверить gateway:
-
-```bash
 make health
 ```
 
-Остановить всё:
+Полезные команды:
 
-```bash
-make down
-```
-
-Удалить контейнеры и локальные volumes:
-
-```bash
-make clean
-```
-
-## Тестирование
-
-Команды повторяют слои тестирования: от быстрой проверки сервисов к
-реальным границам, полным workflow, восстановлению после сбоев и, наконец,
-к развёрнутой платформе.
-
-```mermaid
-flowchart LR
-    A[make test<br/>7 service suites] --> B[make test-docs<br/>Markdown + OpenAPI]
-    B --> C[make test-compose<br/>Component + Integration]
-    C --> D[E2E + Resilience]
-    D --> E[make test-kind<br/>развёрнутая платформа]
-    All[make test-all] -. запускает все этапы .-> A
-```
-
-Запустить test suites всех семи сервисов — быстрый вариант для обычной
-локальной работы:
-
-```bash
-make test
-```
-
-Проверить все пары Markdown EN/RU, локальные ссылки документации и
-OpenAPI-контракт по фактически зарегистрированным маршрутам сервисов:
-
-```bash
-make test-docs
-```
-
-Запустить все самостоятельные наборы Component, Service integration, E2E
-и Resilience. Каждый временный Docker Compose стек удаляется вместе с
-volumes после успешного выполнения или ошибки:
-
-```bash
-make test-compose
-```
-
-Запустить три Kubernetes smoke-теста против существующего кластера
-`kind-pet-payment-billing-platform`, не меняя текущий `kubectl` context:
-
-```bash
-make test-kind
-```
-
-При необходимости context можно переопределить:
-
-```bash
-make test-kind KIND_CONTEXT=my-kind-context
-```
-
-Запустить весь quality gate в указанном порядке:
-
-```bash
-make test-all
-```
-
-Для `make test` и `make test-docs` нужны PHP 8.5, Composer и установленные
-зависимости сервисов. Для Compose- и kind-команд дополнительно требуются
-Docker и `kubectl`; `test-kind` ожидает уже развёрнутый готовый кластер и
-выполняет предусмотренный тестом rolling restart `billing-api`.
-
-## Локальные адреса
-
-| Компонент | Адрес |
+| Команда | Назначение |
 | --- | --- |
-| API Gateway | `http://localhost:8080` |
-| Gateway Health | `http://localhost:8080/health` |
-| PostgreSQL | `localhost:5432` |
-| RabbitMQ | `localhost:5672` |
-| RabbitMQ Management | `http://localhost:15672` |
+| `make ps` | Показать контейнеры |
+| `make logs` | Читать логи контейнеров |
+| `make down` | Остановить стек |
+| `make clean` | Остановить стек и удалить локальные тома |
+| `make rotate-secrets` | Заменить локальный набор секретов |
+| `make kind-secrets` | Создать Kubernetes Secrets из игнорируемого `.env` |
 
-Учётные данные — в `.env`.
+Шлюз доступен по адресу `http://localhost:8080`. PostgreSQL использует порт
+`5432`, RabbitMQ использует `5672`, интерфейс управления доступен на
+`http://localhost:15672`. Учётные данные хранятся в `.env`.
 
-Публичная таблица роутинга gateway (`/v1/...` → каждый сервис, см.
-[ADR 0001](docs/adr/0001-api-gateway-routing.md)) пока не доступна
-через `make up` — роутит корректно, но ни один из семи сервисов ещё не
-контейнеризован и не добавлен в `docker-compose.yaml` (шаг 5 роадмапа
-ниже).
+Зарегистрируйтесь через `POST /v1/auth/register`, затем передавайте полученный
+токен доступа в маршруты мерчанта `/v1/merchants/{merchant}/...`.
 
-## Технологический роадмап
+## Тесты
 
-Начальная инфраструктура:
+| Команда | Область проверки |
+| --- | --- |
+| `make test` | Unit, integration и feature suites всех сервисов |
+| `make test-docs` | Ссылки и переводы Markdown, соответствие OpenAPI маршрутам |
+| `make test-compose` | Component, service integration, E2E и resilience suites |
+| `make test-kind` | Ingress, rollout и business smoke tests в существующем kind-кластере |
+| `make test-load` | Ограниченный k6 smoke test в одноразовом Compose-стеке |
+| `make test-all` | Все перечисленные проверки |
 
-- Docker Compose
-- Nginx
-- PostgreSQL
-- RabbitMQ
+`make test-kind` по умолчанию использует контекст
+`kind-pet-payment-billing-platform`; его можно заменить через
+`KIND_CONTEXT=<context>`. Тест намеренно перезапускает `billing-api`. Тесты
+Compose создают изолированные стеки и удаляют их тома после каждого набора.
 
-Стек приложения:
+Структура тестов и правила проверки границ описаны в
+[docs/architecture/testing-strategy.ru.md](docs/architecture/testing-strategy.ru.md).
 
-- PHP
-- Laravel
-- PostgreSQL
-- Redis
-- RabbitMQ
+## Развёртывание и ограничения
 
-Архитектура:
+Корневой Compose запускает все API, фоновые процессы, PostgreSQL, RabbitMQ и
+Nginx. Kubernetes-ресурсы находятся в `infrastructure/kubernetes/`; локальный
+overlay запускает те же семь сервисов с PostgreSQL и одним узлом RabbitMQ.
+RabbitMQ Operators, KEDA, External Secrets и стек наблюдаемости подключаются
+отдельно.
 
-- Clean Architecture
-- Hexagonal Architecture
-- Domain-Driven Design
-- Event-Driven Architecture
-
-Надёжность:
-
-- Transactional Outbox
-- Inbox / Idempotent Consumer
-- Idempotency Keys
-- Retry policies
-- Dead Letter Queues
-- Saga / Process Manager
-
-Observability:
-
-- OpenTelemetry
-- Prometheus
-- Grafana
-- Tempo
-- Loki
-
-Деплой:
-
-- Docker
-- CI/CD
-- Kubernetes
-
-## Статус
-
-Активно в разработке.
-
-Все семь сервисов существуют (Identity, Customer, Catalog, Subscription,
-Billing, Payment, Notification), каждый — полностью рабочее
-Clean/Hexagonal Laravel-приложение со своими тестами. Новых сервисов не
-планируется — бизнес-декомпозиция завершена. Осталось превратить эти
-семь Laravel-приложений в настоящую production-style платформу,
-примерно в таком порядке:
-
-1. **API Gateway / Ingress** — дизайн роутинга/auth-границы завершён
-   (см. [ADR 0001](docs/adr/0001-api-gateway-routing.md)) и доступен
-   end-to-end в кластере `kind` (Ingress → gateway → каждый сервис);
-   через локальный `docker-compose` (`make up`) пока всё ещё
-   недоступен, поскольку ни один сервис не подключён к этому
-   compose-файлу (шаг 5).
-2. RabbitMQ-топология — контракт messaging, конвенции именования,
-   envelope и правила топологии очередей зафиксированы
-   ([ADR 0002](docs/adr/0002-rabbitmq-messaging.md) +
-   [каталог событий](docs/architecture/event-catalog.md)),
-   формализуя то, что пять сервисов уже делали по подобию. Основная
-   цепочка событий платформы теперь связана end-to-end (Subscription →
-   Billing → Payment → Billing/Subscription/Notification), включая
-   трансляцию Billing исходов платежей в события с `subscription_id`
-   для Subscription, и Outbox catalog-service, реально доходящий до
-   RabbitMQ (раньше упирался в publisher, который только логировал).
-   Retry/DLQ policy, publisher confirms и prefetch ещё не построены.
-3. Distributed reliability — собрать уже используемые по сервисам
-   паттерны Outbox/Inbox/idempotency в единый набор платформенных
-   правил, и реально протестировать crash-сценарии (падение до ack,
-   падение до отметки outbox, повторная доставка, недоступность
-   брокера/БД, таймаут провайдера).
-4. Observability — трейсы/метрики/логи OpenTelemetry, correlation ID,
-   прокидываемые через заголовки RabbitMQ, Grafana/Tempo/Prometheus/Loki.
-5. Docker / локальное окружение — Dockerfile готовы для всех семи
-   сервисов; записи в `docker-compose.yaml` (чтобы `make up` реально
-   было куда роутить с gateway) ещё не написаны. Два тестовых
-   compose-стека под `tests/integration/*/docker-compose.yaml` — не
-   замена: они существуют, чтобы гонять один конкретный тестовый сьют,
-   а не для повседневной локальной разработки.
-6. Kubernetes — сделано для основного вертикального среза RabbitMQ:
-   все семь сервисов работают в локальном кластере `kind`
-   (`infrastructure/kubernetes/`), каждый разбит на правильные workload
-   (API Deployment, плюс Consumer и/или Outbox Deployment для тех, у
-   кого есть messaging-роль — не один Pod на сервис), с health probes,
-   PodDisruptionBudget-ами и topology spread. Манифесты NetworkPolicy и
-   HPA/KEDA существуют, но локально не применяются (CNI в `kind` не
-   умеет NetworkPolicy, а metrics-server отсутствует) — см.
-   `infrastructure/kubernetes/platform/README.md`.
-7. CI/CD — pipeline на сервис в monorepo-aware сборке (lint,
-   статический анализ, слои тестов, build, scan, deploy, migrate, smoke
-   test), запускается только для реально изменившихся сервисов.
-8. Contract + end-to-end тестирование — полная пирамида, а не один
-   большой E2E-сьют: Unit/Application/Integration на сервис (уже есть),
-   плюс новые уровни Component, Contract, Service integration, E2E и
-   Resilience, строящиеся по одному вертикальному срезу за раз — так
-   же, как строилась сама цепочка RabbitMQ
-   ([ADR 0004](docs/adr/0004-testing-strategy.ru.md) +
-   [стратегия тестирования](docs/architecture/testing-strategy.ru.md)).
-   Готовы все пять service integration срезов основной цепочки событий
-   платформы (реальный Postgres, реальный RabbitMQ, без моков):
-   `subscription-to-billing`, `billing-to-payment`, `payment-to-billing`,
-   `billing-to-subscription` и `payment-to-notification`, в
-   [`tests/integration/`](tests/integration/). Плюс три полных
-   E2E-сценария:
-   [`successful-subscription`](tests/e2e/successful-subscription/) (все
-   семь сервисов, реальная инфраструктура, без сокращений — Merchant →
-   Customer → Product/Price → Subscription → Invoice → Payment →
-   Subscription Active → Notification, полностью пройдено через
-   реальный HTTP) и
-   [`failed-payment`](tests/e2e/failed-payment/) (та же цепочка, но
-   сумма Price — зарезервированное decline-триггер значение
-   `FakePaymentGateway`, так что списание гарантированно отклоняется —
-   доказывает, что Invoice остаётся Open, Payment становится Failed с
-   настоящим кодом отказа, а Subscription остаётся Pending, а не
-   PastDue). Плюс все четыре изначально запланированных
-   resilience-теста, готовы:
-   [`duplicate-delivery`](tests/resilience/duplicate-delivery/) (один и
-   тот же `event_id`, опубликованный дважды, доказывающий, что Inbox у
-   Billing реально останавливает второй от создания дублирующего
-   Invoice — проверено вживую, что консьюмер реально обработал обе
-   доставки, а не что гонка просто не дала второй доставке прийти),
-   [`outbox-recovery`](tests/resilience/outbox-recovery/) (тест сам
-   останавливает `billing-outbox` посреди сценария, создаёт Invoice,
-   пока он не работает, затем доказывает, что пропущенная строка
-   доходит до wire, как только он снова запущен),
-   [`rabbitmq-outage`](tests/resilience/rabbitmq-outage/) (тест сам
-   останавливает брокер; доказывает, что создание Subscription вообще
-   не затрагивается, затем доказывает, что и outbox relay, и консьюмер
-   сами восстанавливают свои соединения, как только RabbitMQ вернулся
-   — проверено вживую через настоящие ошибки `Connection refused` в
-   логах обоих worker-ов, пока он был недоступен) и
-   [`consumer-crash`](tests/resilience/consumer-crash/) (по-настоящему
-   убивает `billing-consumer`, точно по времени благодаря небольшому,
-   аддитивному, выключенному по умолчанию delay-хуку, чтобы попасть
-   точно между коммитом в БД и AMQP-ack, так что RabbitMQ реально
-   передоставляет сообщение — доказывает, что собственный guard Inbox у
-   перезапущенного консьюмера останавливает создание дублирующего
-   Invoice). Плюс producer-сторона уровня Contract, готова: каждый
-   класс `IntegrationEvent` во всех семи сервисах — все 17 событий из
-   [каталога событий](docs/architecture/event-catalog.ru.md) — имеет
-   собственный тест, доказывающий, что он переносится ровно в тот
-   wire-формат, что задокументирован в каталоге, с новым `event_id`
-   каждый раз. Плюс два среза Component — каждый один реальный сервис
-   как собственный живой процесс, настоящий HTTP-сервер, настоящий
-   Postgres, настоящий RabbitMQ, с WireMock-stub, заменяющим его
-   синхронные HTTP-зависимости вместо настоящих сервисов:
-   [`subscription-service`](tests/component/subscription-service/)
-   (стабит customer-service и catalog-service, весь сьют проходит
-   меньше чем за две секунды) и
-   [`notification-service`](tests/component/notification-service/)
-   (стабит только customer-service; ничего не публикует, так что этот
-   тест проверяет только consume-сторону RabbitMQ и его delivery
-   worker). Отдельный platform-smoke сьют
-   [`tests/kind/`](tests/kind/) тоже готов: все семь маршрутов Ingress,
-   живой rolling restart `billing-api` без простоя и один canary
-   successful-subscription через развёрнутый кластер. Его rollout-тест
-   нашёл настоящий баг и привёл к исправлению гонки SIGTERM/Service
-   endpoint: каждый API pod теперь получает пятисекундное окно
-   `preStop` для отвода трафика перед завершением.
-   Третий и последний запланированный E2E-сценарий,
-   [`overdue-subscription`](tests/e2e/overdue-subscription/), тоже
-   готов: recurring billing хранит границы циклов, запускается из
-   Kubernetes CronJob, создаёт следующий Invoice через
-   `subscription.renewal_due.v1`, а неудачный renewal переводит
-   изначально Active-подписку в PastDue.
-9. Security hardening.
-10. Load / failure тестирование.
+Сейчас используются тестовые адаптеры платежей и email. Приложения передают
+correlation ID, но пока не экспортируют телеметрию OpenTelemetry. Для рабочего
+окружения также нужны внешнее хранилище секретов, реальные адаптеры провайдеров
+и настройки ресурсов и SLO.

@@ -2,488 +2,114 @@
 
 *[Русская версия](README.ru.md)*
 
-A billing and subscription platform built as a set of independently
-deployable PHP/Laravel services.
+A billing and subscription platform implemented as seven PHP 8.3+/Laravel
+services. The repository includes a local Docker Compose stack, Kubernetes
+manifests, an OpenAPI contract, and cross-service test suites.
 
-This is a project for working through distributed billing systems in
-practice: Clean Architecture, Hexagonal Architecture, DDD, event-driven
-communication between services.
-
-> All seven services are built. Now turning them into a real
-> production-style platform: gateway, messaging topology, reliability,
-> observability, Docker, Kubernetes, CI/CD, then end-to-end/load
-> testing. See "Status" below.
-
-## Goals
-
-What the platform is meant to do:
-
-- customer management
-- product and price catalogs
-- subscriptions and recurring billing
-- invoice generation
-- payment processing and refunds
-- payment provider integrations
-- async notifications
-
-And the reliability side that comes with any distributed system:
-
-- each service owns its own data
-- eventual consistency
-- idempotency (keys, idempotent consumers/inbox)
-- transactional outbox
-- retries and dead-letter queues
-- distributed tracing and observability
-
-## Architecture
-
-Microservices, each one an independently executable Laravel app with its
-own database.
-
-Services:
+## Services
 
 | Service | Responsibility |
 | --- | --- |
-| Identity Service | Merchant authentication and authorization |
-| Customer Service | Customers and billing profiles |
-| Catalog Service | Products, prices and discounts |
-| Subscription Service | Subscription lifecycle |
-| Billing Service | Invoices and billing cycles |
-| Payment Service | Payments, refunds and payment providers |
-| Notification Service | Asynchronous customer notifications |
+| Identity | Accounts, merchants, memberships, API keys, and access tokens |
+| Customer | Customer records and billing contacts |
+| Catalog | Products and recurring prices |
+| Subscription | Subscription lifecycle and renewal scheduling |
+| Billing | Invoices and billing cycles |
+| Payment | Payment attempts and provider results |
+| Notification | Payment receipt notifications |
 
-Services talk to each other over HTTP when they need an answer right
-away, and through RabbitMQ events for everything else (most cross-service
-workflows).
-
-The main successful subscription flow shows where synchronous validation
-ends and the event-driven chain begins:
+Each service owns a logical PostgreSQL database. Synchronous lookups use HTTP;
+state changes propagate through RabbitMQ. Local database changes and outgoing
+events are committed together through a transactional outbox. Consumers use an
+inbox for event deduplication.
 
 ```mermaid
 flowchart LR
-    Client([Client]) -->|HTTP| Gateway[API Gateway]
-    Gateway --> Subscription[Subscription Service]
-    Subscription -->|validate customer| Customer[Customer Service]
-    Subscription -->|validate price| Catalog[Catalog Service]
-    Subscription -->|subscription.created.v1| MQ[(RabbitMQ)]
-    MQ --> Billing[Billing Service]
-    Billing -->|invoice.created.v1| MQ
-    MQ --> Payment[Payment Service]
-    Payment -->|payment.succeeded.v1| MQ
-    MQ --> Billing
-    MQ --> Notification[Notification Service]
-    Notification -->|email receipt| Provider[Email provider]
+    Client --> Gateway[API gateway]
+    Gateway --> Subscription
+    Subscription -->|customer lookup| Customer
+    Subscription -->|price lookup| Catalog
+    Subscription -->|subscription.created.v1| RabbitMQ
+    RabbitMQ --> Billing
+    Billing -->|invoice.created.v1| RabbitMQ
+    RabbitMQ --> Payment
+    Payment -->|payment result| RabbitMQ
+    RabbitMQ --> Billing
+    RabbitMQ --> Notification
+    Billing -->|invoice result| RabbitMQ
+    RabbitMQ --> Subscription
 ```
 
-## Repository structure
-
-```text
-pet-payment-billing-platform/
-├── services/
-├── packages/
-├── infrastructure/
-│   ├── nginx/
-│   ├── postgres/
-│   ├── rabbitmq/
-│   └── kubernetes/
-│       ├── base/
-│       └── platform/
-├── docs/
-│   ├── architecture/
-│   └── adr/
-├── scripts/
-├── tests/
-│   ├── component/
-│   ├── integration/
-│   ├── e2e/
-│   ├── resilience/
-│   └── kind/
-├── docker-compose.yaml
-└── Makefile
-```
-
-### services
-
-All seven Laravel services. Each is independently runnable with its own
-database. Each also has a Dockerfile now and runs in the `kind` cluster
-under `infrastructure/kubernetes/`; none are wired into the local
-`docker-compose.yaml` yet (see "Status").
-
-### packages
-
-Shared technical contracts only, things like protocol definitions or
-client SDKs. Domain models stay inside each service, never shared.
-
-### infrastructure
-
-Local and platform-level infra config.
-
-Local dev (docker-compose) runs Nginx, PostgreSQL and RabbitMQ.
-
-`infrastructure/kubernetes/` is a separate, cluster-facing layer:
-
-- `base/` sets up the namespace and other cluster-wide bits
-- `platform/` covers ingress, RabbitMQ, KEDA, External Secrets and the
-  observability stack (OpenTelemetry Collector, Prometheus, Grafana,
-  Tempo, Loki). Details in `infrastructure/kubernetes/platform/README.md`.
-
-None of this is wired into `make up` yet. It's a separate track from
-local dev.
-
-### docs
-
-Architecture notes and ADRs. English is canonical; every user-facing
-Markdown document has a Russian translation alongside it as `*.ru.md`,
-with a language switch at the top of both versions. The implemented
-public HTTP contract is available as an
-[OpenAPI 3.1 specification](docs/openapi/openapi.yaml).
-
-### tests
-
-Cross-service tests that don't belong to any single service — see
-[`docs/architecture/testing-strategy.md`](docs/architecture/testing-strategy.md)
-for the full pyramid (each service's own `tests/Unit`, `Integration`
-and `Feature` cover everything below this level):
-
-- `integration/` — 2-3 real services through a real RabbitMQ, each its
-  own Docker Compose stack + standalone Pest project.
-- `component/` — one real service with WireMock replacing its outbound
-  HTTP dependencies.
-- `e2e/` — full business flows across every service, fake
-  payment/email providers.
-- `resilience/` — failure-mode scenarios (duplicate delivery, consumer
-  crash, broker outage), not business scenarios.
-- `kind/` — platform smoke tests against the live Kubernetes deployment:
-  Ingress routing, zero-downtime rollout, and one business canary.
-
-## Principles
-
-### Service ownership
-
-Each service owns its logic and its data. No service reaches into
-another service's database directly.
-
-### Database per service
-
-Every service's data is logically isolated, even though locally they
-might all sit on the same PostgreSQL instance for convenience. Ownership
-stays separate no matter where the bytes physically live.
-
-### Clean Architecture
-
-Business rules don't know about Laravel, Eloquent, RabbitMQ, PostgreSQL
-or payment providers. Dependencies point inward, toward the domain.
-
-### Hexagonal Architecture
-
-Anything external (databases, payment providers, message brokers, other
-APIs) goes through ports and adapters, not called directly from business
-logic.
-
-### Domain-Driven Design
-
-Used where it actually pays off, not forced onto every corner of the
-system.
-
-### Event-driven communication
-
-Services announce state changes as events over RabbitMQ instead of
-calling each other directly.
+See [the architecture notes](docs/architecture/overview.md),
+[ADR index](docs/adr/README.md), and
+[event catalog](docs/architecture/event-catalog.md) for the detailed contracts.
+The implemented public HTTP API is defined in
+[OpenAPI 3.1](docs/openapi/openapi.yaml).
 
 ## Local development
 
-### Requirements
+Requirements: Docker, Docker Compose, GNU Make, PHP 8.3 or later, and Composer.
 
-- Docker
-- Docker Compose
-- GNU Make
-
-### Setup
-
-Copy the env file:
+Create `.env` with local application keys, signing keys, service credentials,
+and infrastructure passwords:
 
 ```bash
 make init
 ```
 
-Start everything:
+Start the platform and check the gateway:
 
 ```bash
 make up
-```
-
-See what's running:
-
-```bash
-make ps
-```
-
-Ping the gateway:
-
-```bash
 make health
 ```
 
-Stop everything:
+Useful commands:
 
-```bash
-make down
-```
-
-Remove containers and local volumes:
-
-```bash
-make clean
-```
-
-## Testing
-
-The commands mirror the test layers: start with fast service feedback,
-then validate real boundaries, complete workflows, failure recovery, and
-finally the deployed platform.
-
-```mermaid
-flowchart LR
-    A[make test<br/>7 service suites] --> B[make test-docs<br/>Markdown + OpenAPI]
-    B --> C[make test-compose<br/>Component + Integration]
-    C --> D[E2E + Resilience]
-    D --> E[make test-kind<br/>deployed platform]
-    All[make test-all] -. runs every stage .-> A
-```
-
-Run all seven service test suites (the fast default for local work):
-
-```bash
-make test
-```
-
-Validate every EN/RU Markdown pair, local documentation link, and the
-OpenAPI contract against the routes registered by all services:
-
-```bash
-make test-docs
-```
-
-Run all standalone Component, Service integration, E2E, and Resilience
-suites. Each temporary Docker Compose stack is removed, with its volumes,
-after the suite finishes or fails:
-
-```bash
-make test-compose
-```
-
-Run the three Kubernetes smoke tests against the existing
-`kind-pet-payment-billing-platform` cluster without changing the current
-`kubectl` context:
-
-```bash
-make test-kind
-```
-
-Override the context when necessary:
-
-```bash
-make test-kind KIND_CONTEXT=my-kind-context
-```
-
-Run the complete quality gate in that order:
-
-```bash
-make test-all
-```
-
-`make test` and `make test-docs` require PHP 8.5 and Composer with the
-service dependencies installed. The Compose and kind targets additionally
-require Docker and `kubectl`; `test-kind` expects an already deployed,
-ready cluster and performs the suite's intentional `billing-api` rolling
-restart.
-
-## Local endpoints
-
-| Component | Address |
+| Command | Purpose |
 | --- | --- |
-| API Gateway | `http://localhost:8080` |
-| Gateway Health | `http://localhost:8080/health` |
-| PostgreSQL | `localhost:5432` |
-| RabbitMQ | `localhost:5672` |
-| RabbitMQ Management | `http://localhost:15672` |
+| `make ps` | Show containers |
+| `make logs` | Follow container logs |
+| `make down` | Stop the stack |
+| `make clean` | Stop the stack and remove local volumes |
+| `make rotate-secrets` | Replace the local secret set |
+| `make kind-secrets` | Provision the ignored `.env` values as Kubernetes Secrets |
 
-Credentials live in `.env`.
+The gateway listens on `http://localhost:8080`. PostgreSQL uses port `5432`;
+RabbitMQ uses `5672`, with its management UI on `http://localhost:15672`.
+Credentials are stored in `.env`.
 
-The gateway's public routing table (`/v1/...` → each service, see
-[ADR 0001](docs/adr/0001-api-gateway-routing.md)) isn't reachable
-through `make up` yet — it routes correctly, but none of the seven
-services are containerized and added to `docker-compose.yaml` yet
-(step 5 of the roadmap above).
+Register with `POST /v1/auth/register`, then send the returned bearer token to
+tenant-scoped `/v1/merchants/{merchant}/...` routes.
 
-## Technology roadmap
+## Tests
 
-Initial infrastructure:
+| Command | Scope |
+| --- | --- |
+| `make test` | Unit, integration, and feature suites for all services |
+| `make test-docs` | Markdown links/translations and OpenAPI-to-route checks |
+| `make test-compose` | Component, service integration, E2E, and resilience suites |
+| `make test-kind` | Ingress, rollout, and business smoke tests against an existing kind cluster |
+| `make test-load` | Bounded k6 smoke test against a disposable Compose stack |
+| `make test-all` | All checks above |
 
-- Docker Compose
-- Nginx
-- PostgreSQL
-- RabbitMQ
+`make test-kind` defaults to the `kind-pet-payment-billing-platform` context and
+accepts `KIND_CONTEXT=<context>`. It performs an intentional rolling restart of
+`billing-api`. The Compose test targets create isolated stacks and remove their
+volumes after each suite.
 
-Application stack:
+The test layout and boundary rules are documented in
+[docs/architecture/testing-strategy.md](docs/architecture/testing-strategy.md).
 
-- PHP
-- Laravel
-- PostgreSQL
-- Redis
-- RabbitMQ
+## Deployment and operational limits
 
-Architecture:
+The root Compose file runs all APIs, workers, PostgreSQL, RabbitMQ, and the Nginx
+gateway. Kubernetes resources live under `infrastructure/kubernetes/`; the local
+overlay runs the same seven services with PostgreSQL and single-node RabbitMQ.
+Operator-backed RabbitMQ, KEDA, External Secrets, and observability resources are
+optional platform overlays.
 
-- Clean Architecture
-- Hexagonal Architecture
-- Domain-Driven Design
-- Event-Driven Architecture
-
-Reliability:
-
-- Transactional Outbox
-- Inbox / Idempotent Consumer
-- Idempotency Keys
-- Retry policies
-- Dead Letter Queues
-- Saga / Process Manager
-
-Observability:
-
-- OpenTelemetry
-- Prometheus
-- Grafana
-- Tempo
-- Loki
-
-Deployment:
-
-- Docker
-- CI/CD
-- Kubernetes
-
-## Status
-
-Actively in progress.
-
-All seven services exist (Identity, Customer, Catalog, Subscription,
-Billing, Payment, Notification), each a fully working Clean/Hexagonal
-Laravel app with its own tests. No new services are planned — the
-business decomposition is done. What's left is turning these seven
-Laravel apps into an actual production-style platform, roughly in this
-order:
-
-1. **API Gateway / Ingress** — done for the routing/auth-boundary design
-   (see [ADR 0001](docs/adr/0001-api-gateway-routing.md)) and reachable
-   end-to-end in the `kind` cluster (Ingress → gateway → each service);
-   still not reachable through local `docker-compose` (`make up`) since
-   no service is wired into that compose file yet (step 5).
-2. RabbitMQ topology — messaging contract, naming, envelope and queue
-   topology rules are written down
-   ([ADR 0002](docs/adr/0002-rabbitmq-messaging.md) +
-   [event catalog](docs/architecture/event-catalog.md)), formalizing
-   what five services had already been doing by imitation. The
-   platform's core event chain is now wired end to end (Subscription →
-   Billing → Payment → Billing/Subscription/Notification), including
-   Billing translating payment outcomes into `subscription_id`-bearing
-   events for Subscription to consume, and catalog-service's Outbox
-   actually reaching RabbitMQ (was stuck on a log-only publisher).
-   Retry/DLQ policy, publisher confirms and prefetch aren't built yet.
-3. Distributed reliability — collect the Outbox/Inbox/idempotency
-   patterns already used per-service into one set of platform rules, and
-   actually test the crash scenarios (crash before ack, crash before
-   outbox marked, duplicate delivery, broker/DB unavailable, provider
-   timeout).
-4. Observability — OpenTelemetry traces/metrics/logs, correlation IDs
-   propagated through RabbitMQ headers, Grafana/Tempo/Prometheus/Loki.
-5. Docker / local environment — Dockerfiles done for all seven
-   services; `docker-compose.yaml` entries (so `make up` actually has
-   something for the gateway to route to) aren't written yet. The two
-   test-only compose stacks under `tests/integration/*/docker-compose.yaml`
-   aren't a substitute — they exist to run one test suite, not for
-   day-to-day local dev.
-6. Kubernetes — done for the core RabbitMQ vertical slice: all seven
-   services run in a local `kind` cluster (`infrastructure/kubernetes/`),
-   each split into the right workloads (API Deployment, plus a Consumer
-   and/or Outbox Deployment for whichever have messaging roles — not
-   one Pod per service), with health probes, PodDisruptionBudgets and
-   topology spread. NetworkPolicy and HPA/KEDA manifests exist but
-   aren't applied locally (`kind`'s CNI doesn't enforce NetworkPolicy,
-   and there's no metrics-server) — see
-   `infrastructure/kubernetes/platform/README.md`.
-7. CI/CD — per-service pipelines in a monorepo-aware build (lint,
-   static analysis, test layers, build, scan, deploy, migrate, smoke
-   test), only running for services that actually changed.
-8. Contract + end-to-end testing — a full pyramid, not one big E2E
-   suite: Unit/Application/Integration per service (exists already),
-   plus new Component, Contract, Service integration, E2E and
-   Resilience layers built one vertical slice at a time, same as the
-   RabbitMQ chain itself was
-   ([ADR 0004](docs/adr/0004-testing-strategy.md) +
-   [testing strategy](docs/architecture/testing-strategy.md)). All five
-   service integration slices for the platform's core event chain done
-   (real Postgres, real RabbitMQ, no mocking): `subscription-to-billing`,
-   `billing-to-payment`, `payment-to-billing`, `billing-to-subscription`
-   and `payment-to-notification`, in
-   [`tests/integration/`](tests/integration/). Plus three full E2E
-   scenarios: [`successful-subscription`](tests/e2e/successful-subscription/)
-   (all seven services, real infra, no shortcuts — Merchant → Customer →
-   Product/Price → Subscription → Invoice → Payment → Subscription
-   Active → Notification, walked entirely through real HTTP) and
-   [`failed-payment`](tests/e2e/failed-payment/) (same chain, but the
-   Price's amount is `FakePaymentGateway`'s reserved decline-trigger
-   value, so the charge is guaranteed to decline — proves the Invoice
-   stays Open, the Payment ends up Failed with a real failure code, and
-   the Subscription stays Pending rather than PastDue). Plus all four
-   originally planned resilience tests, done:
-   [`duplicate-delivery`](tests/resilience/duplicate-delivery/) (the
-   same `event_id` published twice, proving Billing's Inbox actually
-   stops the second one from creating a duplicate Invoice — verified
-   live that the consumer genuinely processed both deliveries, not that
-   a race just meant the second one never arrived),
-   [`outbox-recovery`](tests/resilience/outbox-recovery/) (the test
-   stops `billing-outbox` itself mid-scenario, creates an Invoice while
-   it's down, then proves the missed row reaches the wire once it's
-   running again),
-   [`rabbitmq-outage`](tests/resilience/rabbitmq-outage/) (the test
-   stops the broker itself; proves creating a Subscription isn't
-   affected at all, then proves both the outbox relay and the consumer
-   recover their own connections once RabbitMQ is back — verified live
-   via genuine `Connection refused` errors in both workers' own logs
-   while it was down) and
-   [`consumer-crash`](tests/resilience/consumer-crash/) (kills
-   `billing-consumer` for real, timed via a small, additive,
-   off-by-default delay hook to land precisely between its DB commit
-   and its AMQP ack, so RabbitMQ genuinely redelivers the message —
-   proves the restarted consumer's own Inbox guard stops it from
-   creating a duplicate Invoice). Plus the Contract layer's producer
-   side, done: every `IntegrationEvent` class across all seven
-   services — all 17 events in the
-   [event catalog](docs/architecture/event-catalog.md) — has its own
-   test proving it maps onto exactly the wire shape the catalog
-   documents, with a fresh `event_id` every time. Plus two Component
-   slices — each one real service as its own live process, real HTTP
-   server, real Postgres, real RabbitMQ, with a WireMock stub standing
-   in for its synchronous HTTP dependencies instead of the real
-   services:
-   [`subscription-service`](tests/component/subscription-service/)
-   (stubs customer-service and catalog-service, its whole suite running
-   in under two seconds) and
-   [`notification-service`](tests/component/notification-service/)
-   (stubs customer-service alone; publishes nothing, so this one
-   exercises only the RabbitMQ consume side and its delivery worker).
-   The separate [`tests/kind/`](tests/kind/) platform-smoke suite is
-   also done: all seven Ingress routes, a live zero-downtime rolling
-   restart of `billing-api`, and one successful-subscription canary
-   through the deployed cluster. Its rollout test found and drove the
-   fix for a real SIGTERM/Service-endpoint race: every API pod now gets
-   a five-second `preStop` drain window before termination.
-   The third and final planned E2E scenario,
-   [`overdue-subscription`](tests/e2e/overdue-subscription/), is now
-   complete too: recurring billing stores cycle boundaries, runs from
-   a Kubernetes CronJob, creates the next Invoice through
-   `subscription.renewal_due.v1`, and a failed renewal moves an
-   initially Active subscription to PastDue.
-9. Security hardening.
-10. Load / failure testing.
+The repository currently uses fake payment and email adapters. Application code
+propagates correlation IDs, but does not yet export OpenTelemetry telemetry.
+Production deployment also requires an external secret store, real provider
+adapters, and environment-specific capacity and SLO configuration.

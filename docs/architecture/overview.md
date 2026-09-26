@@ -1,98 +1,48 @@
-# Architecture overview
+# Architecture
 
 *[Русская версия](overview.ru.md)*
 
-How the billing platform is meant to fit together.
-
-## System context
-
-The platform is a set of independently deployable Laravel services that
-together handle billing, subscriptions and payments for merchants. No
-monolith: each business capability owns its data and sits behind its own
-service boundary.
-
-Traffic comes in through a single API gateway (Nginx locally, an
-ingress-nginx `Ingress` on Kubernetes, see [`kubernetes.md`](kubernetes.md))
-and gets routed to the owning service. See
-[ADR 0001](../adr/0001-api-gateway-routing.md) for the routing table,
-the public `/v1/...` vs. internal `/api/v1/...` split, and why the
-gateway itself never authenticates a request.
-
-## Service boundaries
+The platform contains seven independently deployable Laravel services. Nginx
+routes the local public API; Kubernetes uses ingress-nginx. Each service owns a
+logical PostgreSQL database and is the only writer to that data.
 
 | Service | Responsibility |
 | --- | --- |
-| Identity Service | Merchant authentication and authorization |
-| Customer Service | Customers and billing profiles |
-| Catalog Service | Products, prices and discounts |
-| Subscription Service | Subscription lifecycle |
-| Billing Service | Invoices and billing cycles |
-| Payment Service | Payments, refunds and payment providers |
-| Notification Service | Asynchronous customer notifications |
+| identity-service | Accounts, merchants, memberships, API keys, and tokens |
+| customer-service | Customers and billing contacts |
+| catalog-service | Products and recurring prices |
+| subscription-service | Subscription state and renewal scheduling |
+| billing-service | Invoices and billing cycles |
+| payment-service | Payment attempts and provider results |
+| notification-service | Payment receipt notifications |
 
-All seven exist under `services/`, each an independently runnable
-Laravel app with its own database, not yet containerized (see
-[`kubernetes.md`](kubernetes.md) and the root README's roadmap for
-where Docker/Kubernetes land relative to everything else).
+## Communication and consistency
 
-## Data ownership
+Subscription and Notification perform synchronous HTTP lookups when they need
+customer or price data. Cross-service state changes use RabbitMQ integration
+events. [ADR 0002](../adr/0002-rabbitmq-messaging.md) defines the message
+contract; [the event catalog](event-catalog.md) lists current producers and
+consumers.
 
-Each service owns its persistence model and is the only thing that
-writes to it. No service reads another service's database directly.
-Locally everything might share one PostgreSQL instance for convenience,
-but the ownership boundary is logical, not physical, and it has to hold
-regardless of how things are actually deployed.
+A command that changes service data and emits an event stores both changes in a
+local transaction. Outbox workers publish committed events. Consumer handlers
+record inbox entries in the same transaction as their local effects. RabbitMQ
+delivery is at least once, so business uniqueness constraints remain necessary
+where different events could produce the same result.
 
-## Communication
+Application and domain code depend on ports. Eloquent, RabbitMQ, HTTP clients,
+and provider adapters are implemented under Infrastructure. This boundary is
+checked by the service architecture tests.
 
-- **Synchronous**: direct HTTP calls, used when the caller needs an
-  answer right away.
-- **Asynchronous**: integration events over RabbitMQ, used for
-  cross-service workflows and propagating state changes (a subscription
-  change triggering invoice generation, for example). See
-  [ADR 0002](../adr/0002-rabbitmq-messaging.md) for the messaging
-  contract (delivery semantics, envelope, naming, queue topology) and
-  [`event-catalog.md`](event-catalog.md) for every event that exists
-  today, who publishes it, and who actually consumes it.
+## Platform
 
-## Reliability patterns
+The root Compose stack runs Nginx, PostgreSQL, RabbitMQ, all APIs, and their
+workers. Kubernetes resources are split between application resources under
+`infrastructure/kubernetes/base` and optional shared components under
+`infrastructure/kubernetes/platform`. See [Kubernetes](kubernetes.md) for the
+current deployment layout.
 
-These aren't an afterthought:
-
-- transactional outbox, so events get published reliably alongside local
-  writes
-- inbox / idempotent consumers, so a redelivered event doesn't cause
-  duplicate side effects
-- idempotency keys on mutating client-facing endpoints
-- retries with dead-letter queues for messages that just won't process
-- a saga / process manager for workflows that span more than one service
-  and can't be a single local transaction
-
-## Layered architecture (per service)
-
-Each service follows Clean Architecture / Hexagonal Architecture:
-
-- business rules don't depend on Laravel, Eloquent, RabbitMQ, PostgreSQL
-  or payment provider SDKs
-- dependencies point inward, toward the domain and application layers
-- external systems (persistence, message broker, payment providers,
-  other APIs) are wired in through explicit ports and adapters
-
-DDD gets applied where the business model actually justifies it, not as
-a mandatory structure everywhere.
-
-## Observability
-
-Every service is expected to emit traces, metrics and logs through
-OpenTelemetry. The collection/storage side (OpenTelemetry Collector,
-Prometheus, Tempo, Loki, Grafana) is scaffolded under
-`infrastructure/kubernetes/platform/observability/`, see
-[`kubernetes.md`](kubernetes.md).
-
-## Related docs
-
-- [`kubernetes.md`](kubernetes.md) for the Kubernetes infra layer and how
-  it maps to this architecture.
-- [`event-catalog.md`](event-catalog.md) for every integration event,
-  its producer, and its actual consumers.
-- [`../adr/README.md`](../adr/README.md) for decisions not captured here.
+HTTP correlation IDs are generated or preserved by shared middleware and passed
+to synchronous downstream calls. Event publishers include a correlation ID in
+AMQP headers. The repository contains observability backend manifests, but the
+applications do not yet export OpenTelemetry telemetry.

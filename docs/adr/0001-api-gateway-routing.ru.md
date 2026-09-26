@@ -4,128 +4,43 @@
 
 ## Статус
 
-Принято
+Accepted
 
 ## Контекст
 
-Все семь сервисов уже существуют. При локальной разработке каждый
-независимо слушает свой порт и обслуживает собственные маршруты
-`/api/v1/...`. Перед ними ничего нет: клиент должен знать адреса
-`identity-service:8000`, `customer-service:8001` и остальных сервисов и
-сам выбирать нужный. Такой контракт нельзя выставлять наружу: он
-раскрывает клиентам топологию развёртывания — какие сервисы существуют,
-сколько их и какие порты они используют. В результате добавление
-сервиса или разделение одного сервиса на два становится breaking change
-для всех клиентов платформы.
-
-Ещё два обстоятельства определили решение:
-
-- **Identity намеренно не является синхронной зависимостью каждого
-  запроса.** Access tokens должны быть самодостаточными и проверяться
-  локально тем сервисом, который получил запрос (см. design notes
-  identity-service, пункты 13–14/62: «Identity не должен стать SPOF»).
-  Если каждый запрос синхронно зависит от Identity, single point of
-  failure просто появляется уровнем выше, даже если после login сам
-  Identity больше не вызывается.
-- **Ни в одном сервисе пока нет по-настоящему внутренних endpoints.**
-  Существующие межсервисные HTTP-вызовы (`HttpCustomerGateway`,
-  `HttpCustomerContactGateway`, `HttpCatalogGateway`) обращаются к тем
-  же маршрутам, что и клиент мерчанта. Соглашения `/internal/...` в
-  кодовой базе сейчас нет.
+Клиентам нужен стабильный endpoint, не раскрывающий имена и порты сервисов.
+Access tokens самодостаточны и проверяются каждым сервисом, поэтому routing не
+должен добавлять синхронную зависимость от identity-service. Внутренние маршруты
+сервисов используют префикс `/api/v1`.
 
 ## Решение
 
-**Единый Nginx gateway — единственная точка входа извне платформы.**
-Локально это сервис `gateway` в `docker-compose.yaml`; в Kubernetes —
-тот же образ за `ingress-nginx`. Существующий
-`infrastructure/kubernetes/platform/ingress/ingress.yaml` уже направляет
-все пути в Service `gateway`; этот ADR определяет поведение gateway, не
-требуя изменений на стороне Kubernetes.
+Nginx является единственной внешней точкой входа. Он публикует `/v1`,
+переписывает запросы на `/api/v1` и маршрутизирует их по ресурсу:
 
-**Публичный контракт — `/v1/...`, а не `/api/v1/...`.** Gateway
-переписывает `/v1/X` в `/api/v1/X` перед проксированием
-(`infrastructure/nginx/nginx.conf`). `/api` — внутренняя деталь
-реализации. Если убрать её из публичного контракта, префикс маршрутов
-сервиса можно менять без breaking change для клиентов, а внешняя
-поверхность не создаёт впечатление единого монолитного API.
+| Публичный путь | Сервис |
+| --- | --- |
+| `/v1/merchants`, `/v1/users`, `/v1/auth/*` | identity-service |
+| `/v1/merchants/{merchant}/memberships*` | identity-service |
+| `/v1/merchants/{merchant}/api-keys*` | identity-service |
+| `/v1/merchants/{merchant}/customers*` | customer-service |
+| `/v1/merchants/{merchant}/products*`, `prices*` | catalog-service |
+| `/v1/merchants/{merchant}/subscriptions*` | subscription-service |
+| `/v1/merchants/{merchant}/invoices*` | billing-service |
+| `/v1/merchants/{merchant}/payments*` | payment-service |
+| `/v1/merchants/{merchant}/notifications*` | notification-service |
 
-**Маршрутизация по префиксу ресурса определяется фактически
-реализованными маршрутами каждого сервиса.** Они собраны из
-`app/Presentation/Http/V1/Routes/*.php` всех сервисов, а не восстановлены
-по целевому дизайну. На каждый ресурс приходится один блок Nginx
-`location`:
+Для неизвестных путей возвращается `503 {"error":"no_services_available"}`.
+Gateway передаёт authorization и correlation headers, но не аутентифицирует
+запрос. Access token, tenant membership и roles проверяет целевой сервис.
 
-| Публичный путь | Сервис | Примечания |
-| --- | --- | --- |
-| `POST /v1/merchants` | identity-service | Точное совпадение: у создания Merchant ещё нет tenant context для вложенного пути |
-| `POST /v1/users` | identity-service | Та же причина |
-| `/v1/auth/*` | identity-service | Пока не реализовано (Login/Refresh/Logout появятся со срезом TokenIssuer), но маршрут задан заранее, чтобы контракт потом не менялся |
-| `/v1/merchants/{merchant}/members*` | identity-service | Пока не реализовано, ожидает Authorization |
-| `/v1/merchants/{merchant}/api-keys*` | identity-service | Пока не реализовано, aggregate ApiKey ещё не существует |
-| `/v1/customers*` | customer-service | **Не** вложено в `/merchants/{merchant}/...`: customer-service появился раньше tenant-context соглашения и принимает `merchant_id` в теле запроса. Исправление относится к customer-service, а не к gateway |
-| `/v1/merchants/{merchant}/products*` | catalog-service | |
-| `/v1/merchants/{merchant}/prices*` | catalog-service | |
-| `/v1/merchants/{merchant}/subscriptions*` | subscription-service | |
-| `/v1/merchants/{merchant}/invoices*` | billing-service | |
-| `/v1/merchants/{merchant}/payments*` | payment-service | |
-| `/v1/merchants/{merchant}/notifications*` | notification-service | |
-
-На любой другой путь возвращается
-`503 {"error":"no_services_available"}`. Ответ намеренно общий, чтобы
-gateway не подтверждал и не опровергал существование другого возможного
-маршрута.
-
-**Gateway не выполняет аутентификацию.** Он передаёт заголовок
-`Authorization` без изменений и никогда не проверяет и не удаляет его.
-Каждый сервис отвечает за локальную проверку собственных запросов —
-после появления TokenIssuer в identity-service и middleware проверки в
-каждом сервисе; пока нет ни того, ни другого. Это прямое следствие
-решения «Identity не является SPOF»: аутентифицирующий gateway оказался
-бы тем же Identity в critical path под другим именем.
-
-**Имена upstream разрешаются во время запроса, а не при запуске
-Nginx**, через `resolver 127.0.0.11` (встроенный DNS Docker Compose) и
-`set $upstream ...; proxy_pass http://$upstream;`, а не прямой
-`proxy_pass http://identity-service:8000;`. Ни один из семи сервисов
-пока не добавлен в `docker-compose.yaml`: это следующая фаза roadmap.
-Разрешение при старте не позволило бы запустить сам gateway. При
-разрешении во время запроса gateway запускается уже сейчас, а обращение
-к ещё не развёрнутому сервису корректно завершается `502`. То же
-поведение нужно при появлении и исчезновении сервисов во время rolling
-deploy или autoscaling to zero.
+Upstream names разрешаются во время запроса. Отдельные resolver и DNS suffix
+files позволяют использовать одну конфигурацию routing в Compose и Kubernetes.
 
 ## Последствия
 
-**Проще:**
-
-- Клиентам достаточно знать один host и одну стабильную форму путей,
-  независимо от числа и внутреннего разбиения сервисов.
-- Разделение или объединение сервисов не ломает публичный контракт —
-  меняется только таблица маршрутов gateway.
-- Одинаковая конфигурация маршрутизации работает локально через Docker
-  Compose и в кластере за ingress-nginx. Источник истины о публичных
-  путях один, а не два.
-- Маршруты для ещё не реализованных endpoints (`/v1/auth/*`, members,
-  api-keys) ничего не стоят: нужный сервис возвращает 404, а в день
-  выпуска endpoint менять gateway не потребуется.
-
-**Сложнее / дальнейшая работа:**
-
-- Конфигурацию gateway нужно вручную синхронизировать с маршрутами
-  сервисов; генератора нет. Endpoint без соответствующего блока
-  `location` будет недоступен извне, причём незаметно: catch-all вернёт
-  общий 503.
-- Исключение customer-service (`/v1/customers` без вложенности) теперь
-  закреплено и в gateway. При переходе сервиса на
-  `/merchants/{merchant}/customers` сервис и этот файл нужно менять
-  одновременно.
-- Gateway намеренно не аутентифицирует, поэтому сейчас у семи сервисов
-  **вообще нет request-level authentication**. Этот пробел закроют
-  будущие TokenIssuer identity-service и middleware каждого сервиса, а
-  не gateway.
-- End-to-end проверка пока невозможна: сервисы ещё не
-  контейнеризованы. Gateway уже запускается и правильно маршрутизирует
-  запросы — совпавшие пути дают 502, неизвестные 503, что вручную
-  проверено с временными контейнерами в compose-сети, — но сможет
-  достичь настоящих сервисов только после фазы «Docker / local
-  environment».
+Клиенты используют один host и стабильную схему путей. Разделение или слияние
+сервисов меняет routing table, но не public paths. Новый маршрут требует
+согласованных изменений Nginx и OpenAPI; `make test-docs` сверяет OpenAPI с
+зарегистрированными маршрутами. На каждом защищённом маршруте сервиса обязателен
+authentication middleware.

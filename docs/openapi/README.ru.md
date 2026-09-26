@@ -2,22 +2,10 @@
 
 *[English version](README.md)*
 
-[`openapi.yaml`](openapi.yaml) — канонический контракт OpenAPI 3.1 для
-реализованного публичного HTTP API платформы через gateway. В paths
-используется публичная форма `/v1/...`; gateway преобразует эти пути во
-внутренние маршруты сервисов `/api/v1/...`.
+`openapi.yaml` является каноническим контрактом OpenAPI 3.1 для публичного API
+gateway. Публичные пути `/v1` соответствуют внутренним маршрутам сервисов
+`/api/v1`. Схемы составлены по реализованным requests, resources и exception
+responses.
 
-Контракт составлен по Laravel-маршрутам, правилам валидации Form Request,
-JSON Resources, exception renderers и таблице маршрутизации Nginx. Пока не
-реализованные, но зарезервированные маршруты `/v1/auth/*`, membership и
-API keys намеренно не включены.
-
-Security scheme не объявлена, потому что authentication и authorization
-ещё не подключены к текущим HTTP-маршрутам. Если добавить схему раньше
-middleware, контракт будет обещать больше, чем реализовано.
-
-## Проверка
-
-Файл является корректным YAML и содержит уникальные `operationId` для всех
-операций. Для полной проверки схемы и визуализации можно использовать любой
-валидатор OpenAPI 3.1, например Redocly CLI или Swagger Editor.
+Команда `make test-docs` проверяет YAML references, operation IDs и двустороннее
+соответствие операций OpenAPI зарегистрированным Laravel routes.

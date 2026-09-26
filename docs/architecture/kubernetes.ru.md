@@ -1,60 +1,28 @@
-# Инфраструктура Kubernetes
+# Kubernetes
 
 *[English version](kubernetes.md)*
 
-Что находится в `infrastructure/kubernetes/` и как это связано с
-архитектурой из [`overview.ru.md`](overview.ru.md). Команды для рендера
-и применения конфигурации приведены в
-[`infrastructure/kubernetes/platform/README.ru.md`](../../infrastructure/kubernetes/platform/README.ru.md).
+Ресурсы приложений находятся в `infrastructure/kubernetes/base`. Локальный
+overlay запускает семь сервисов, PostgreSQL, один узел RabbitMQ и Nginx в
+namespace `pet-payment-billing-platform`. API и фоновые процессы вынесены в
+отдельные workload-ресурсы там, где это требуется.
 
-## Почему это отделено от Docker Compose
+Общие компоненты находятся в `infrastructure/kubernetes/platform`:
 
-`docker-compose.yaml` в корне репозитория — локальное окружение
-разработки: gateway, PostgreSQL и RabbitMQ. Каталог
-`infrastructure/kubernetes/` предназначен для настоящего кластера и
-вообще не участвует в локальной разработке. Благодаря разделению
-локальная среда остаётся быстрой и не требует лишних зависимостей, а
-кластерные манифесты могут независимо развиваться в сторону реального
-развёртывания.
+| Каталог | Компонент | Локальный overlay |
+| --- | --- | --- |
+| `ingress` | маршрут ingress-nginx | включён |
+| `observability` | OpenTelemetry Collector, Prometheus, Grafana, Tempo, Loki | рендерится, по умолчанию не включён |
+| `rabbitmq` | RabbitMQ Cluster и Topology Operators | опционально |
+| `keda` | масштабирование по глубине очереди RabbitMQ | опционально |
+| `external-secrets` | ресурсы External Secrets Operator | опционально |
+| `autoscaling` | ресурсы HPA | опционально |
 
-## Слои: base и platform
+Опциональные overlays требуют установленных контроллеров или Metrics API.
+Локальный kind использует базовый RabbitMQ Deployment и не применяет NetworkPolicy, KEDA,
+HPA или External Secrets.
 
-- **`base/`**: namespace `pet-payment-billing-platform` и другие
-  общекластерные примитивы, от которых зависит всё остальное.
-- **`platform/`**: платформенные workloads внутри этого namespace, по
-  одному каталогу на каждую задачу:
-
-  | Компонент | Роль | Зачем |
-  | --- | --- | --- |
-  | `ingress/` | Направляет внешний трафик в API gateway | Выполняет ту же работу, что локальный Nginx gateway; ingress-nginx сохраняет единое семейство контроллеров |
-  | `rabbitmq/` | Запускает RabbitMQ как управляемый кластер (Cluster Operator), а топологию хранит как код (Topology Operator) | Делает очереди, exchanges и bindings декларативными и принадлежащими сервисам, которым они нужны |
-  | `keda/` | Event-driven autoscaling консьюмеров очередей | Масштабирует консьюмеры по глубине очереди RabbitMQ, а не только по CPU/памяти |
-  | `external-secrets/` | Синхронизирует секреты из внешнего хранилища в нативные объекты `Secret` | Не допускает попадания учётных данных в манифесты |
-  | `observability/` | OpenTelemetry Collector, Prometheus, Grafana, Tempo, Loki | Место назначения traces, metrics и logs всех сервисов; см. раздел Observability в `overview.ru.md` |
-
-Сервисы приложений пока не входят в Kubernetes-манифесты, хотя все
-семь уже находятся в `services/`: они будут контейнеризованы и
-развёрнуты, когда roadmap действительно дойдёт до этой фазы (см.
-раздел «Статус» в корневом README). Тогда каждый сервис получит свои
-deployment-манифесты; `platform/` содержит только общие компоненты,
-которыми владеет платформа.
-
-## Текущее состояние
-
-- Для `ingress/` и `observability/` уже есть манифесты, которые можно
-  отрендерить и применить.
-- `rabbitmq/`, `keda/` и `external-secrets/` пока являются заготовками.
-  Нужные им операторы/контроллеры не установлены, downstream-компонентов
-  ещё нет: нет сервисов, очередей и секретов для синхронизации. План для
-  каждого компонента описан в его собственном README.
-
-Слой Kubernetes пока подготовлен раньше сервисов, которые со временем
-будут в нём работать: платформенные манифесты существуют, но ещё нигде
-не развёрнуты.
-
-## Связанные документы
-
-- [`overview.ru.md`](overview.ru.md) — общая архитектура системы.
-- [`../adr/README.ru.md`](../adr/README.ru.md) — решения, не описанные
-  здесь (например, почему выбран ingress-nginx, а не Traefik, и почему
-  на данном этапе используется один namespace для платформенного слоя).
+Команды рендера и применения приведены в
+[README платформенного слоя](../../infrastructure/kubernetes/platform/README.ru.md).
+Решения по среде выполнения, проверкам состояния, Kustomize и namespace зафиксированы в
+[ADR 0003](../adr/0003-kubernetes-foundation.ru.md).
