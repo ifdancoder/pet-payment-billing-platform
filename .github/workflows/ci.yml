@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: mbstring, pdo_sqlite, sodium
           coverage: none
       - uses: ramsey/composer-install@v3
@@ -44,8 +44,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          working-directory: services/billing-service
       - run: make test-docs
       - name: Validate every Compose stack
         run: |
@@ -65,7 +68,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: sockets
           coverage: none
       - name: Install test harness dependencies
@@ -84,7 +87,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: sodium
           coverage: none
       - run: make test-load

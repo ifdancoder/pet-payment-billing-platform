@@ -3,7 +3,7 @@
     "description": "Shared polling and AMQP helpers for integration and end-to-end tests.",
     "type": "library",
     "require": {
-        "php": "^8.3",
+        "php": "^8.4.1",
         "php-amqplib/php-amqplib": "^3.7",
         "ramsey/uuid": "^4.7"
     },

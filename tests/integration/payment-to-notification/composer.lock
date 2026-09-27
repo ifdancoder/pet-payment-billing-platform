@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f4dddafd32df938c3080a3cc7dbe22d6",
+    "content-hash": "0ee39ca6b3e7521a06c1ffd38e30a1a2",
     "packages": [
         {
             "name": "billing-platform/test-support",
@@ -12,10 +12,10 @@
             "dist": {
                 "type": "path",
                 "url": "../../support",
-                "reference": "4d95806776feb95b51c975a999ff845dae090e46"
+                "reference": "59b4985a01c70da164b503e63ef550dc434c16ef"
             },
             "require": {
-                "php": "^8.3",
+                "php": "^8.4.1",
                 "php-amqplib/php-amqplib": "^3.7",
                 "ramsey/uuid": "^4.7"
             },
@@ -28,7 +28,7 @@
                     "src/eventually.php"
                 ]
             },
-            "description": "Shared helpers for tests/integration/* and tests/e2e/* Pest projects: eventually() polling and a generic AMQP test client. Not a Laravel package, not shared with any service's own vendor — see docs/architecture/testing-strategy.md.",
+            "description": "Shared polling and AMQP helpers for integration and end-to-end tests.",
             "transport-options": {
                 "relative": true
             }
@@ -5421,7 +5421,7 @@
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
-        "php": "^8.3"
+        "php": "^8.4.1"
     },
     "platform-dev": {},
     "plugin-api-version": "2.6.0"
